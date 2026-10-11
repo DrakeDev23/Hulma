@@ -3,6 +3,7 @@ const footerLinks = {
   resources: [
     { label: 'About', href: '#about' },
     { label: 'Help', href: '#help' },
+    { label: 'FAQ', href: '#faq' },
   ],
 }
 

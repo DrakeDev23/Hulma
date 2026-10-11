@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom'
 import logoImg from '../assets/logo.png'
 
 const navItems = [
-  { label: 'Templates', href: '#templates' },
-  { label: 'AI Review', href: '#ai-review' },
+  { label: 'Templates', href: '#' },
+  { label: 'AI Review', href: '#' },
   { label: 'About', href: '#about' },
   { label: 'Help', href: '#help' },
+  { label: 'FAQ', href: '#faq' },
 ]
 
 export default function Navbar() {

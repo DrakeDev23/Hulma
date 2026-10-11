@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import About from './components/About'
+import FAQ from './components/FAQ'
 import Help from './components/Help'
 import Footer from './components/Footer'
 import LoginPage from './pages/LoginPage'
@@ -39,6 +40,7 @@ function HomePage() {
       <Navbar />
       <Hero />
       <About />
+      <FAQ />
       <Help />
       <Footer />
     </div>

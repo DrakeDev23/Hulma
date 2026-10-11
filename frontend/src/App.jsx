@@ -1,7 +1,11 @@
+import Navbar from './components/Navbar'
+import Hero from './components/Hero'
+
 export default function App() {
   return (
-    <h1 className="text-3xl font-bold text-blue-600 p-6">
-      Hello React + Tailwind!
-    </h1>
+    <div className="min-h-screen bg-white text-slate-900">
+      <Navbar />
+      <Hero />
+    </div>
   )
 }

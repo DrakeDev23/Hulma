@@ -85,7 +85,6 @@ export default function Hero() {
           ))}
         </div>
 
-        {/* Wrapper handles the reveal animation + delay, so the button's hover stays instant */}
         <div data-delay="520" className="stagger-reveal mt-8">
           <Link
             to="/register"

@@ -59,11 +59,10 @@ export default function Hero() {
         </button>
       </section>
 
-      <div className="flex justify-center lg:justify-end">
+      <div className="hidden lg:flex justify-center lg:justify-end">
         <div className="relative">
           <div className="absolute inset-0 -z-10 rounded-full bg-blue-100/60 blur-3xl scale-110" />
 
-          {/* Wave wrapper: pivots from the bottom so it sways like a wave */}
           <div className="origin-bottom motion-safe:animate-wave">
             <img
               src={puppetImg}

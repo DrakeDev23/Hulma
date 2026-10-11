@@ -2,6 +2,7 @@ import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import AboutWorkflow from './components/AboutWorkflow'
 import ProcessTimeline from './components/ProcessTimeline'
+import Footer from './components/Footer'
 
 export default function App() {
   return (
@@ -10,6 +11,7 @@ export default function App() {
       <Hero />
       <AboutWorkflow />
       <ProcessTimeline />
+      <Footer />
     </div>
   )
 }

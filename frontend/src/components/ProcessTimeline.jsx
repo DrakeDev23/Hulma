@@ -27,7 +27,7 @@ const steps = [
 
 export default function ProcessTimeline() {
   return (
-    <section id="help" className="bg-[#f0f7ff] scroll-mt-24">
+    <section id="processtimeline" className="bg-[#edf6ff] scroll-mt-24">
       <div className="max-w-6xl mx-auto px-6 py-16 md:py-20">
         <div className="mb-10 md:mb-16">
           <p className="text-blue-600 font-bold text-xs sm:text-sm tracking-wider uppercase mb-3">

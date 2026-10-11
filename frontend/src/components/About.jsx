@@ -100,7 +100,6 @@ export default function About() {
           <div className="lg:col-span-5">
             <div className="flex flex-col gap-5">
               {workflowSteps.map((step, index) => (
-                // Wrapper handles the reveal animation + delay, so the card's hover stays instant
                 <div
                   key={step.id}
                   data-delay={150 + index * 120}

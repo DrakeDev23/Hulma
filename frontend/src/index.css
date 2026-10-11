@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html {
+  scroll-behavior: smooth;
+}
+
 @keyframes mascotFloat {
   0%,
   100% {
@@ -10,8 +14,119 @@
   }
 }
 
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pageLoadReveal {
+  0% {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(18px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes authPageSlideLeft {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: perspective(1400px) rotateY(-30deg) translateX(-24px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: perspective(1400px) rotateY(0deg) translateX(0) scale(1);
+  }
+}
+
+@keyframes authPageSlideRight {
+  0% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: perspective(1400px) rotateY(30deg) translateX(24px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: perspective(1400px) rotateY(0deg) translateX(0) scale(1);
+  }
+}
+
+.page-load-animate {
+  animation: pageLoadReveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.auth-page {
+  animation: authPageSlideLeft 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-origin: center center;
+}
+
+.auth-page[data-mode='register'] {
+  animation-name: authPageSlideRight;
+}
+
 .mascot-float {
   animation: mascotFloat 4s ease-in-out infinite;
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.8s ease-out both;
+}
+
+.scroll-reveal,
+.reveal-on-scroll {
+  opacity: 0;
+  filter: blur(8px);
+  transform: translateY(36px) scale(0.985);
+  transition:
+    opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform, filter;
+}
+
+.scroll-reveal.is-visible,
+.reveal-on-scroll.is-visible {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0) scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-load-animate,
+  .scroll-reveal,
+  .reveal-on-scroll,
+  .mascot-float,
+  .animate-fade-up {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+  }
 }
 
 @theme {

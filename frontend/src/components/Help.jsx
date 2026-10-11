@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 const steps = [
   {
     number: '01',
@@ -25,20 +27,50 @@ const steps = [
   },
 ]
 
-export default function ProcessTimeline() {
+export default function Help() {
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible')
+          }
+        })
+      },
+      { threshold: 0.15 }
+    )
+
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
   return (
-    <section id="processtimeline" className="bg-[#edf6ff] scroll-mt-24">
-      <div className="max-w-6xl mx-auto px-6 py-16 md:py-20">
+    <section id="help" className="bg-[#edf6ff] scroll-mt-24">
+      <div ref={ref} className="reveal-on-scroll max-w-6xl mx-auto px-6 py-16 md:py-20">
         <div className="mb-10 md:mb-16">
-          <p className="text-blue-600 font-bold text-xs sm:text-sm tracking-wider uppercase mb-3">
+          <p
+            data-delay="80"
+            className="stagger-reveal text-blue-600 font-bold text-xs sm:text-sm tracking-wider uppercase mb-3"
+          >
             HOW IT WORKS
           </p>
 
-          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight mb-4">
+          <h2
+            data-delay="150"
+            className="stagger-reveal text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight mb-4"
+          >
             How to create your portfolio with Hulma
           </h2>
 
-          <p className="text-slate-600 text-base sm:text-lg leading-relaxed max-w-4xl">
+          <p
+            data-delay="220"
+            className="stagger-reveal text-slate-600 text-base sm:text-lg leading-relaxed max-w-4xl"
+          >
             Create a professional portfolio without starting from scratch. Add your
             information, projects, skills, and experience, then let Hulma’s AI help
             turn your content into a polished portfolio. Choose a template that fits
@@ -48,13 +80,13 @@ export default function ProcessTimeline() {
         </div>
 
         <div className="relative">
-          <div className="hidden md:block absolute left-0 right-0 top-[1.45rem] h-[2px] bg-blue-300/90" />
-
+            <div className="hidden md:block absolute left-0 right-0 top-[1.45rem] h-0.5 bg-blue-300/90" />
           <div className="grid gap-8 md:grid-cols-6 md:gap-4">
-            {steps.map((step) => (
+            {steps.map((step, index) => (
               <div
                 key={step.number}
-                className="group relative md:flex md:flex-col md:items-center transition-transform duration-300 ease-out hover:-translate-y-1"
+                data-delay={200 + index * 110}
+                className="stagger-reveal group relative md:flex md:flex-col md:items-center transition-transform duration-300 ease-out hover:-translate-y-1"
               >
                 <div className="hidden md:flex items-center justify-center absolute left-1/2 top-0 h-11 w-11 -translate-x-1/2 rounded-full border-4 border-blue-600 bg-white shadow-sm z-10 text-sm font-bold text-blue-600 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:bg-blue-50">
                   {step.number}
@@ -65,7 +97,7 @@ export default function ProcessTimeline() {
                     {step.number}
                   </div>
 
-                  <p className="text-xs sm:text-sm text-slate-700 leading-snug md:mt-14 md:max-w-[150px] transition-colors duration-300 group-hover:text-slate-900">
+                  <p className="text-xs sm:text-sm text-slate-700 leading-snug md:mt-14 transition-colors duration-300 group-hover:text-slate-900">
                     {step.text}
                   </p>
                 </div>

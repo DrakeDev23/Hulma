@@ -1,18 +1,19 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import logoImg from '../assets/logo.png'
 
 const navItems = [
   { label: 'Templates', href: '#templates' },
   { label: 'AI Review', href: '#ai-review' },
-  { label: 'About', href: '#aboutworkflow' },
-  { label: 'Help', href: '#processtimeline' },
+  { label: 'About', href: '#about' },
+  { label: 'Help', href: '#help' },
 ]
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-[#f8fbff]/90 backdrop-blur-sm shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+    <header className="scroll-reveal sticky top-0 z-50 border-b border-slate-200/80 bg-[#f8fbff]/90 backdrop-blur-sm shadow-[0_1px_0_rgba(15,23,42,0.03)]">
       <nav className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-0.5">
@@ -33,12 +34,18 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center gap-3">
-            <button className="border border-blue-200 text-blue-600 hover:bg-blue-50 px-5 py-2 rounded-lg text-sm font-medium transition-colors">
+            <Link
+              to="/login"
+              className="border border-blue-200 text-blue-600 hover:bg-blue-50 px-5 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
               Login
-            </button>
-            <button className="bg-blue-600 text-white hover:bg-blue-700 px-5 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
+            </Link>
+            <Link
+              to="/register"
+              className="bg-blue-600 text-white hover:bg-blue-700 px-5 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors inline-flex items-center justify-center"
+            >
               Get started
-            </button>
+            </Link>
           </div>
 
           <button
@@ -69,12 +76,20 @@ export default function Navbar() {
               ))}
 
               <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-3">
-                <button className="w-full border border-blue-200 text-blue-600 hover:bg-blue-50 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors">
+                <Link
+                  to="/login"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full border border-blue-200 text-blue-600 hover:bg-blue-50 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-center"
+                >
                   Login
-                </button>
-                <button className="w-full bg-blue-600 text-white hover:bg-blue-700 px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-colors">
+                </Link>
+                <Link
+                  to="/register"
+                  onClick={() => setIsOpen(false)}
+                  className="w-full bg-blue-600 text-white hover:bg-blue-700 px-4 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-colors inline-flex items-center justify-center"
+                >
                   Get started
-                </button>
+                </Link>
               </div>
             </div>
           </div>

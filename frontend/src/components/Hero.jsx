@@ -29,7 +29,7 @@ function CheckIcon() {
 
 export default function Hero() {
   return (
-    <main className="max-w-7xl mx-auto px-6 py-12 lg:py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+    <main className="max-w-7xl mx-auto px-6 py-12 lg:py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center bg-[#f8fbff]">
       <section className="max-w-xl">
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-[1.15]">
           Create a Professional{' '}
@@ -62,11 +62,15 @@ export default function Hero() {
       <div className="flex justify-center lg:justify-end">
         <div className="relative">
           <div className="absolute inset-0 -z-10 rounded-full bg-blue-100/60 blur-3xl scale-110" />
-          <img
-            src={puppetImg}
-            alt="Hulma Mascot"
-            className="relative w-full max-w-md h-auto object-contain mascot-float drop-shadow-[0_18px_30px_rgba(37,99,235,0.18)]"
-          />
+
+          {/* Wave wrapper: pivots from the bottom so it sways like a wave */}
+          <div className="origin-bottom motion-safe:animate-wave">
+            <img
+              src={puppetImg}
+              alt="Hulma Mascot"
+              className="relative w-full max-w-md h-auto object-contain mascot-float drop-shadow-[0_18px_30px_rgba(37,99,235,0.18)]"
+            />
+          </div>
         </div>
       </div>
     </main>

@@ -1,11 +1,16 @@
-import logoImg from '../assets/logo.jpeg'
+import logoImg from '../assets/logo.png'
 
-const navItems = ['Templates', 'AI Review', 'About', 'Help']
+const navItems = [
+  { label: 'Templates', href: '#templates' },
+  { label: 'AI Review', href: '#ai-review' },
+  { label: 'About', href: '#about' },
+  { label: 'Help', href: '#help' },
+]
 
 export default function Navbar() {
   return (
-    <header className="border-b border-slate-200/80 bg-white/80 backdrop-blur-sm">
-      <nav className="flex justify-between items-center max-w-7xl mx-auto px-6 py-6">
+    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-[#f8fbff]/90 backdrop-blur-sm shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+      <nav className="flex justify-between items-center max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center gap-0.5">
           <img src={logoImg} alt="Hulma" className="h-9 w-auto object-contain" />
           <span className="-ml-1 text-xl font-black tracking-tight text-slate-900">Hulma</span>
@@ -14,11 +19,11 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-8">
           {navItems.map((item) => (
             <a
-              key={item}
-              href="#"
+              key={item.label}
+              href={item.href}
               className="text-slate-600 hover:text-blue-600 font-medium text-sm transition-colors"
             >
-              {item}
+              {item.label}
             </a>
           ))}
         </div>

@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useUser } from '@clerk/react'
 import {
     Sparkles,
     Clock,
@@ -58,11 +59,19 @@ function Row({ Icon, tone, title, text, right }) {
     )
 }
 
-export default function Dashboard({ userName = 'Drake', email = 'youremail@gmail.com' }) {
+export default function Dashboard() {
     const navigate = useNavigate()
+    const { user, isLoaded } = useUser()
+
+    const displayName = user?.fullName || user?.firstName || user?.username || 'User'
+    const emailAddress = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || 'No email'
+
+    if (!isLoaded) {
+        return <div className="flex min-h-screen items-center justify-center text-slate-600">Loading dashboard...</div>
+    }
 
     return (
-        <DashboardLayout userName={userName} email={email} subtitle="3 active portfolios · 12 sections ready to publish">
+        <DashboardLayout userName={displayName} email={emailAddress} subtitle="3 active portfolios · 12 sections ready to publish">
             <section className="mt-4 grid gap-5 rounded-2xl bg-linear-to-br from-[#3e90e2] via-[#2272c4] to-[#1b5c9a] p-4 text-white shadow-md sm:mt-5 sm:p-5 lg:grid-cols-[1.12fr_1fr] lg:gap-6 lg:pr-1">
                 <div className="lg:pr-2">
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${glass}`}>

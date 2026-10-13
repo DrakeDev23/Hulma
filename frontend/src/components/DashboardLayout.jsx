@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useClerk } from '@clerk/react'
 import { Home, Briefcase, Folder, Sparkles, Settings, X, Menu, LogOut } from 'lucide-react'
 import logoImg from '../assets/logo.png'
 
@@ -19,6 +20,7 @@ export default function DashboardLayout({
 }) {
     const navigate = useNavigate()
     const { pathname } = useLocation()
+    const { signOut } = useClerk()
     const [open, setOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768)
 
     const goTo = (path) => {
@@ -26,8 +28,13 @@ export default function DashboardLayout({
         if (window.innerWidth < 768) setOpen(false)
     }
 
-    const handleLogout = () => {
-        navigate('/login')
+    const handleLogout = async () => {
+        try {
+            await signOut({ redirectUrl: '/login' })
+        } catch (error) {
+            console.error('Logout failed:', error)
+            navigate('/login')
+        }
     }
 
     return (

@@ -11,6 +11,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import Dashboard from './pages/Dashboard'
 import Portfolio from './pages/Portfolio'
+import CreatePortfolio from './pages/CreatePortfolio'
 import Templates from './pages/Templates'
 import Review from './pages/Review'
 import Settings from './pages/Settings'
@@ -63,8 +64,6 @@ function ProtectedRoute({ children }) {
   return isSignedIn ? children : <Navigate to="/login" replace />
 }
 
-// Finishes the Google sign-in when the user comes back from Google.
-// Needs @clerk/react 6.17.7 or later.
 function SSOCallbackPage() {
   const navigate = useNavigate()
 
@@ -83,9 +82,7 @@ function SSOCallbackPage() {
           navigate(url)
         }
       }}
-      // Sign-in needs another step (for example MFA)
       navigateToSignIn={() => navigate('/login')}
-      // Sign-up needs more info (for example a missing required field)
       navigateToSignUp={() => navigate('/register')}
     />
   )
@@ -101,6 +98,7 @@ export default function App() {
         <Route path="/sso-callback" element={<SSOCallbackPage />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/portfolio" element={<ProtectedRoute><Portfolio /></ProtectedRoute>} />
+        <Route path="/portfolio/create" element={<ProtectedRoute><CreatePortfolio /></ProtectedRoute>} />
         <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
         <Route path="/review" element={<ProtectedRoute><Review /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

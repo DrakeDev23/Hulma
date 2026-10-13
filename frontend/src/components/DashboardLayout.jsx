@@ -1,27 +1,50 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useClerk } from '@clerk/react'
-import { Home, Briefcase, Folder, Sparkles, Settings, X, Menu, LogOut } from 'lucide-react'
+import { useClerk, useUser } from '@clerk/react'
+import { Home, Briefcase, Folder, Sparkles, Settings, X, Menu, LogOut, LayoutTemplate, PlusSquare } from 'lucide-react'
 import logoImg from '../assets/logo.png'
 
 const NAV = [
     { label: 'Dashboard', Icon: Home, path: '/dashboard' },
-    { label: 'My Portfolio', Icon: Briefcase, path: '/portfolio' },
-    { label: 'Templates', Icon: Folder, path: '/templates' },
+    { label: 'Portfolio', Icon: Briefcase, path: '/portfolio' },
+    { label: 'Create Portfolio', Icon: PlusSquare, path: '/portfolio/create' },
+    { label: 'Templates', Icon: LayoutTemplate, path: '/templates' },
     { label: 'AI Review', Icon: Sparkles, path: '/review' },
     { label: 'Settings', Icon: Settings, path: '/settings' },
 ]
 
-export default function DashboardLayout({
-    userName = 'Drake',
-    email = 'youremail@gmail.com',
-    subtitle = '',
-    children,
-}) {
+function timeGreeting() {
+    const h = new Date().getHours()
+    if (h < 12) return 'Good morning'
+    if (h < 18) return 'Good afternoon'
+    return 'Good evening'
+}
+
+export default function DashboardLayout({ subtitle = '', eyebrow, title, children }) {
     const navigate = useNavigate()
     const { pathname } = useLocation()
     const { signOut } = useClerk()
+    const { user, isLoaded } = useUser()
     const [open, setOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768)
+
+    const email = user?.primaryEmailAddress?.emailAddress ?? ''
+    const displayName = isLoaded
+        ? user?.unsafeMetadata?.username || user?.username || user?.firstName || email.split('@')[0] || ''
+        : ''
+    const avatarUrl = user?.imageUrl || ''
+    const initials = displayName
+        ? displayName
+              .split(/\s+/)
+              .filter(Boolean)
+              .slice(0, 2)
+              .map((segment) => segment[0]?.toUpperCase() || '')
+              .join('')
+        : (email ? email[0]?.toUpperCase() || 'U' : 'U')
+
+    const eyebrowText = eyebrow ?? `${timeGreeting()}, {name}`
+    const heading = displayName
+        ? eyebrowText.replace('{name}', displayName)
+        : eyebrowText.replace(/,?\s*\{name\}/, '')
 
     const goTo = (path) => {
         navigate(path)
@@ -111,7 +134,13 @@ export default function DashboardLayout({
                     </div>
 
                     <div className="mt-auto flex flex-col items-center gap-3 overflow-hidden bg-[#6aa5e6] px-2 py-6 lg:py-8">
-                        <div className="h-11 w-12 shrink-0 rounded-[50%] bg-white transition-transform duration-300 hover:scale-110 lg:h-12 lg:w-14" />
+                        <div className="flex h-11 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white text-sm font-semibold text-[#1f6fdc] shadow-sm transition-transform duration-300 hover:scale-110 lg:h-12 lg:w-14">
+                            {avatarUrl ? (
+                                <img src={avatarUrl} alt={displayName || email || 'User avatar'} className="h-full w-full object-cover" />
+                            ) : (
+                                <span>{initials || 'U'}</span>
+                            )}
+                        </div>
                         <span
                             className={`max-w-full truncate text-sm transition-all duration-300 lg:text-[15px] ${open ? 'max-h-6 opacity-100' : 'md:-mt-3 md:max-h-0 md:opacity-0'
                                 }`}
@@ -131,10 +160,14 @@ export default function DashboardLayout({
                     )}
                     <div className="min-w-0">
                         <h1 className="text-xl font-medium leading-tight text-slate-600 sm:text-2xl lg:text-[28px]">
-                            Good morning, {userName}
+                            {heading}
                         </h1>
                         <h2 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[30px]">
-                            <span className="text-[#1d6fe0]">Build</span> and <span className="text-[#2020d0]">manage</span> your portfolio
+                            {title ?? (
+                                <>
+                                    <span className="text-[#1d6fe0]">Build</span> and <span className="text-[#2020d0]">manage</span> your portfolio
+                                </>
+                            )}
                         </h2>
                         <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
                     </div>

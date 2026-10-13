@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useUser } from '@clerk/react'
 import { Clock, Check, User, LayoutGrid, Sparkles, Lock, Trash2 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 
@@ -13,8 +14,8 @@ const FOCUS_AREAS = [
 ]
 
 const DEFAULTS = {
-    username: 'Drake',
-    email: 'youremail@gmail.com',
+    username: '',
+    email: '',
     defaultTemplate: 'simple',
     publicLink: true,
     autoReview: false,
@@ -77,11 +78,21 @@ function Toggle({ checked, onChange, title, text }) {
 }
 
 export default function Settings({ userName = 'Drake', email = 'youremail@gmail.com' }) {
+    const { user } = useUser()
     const [form, setForm] = useState(load)
     const [saved, setSaved] = useState(false)
     const [error, setError] = useState('')
     const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
     const [pwMsg, setPwMsg] = useState(null)
+
+    useEffect(() => {
+        if (!user) return
+        setForm((f) => ({
+            ...f,
+            username: f.username || user.unsafeMetadata?.username || user.username || user.firstName || '',
+            email: f.email || user.primaryEmailAddress?.emailAddress || '',
+        }))
+    }, [user])
 
     const set = (key, value) => {
         setForm((f) => ({ ...f, [key]: value }))
@@ -106,20 +117,28 @@ export default function Settings({ userName = 'Drake', email = 'youremail@gmail.
         } catch {
             setError('Could not save settings in this browser.')
         }
-        // TODO: also send `form` to your backend, e.g. PUT /api/user/settings
     }
 
     const onChangePassword = (e) => {
         e.preventDefault()
         if (pw.next.length < 8) return setPwMsg({ ok: false, text: 'New password must be at least 8 characters.' })
         if (pw.next !== pw.confirm) return setPwMsg({ ok: false, text: 'New passwords do not match.' })
-        // TODO: call your backend, e.g. POST /api/user/password
         setPw({ current: '', next: '', confirm: '' })
         setPwMsg({ ok: true, text: 'Password updated.' })
     }
 
     return (
-        <DashboardLayout userName={form.username || userName} email={form.email || email} subtitle="Manage your account and preferences">
+        <DashboardLayout
+            userName={form.username || userName}
+            email={form.email || email}
+            eyebrow="Your account, {name}"
+            title={
+                <>
+                    Make Hulma work <span className="text-[#1d6fe0]">your</span> <span className="text-[#2020d0]">way</span>
+                </>
+            }
+            subtitle="Manage your account and preferences"
+        >
             <div className="mt-5 flex flex-col items-start gap-2 sm:mt-6 sm:flex-row sm:justify-between sm:gap-3">
                 <div>
                     <h3 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[28px]">Settings</h3>

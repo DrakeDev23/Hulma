@@ -1,10 +1,10 @@
-import json
 from functools import lru_cache
 
 import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from jose.jwk import construct
 
 from app.config import settings
 
@@ -29,7 +29,7 @@ def verify_clerk_jwt(token: str) -> dict:
         if matching_key is None:
             raise ValueError("No matching JWKS key found")
 
-        public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(matching_key))
+        public_key = construct(matching_key)
         return jwt.decode(
             token,
             public_key,
@@ -37,7 +37,7 @@ def verify_clerk_jwt(token: str) -> dict:
             audience=settings.clerk_audience,
             issuer=settings.clerk_issuer,
         )
-    except (JWTError, TypeError, ValueError) as exc:
+    except (JWTError, TypeError, ValueError, KeyError, AttributeError) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired Clerk token",

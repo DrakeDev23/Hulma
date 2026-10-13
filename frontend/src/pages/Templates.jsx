@@ -131,6 +131,12 @@ export default function Templates({ userName = 'Drake', email = 'youremail@gmail
         }
     }
 
+    const continueToCreate = () => {
+        if (!current) return
+        localStorage.setItem(STORAGE_KEY, current.id)
+        navigate('/portfolio/create')
+    }
+
     return (
         <DashboardLayout userName={userName} email={email} subtitle="Pick a layout for your portfolio">
             <div className="mt-5 flex flex-col items-start gap-2 sm:mt-6 sm:flex-row sm:justify-between sm:gap-3">
@@ -209,7 +215,7 @@ export default function Templates({ userName = 'Drake', email = 'youremail@gmail
                             >
                                 {isSelected ? (
                                     <>
-                                        <Check size={16} /> Selected
+                                        <Check size={16} /> {name} selected
                                     </>
                                 ) : (
                                     'Choose template'
@@ -232,7 +238,7 @@ export default function Templates({ userName = 'Drake', email = 'youremail@gmail
                 <button
                     type="button"
                     disabled={!current}
-                    onClick={() => navigate('/portfolio')}
+                    onClick={continueToCreate}
                     className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-5 py-3 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                 >
                     Continue <ArrowRight size={18} />

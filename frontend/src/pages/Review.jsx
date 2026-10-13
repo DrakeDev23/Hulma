@@ -53,12 +53,6 @@ function readTemplate() {
     }
 }
 
-/**
- * Sample review used when the backend endpoint isn't available yet.
- * The real endpoint should return the same shape:
- * { score, summary, categories: [{ key, label, score, note }],
- *   suggestions: [{ id, category, priority, title, text }] }
- */
 function buildSampleReview(template) {
     const name = TEMPLATE_NAMES[template] ?? 'your'
     const byTemplate = {
@@ -160,7 +154,7 @@ export default function Review({ userName = 'Drake', email = 'youremail@gmail.co
     const template = readTemplate()
     const templateName = TEMPLATE_NAMES[template]
 
-    const [status, setStatus] = useState('idle') // idle | loading | done
+    const [status, setStatus] = useState('idle') 
     const [result, setResult] = useState(null)
     const [usedSample, setUsedSample] = useState(false)
     const [done, setDone] = useState({})
@@ -181,7 +175,6 @@ export default function Review({ userName = 'Drake', email = 'youremail@gmail.co
             setResult(await res.json())
             setUsedSample(false)
         } catch {
-            // Backend not ready yet: show sample feedback so the page is usable.
             await new Promise((r) => setTimeout(r, 900))
             setResult(buildSampleReview(template))
             setUsedSample(true)
@@ -193,7 +186,17 @@ export default function Review({ userName = 'Drake', email = 'youremail@gmail.co
     const doneCount = result ? result.suggestions.filter((s) => done[s.id]).length : 0
 
     return (
-        <DashboardLayout userName={userName} email={email} subtitle="Design and layout feedback for your portfolio">
+        <DashboardLayout
+            userName={userName}
+            email={email}
+            eyebrow="Almost there, {name}"
+            title={
+                <>
+                    <span className="text-[#1d6fe0]">Get feedback</span> and <span className="text-[#2020d0]">polish</span> your portfolio
+                </>
+            }
+            subtitle="Design and layout feedback for your portfolio"
+        >
             <div className="mt-5 flex flex-col items-start gap-2 sm:mt-6 sm:flex-row sm:justify-between sm:gap-3">
                 <div>
                     <h3 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[28px]">AI Review</h3>

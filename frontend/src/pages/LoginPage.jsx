@@ -1,16 +1,33 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { FcGoogle } from 'react-icons/fc'
-import { FiEye, FiEyeOff } from 'react-icons/fi'
+import { FiEye, FiEyeOff, FiArrowLeft } from 'react-icons/fi'
 import logoImg from '../assets/logo.png'
 import puppetImg from '../assets/puppet.png'
 
 export default function LoginPage({ mode = 'login' }) {
+  const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    navigate('/dashboard')
+  }
 
   return (
     <div data-mode={mode} className="auth-page min-h-screen w-full flex flex-col lg:flex-row bg-white">
       <div className="hidden lg:flex relative w-full lg:w-1/2 bg-linear-to-b from-blue-600 to-blue-950 px-8 pt-10 lg:px-14 lg:pt-16 flex-col overflow-hidden">
+        <Link
+          to="/"
+          aria-label="Back to home"
+          className="group absolute left-6 top-6 z-10 inline-flex items-center gap-2 text-sm font-medium text-white/80 transition-colors duration-200 hover:text-white lg:left-8 lg:top-8"
+        >
+          <FiArrowLeft className="h-5 w-5 transition-transform duration-200 group-hover:-translate-x-1" aria-hidden="true" />
+          <span>Back to home</span>
+        </Link>
+
         <h1 className="max-w-md mx-auto text-center text-3xl sm:text-4xl font-bold text-white leading-tight">
           Shape your <span className="text-blue-950">story</span>. Build your{' '}
           <span className="text-blue-950">portfolio</span>. Welcome to Hulma.
@@ -27,6 +44,15 @@ export default function LoginPage({ mode = 'login' }) {
 
       <div className="w-full lg:w-1/2 flex items-center justify-center bg-white px-8 py-12 sm:px-12">
         <div className="w-full max-w-md">
+          <Link
+            to="/"
+            aria-label="Back to home"
+            className="group mb-6 inline-flex items-center gap-2 text-sm text-slate-500 lg:hidden transition-colors duration-200 hover:text-blue-600"
+          >
+            <FiArrowLeft className="h-5 w-5 transition-transform duration-200 group-hover:-translate-x-1" aria-hidden="true" />
+            <span>Back to home</span>
+          </Link>
+
           <div className="flex items-center gap-2 text-xl font-bold text-slate-900 mb-8">
             <img src={logoImg} alt="Hulma logo" className="h-8 w-auto object-contain" />
             <span>Hulma</span>
@@ -54,10 +80,13 @@ export default function LoginPage({ mode = 'login' }) {
             </span>
           </div>
 
-          <form className="w-full">
+          <form className="w-full" onSubmit={handleSubmit}>
             <div className="mb-6">
               <input
                 type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 placeholder="Email"
                 className="w-full rounded-none border-b border-slate-400 bg-transparent px-0 py-2.5 text-sm text-slate-900 placeholder-slate-500 transition-colors focus:outline-none focus:border-blue-600"
               />
@@ -66,6 +95,9 @@ export default function LoginPage({ mode = 'login' }) {
             <div className="relative mb-4">
               <input
                 type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
                 className="w-full rounded-none border-b border-slate-400 bg-transparent px-0 py-2.5 pr-8 text-sm text-slate-900 placeholder-slate-500 transition-colors focus:outline-none focus:border-blue-600"
               />

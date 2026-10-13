@@ -272,10 +272,9 @@ async def review_portfolio(
 
     provider_key = settings.groq_api_key or settings.openai_api_key
     if not provider_key:
-        return AiReviewResponse(
-            summary=base_summary,
-            score=base_score,
-            suggestions=suggestions,
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="AI provider key not configured. Set GROQ_API_KEY or OPENAI_API_KEY.",
         )
 
     prompt = (
@@ -309,11 +308,10 @@ async def review_portfolio(
             payload_data = response.json()
             content = payload_data["choices"][0]["message"]["content"]
             parsed = json.loads(content) if isinstance(content, str) else content
-    except Exception:
-        return AiReviewResponse(
-            summary=base_summary,
-            score=base_score,
-            suggestions=suggestions,
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"AI review failed: {str(exc)}",
         )
 
     if isinstance(parsed, dict):

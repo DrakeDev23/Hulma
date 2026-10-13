@@ -104,27 +104,42 @@ export default function Settings({ userName = 'Drake', email = 'youremail@gmail.
         set('focus', has ? form.focus.filter((f) => f !== id) : [...form.focus, id])
     }
 
-    const onSave = (e) => {
+    const onSave = async (e) => {
         e.preventDefault()
         if (!form.username.trim()) return setError('Enter a username.')
         if (!/^\S+@\S+\.\S+$/.test(form.email)) return setError('Enter a valid email address.')
         if (form.focus.length === 0) return setError('Choose at least one AI review focus area.')
         setError('')
         try {
+            if (user) {
+                await user.update({
+                    firstName: form.username,
+                    unsafeMetadata: { ...user.unsafeMetadata, username: form.username },
+                })
+            }
             localStorage.setItem(SETTINGS_KEY, JSON.stringify(form))
             localStorage.setItem(TEMPLATE_KEY, form.defaultTemplate)
             setSaved(true)
-        } catch {
-            setError('Could not save settings in this browser.')
+        } catch (err) {
+            setError('Could not save settings: ' + (err?.message || err || 'Unknown error'))
         }
     }
 
-    const onChangePassword = (e) => {
+    const onChangePassword = async (e) => {
         e.preventDefault()
         if (pw.next.length < 8) return setPwMsg({ ok: false, text: 'New password must be at least 8 characters.' })
         if (pw.next !== pw.confirm) return setPwMsg({ ok: false, text: 'New passwords do not match.' })
-        setPw({ current: '', next: '', confirm: '' })
-        setPwMsg({ ok: true, text: 'Password updated.' })
+        if (user && typeof user.updatePassword === 'function') {
+            try {
+                await user.updatePassword({ currentPassword: pw.current, newPassword: pw.next })
+                setPw({ current: '', next: '', confirm: '' })
+                setPwMsg({ ok: true, text: 'Password updated successfully.' })
+            } catch (err) {
+                setPwMsg({ ok: false, text: 'Update failed: ' + (err?.message || err || 'Unknown error') })
+            }
+        } else {
+            setPwMsg({ ok: true, text: 'Password updates are handled through Clerk account settings.' })
+        }
     }
 
     return (

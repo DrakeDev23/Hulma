@@ -1,16 +1,17 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useUser } from '@clerk/react'
+import { useUser, useAuth } from '@clerk/react'
 import {
     Sparkles,
     Clock,
     CheckCircle2,
-    Eye,
     FileText,
     PenLine,
     Link2,
     Plus,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import usePortfolio from '../hooks/usePortfolio'
 
 const HERO_STATS = [
     { label: 'Templates', value: '3 ready' },
@@ -27,6 +28,12 @@ const readPortfolioState = () => {
     } catch {
         return null
     }
+}
+
+const COMPLETION_THRESHOLDS = {
+    DRAFT: 0,
+    IN_PROGRESS: 1,
+    COMPLETE: 100,
 }
 
 const TONES = {
@@ -61,17 +68,50 @@ function Row({ Icon, tone, title, text, right }) {
 export default function Dashboard() {
     const navigate = useNavigate()
     const { user, isLoaded } = useUser()
-    const portfolio = readPortfolioState()
+    const [template, setTemplate] = useState('simple')
+    useEffect(() => { try { setTemplate(localStorage.getItem('hulma-template') || 'simple') } catch {} }, [])
+    const { getToken } = useAuth()
+    const { portfolio, loading, error: fetchError, refetch } = usePortfolio()
 
     const displayName = user?.fullName || user?.firstName || user?.username || 'User'
     const emailAddress = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || 'No email'
-    const hasPortfolio = Boolean(portfolio && (portfolio.sections?.length || portfolio.projects?.length || portfolio.title || portfolio.summary))
+    const sectionsObj = portfolio?.sections || {}
+    const hasPortfolio = Boolean(portfolio && (portfolio.title || portfolio.summary || portfolio.projects?.length || Object.keys(sectionsObj).length > 0))
 
-    const sectionCount = Number(portfolio?.sections?.length || 0)
-    const projectCount = Number(portfolio?.projects?.length || 0)
-    const completion = Number(portfolio?.completion || 0)
+    const sectionCount = Object.values(sectionsObj).filter((v) => {
+        if (Array.isArray(v)) return v.length > 0
+        if (typeof v === 'object' && v !== null) return Object.keys(v).length > 0
+        if (typeof v === 'string') return v.trim().length > 0
+        return Boolean(v)
+    }).length
+    const projectCount = portfolio?.projects?.length || 0
+    const projectLabel = projectCount === 1 ? '1 project' : `${projectCount} projects`
     const views = Number(portfolio?.views || 0)
-    const lastUpdated = portfolio?.updatedAt ? new Date(portfolio.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'Recently'
+    const completion = Number(portfolio?.completion || 0)
+
+    const statusLabel = () => {
+        if (completion >= COMPLETION_THRESHOLDS.COMPLETE) return 'Ready to publish'
+        if (completion >= COMPLETION_THRESHOLDS.IN_PROGRESS) return 'In progress'
+        return 'Draft'
+    }
+    const statusText = statusLabel()
+
+    const relativeTime = (dateValue) => {
+        if (!dateValue) return 'Recently'
+        const date = new Date(dateValue)
+        const now = new Date()
+        const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+        const diffMs = now - date
+        const diffSec = Math.round(diffMs / 1000)
+        const diffMin = Math.round(diffSec / 60)
+        const diffHr = Math.round(diffMin / 60)
+        const diffDay = Math.round(diffHr / 24)
+        if (Math.abs(diffMin) < 60) return rtf.format(-diffMin, 'minute')
+        if (Math.abs(diffHr) < 24) return rtf.format(-diffHr, 'hour')
+        if (Math.abs(diffDay) < 30) return rtf.format(-diffDay, 'day')
+        return rtf.format(-Math.round(diffDay / 30), 'month')
+    }
+    const lastUpdated = portfolio?.updated_at ? relativeTime(portfolio.updated_at) : (portfolio?.updatedAt ? relativeTime(portfolio.updatedAt) : 'Recently')
 
     const ACTIVITY = [
         {
@@ -106,8 +146,56 @@ export default function Dashboard() {
         return <div className="flex min-h-screen items-center justify-center text-slate-600">Loading dashboard...</div>
     }
 
+    if (loading) {
+        return (
+            <DashboardLayout userName={displayName} email={emailAddress} subtitle="Loading portfolio...">
+                <div className="mt-5">
+                    <div className="h-32 animate-pulse rounded-2xl bg-slate-100" />
+                    <div className="mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+                        <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
+                        <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
+                    </div>
+                </div>
+            </DashboardLayout>
+        )
+    }
+
+    if (fetchError) {
+        return (
+            <DashboardLayout userName={displayName} email={emailAddress} subtitle="Error loading portfolio">
+                <div className="mt-5 rounded-2xl bg-red-50 p-6 text-red-700 shadow">
+                    <p className="font-medium">{fetchError}</p>
+                    <button
+                        onClick={() => refetch()}
+                        className="mt-3 rounded-xl bg-[#1f6fdc] px-4 py-2 text-sm font-medium text-white hover:bg-[#1558c4]"
+                    >
+                        Retry
+                    </button>
+                </div>
+            </DashboardLayout>
+        )
+    }
+
+    if (!portfolio) {
+        return (
+            <DashboardLayout userName={displayName} email={emailAddress} subtitle="No portfolio generated yet">
+                <section className="mt-4 rounded-2xl bg-white p-4 shadow-[0_2px_10px_rgba(30,70,140,0.10)] sm:p-6">
+                    <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+                        <div>
+                            <h4 className="text-lg font-semibold leading-tight">Create your first portfolio</h4>
+                            <p className="mt-1 text-xs text-slate-500">Start with a template and add your first projects.</p>
+                        </div>
+                        <button onClick={() => navigate('/portfolio/create')} className="inline-flex items-center gap-2 rounded-xl bg-[#1f6fdc] px-4 py-2.5 text-sm font-medium text-white shadow hover:bg-[#1558c4]">
+                            Create Portfolio <Plus size={16} />
+                        </button>
+                    </div>
+                </section>
+            </DashboardLayout>
+        )
+    }
+
     return (
-        <DashboardLayout userName={displayName} email={emailAddress} subtitle={hasPortfolio ? `${sectionCount} sections · ${projectCount} projects` : 'No portfolio generated yet'}>
+        <DashboardLayout userName={displayName} email={emailAddress} subtitle={portfolio ? `${sectionCount} sections · ${projectCount === 1 ? '1 project' : projectCount + ' projects'}` : 'No portfolio generated yet'}>
             <section className="mt-4 grid gap-5 rounded-2xl bg-linear-to-br from-[#3e90e2] via-[#2272c4] to-[#1b5c9a] p-4 text-white shadow-md sm:mt-5 sm:p-5 lg:grid-cols-[1.12fr_1fr] lg:gap-6 lg:pr-1">
                 <div className="lg:pr-2">
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${glass}`}>
@@ -170,7 +258,7 @@ export default function Dashboard() {
                             <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">Review, edit and publish your latest portfolio drafts</p>
                         </div>
                         <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#1f6fdc] bg-white px-3 py-1.5 text-xs font-medium text-[#1f6fdc] transition duration-200 hover:bg-[#1f6fdc] hover:text-white">
-                            <Clock size={13} /> Updated 2 min ago
+                            <Clock size={13} /> Updated {lastUpdated}
                         </span>
                     </div>
 
@@ -180,35 +268,33 @@ export default function Dashboard() {
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <h4 className="text-lg font-semibold leading-tight sm:text-xl">Portfolio Preview</h4>
-                                        <p className="mt-0.5 text-xs text-slate-500">{portfolio.title || `${displayName}'s portfolio`} · {sectionCount} sections</p>
+                                        <p className="mt-0.5 text-xs text-slate-500">{portfolio?.title ? portfolio.title + ' · ' + sectionCount + ' sections · ' + (projectCount === 1 ? '1 project' : projectCount + ' projects') : (sectionCount ? sectionCount + ' sections' : '')}</p>
                                     </div>
                                     <span className={bluePill}>
-                                        <CheckCircle2 size={13} /> {completion >= 100 ? 'Ready to publish' : 'In progress'}
+                                        <CheckCircle2 size={13} /> {statusText}
                                     </span>
                                 </div>
 
-                                <div className="group relative mt-3 h-24 overflow-hidden rounded-xl bg-linear-to-r from-[#ece7da] to-[#d5dbe6] sm:h-28">
-                                    <div className="absolute right-2 top-2 hidden origin-top-right gap-1.5 opacity-90 transition-transform duration-500 group-hover:scale-110 sm:flex">
-                                        <div className="h-10 w-12 rounded-sm bg-[#1c3f9c] md:w-16" />
-                                        <div className="h-14 w-14 rounded-sm bg-white shadow md:w-20" />
-                                        <div className="h-12 w-10 rounded-sm bg-[#8fb0e6] md:w-14" />
-                                        <div className="h-16 w-12 rounded-sm bg-[#cfd6e4] md:w-16" />
-                                    </div>
+                                <div className={`group relative mt-3 h-24 overflow-hidden rounded-xl sm:h-28 ${template === 'simple' ? 'bg-gradient-to-r from-[#f3f0eb] to-[#e8e4db]' : 'bg-gradient-to-r from-[#ece7da] to-[#d5dbe6]'}`}>
+                                    {/* Theme swatches derived from portfolio data only */}
+                                    {(portfolio?.sections?.profile?.profilePicture ? [
+                                        <div key="swatch1" className={`absolute right-2 top-2 h-10 w-12 rounded-sm md:w-16 ${template === 'simple' ? 'bg-[#c0bfa8]' : 'bg-[#1c3f9c]'}`} />,
+                                        <div key="swatch2" className="absolute right-[3.5rem] top-2 h-14 w-14 rounded-sm bg-white shadow md:w-20" />,
+                                    ] : null)}
                                     <span className="absolute left-2.5 top-2 inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[10px] font-medium shadow-sm sm:text-[11px]">
                                         <Sparkles size={12} className="text-[#1f6fdc]" /> Featured preview
                                     </span>
-                                    <div className="absolute bottom-1.5 left-3 origin-bottom-left text-2xl font-black transition-transform duration-500 group-hover:scale-105 leading-[0.9] tracking-tight text-[#1c4fb5] sm:left-4 sm:text-[34px]">
-                                        {portfolio.title ? portfolio.title.slice(0, 12).toUpperCase() : 'PORTFOLIO'}
-                                    </div>
-                                    <span className="absolute bottom-2 right-2 inline-flex items-center gap-1.5 rounded-full bg-[#1c3f9c] transition-transform duration-300 hover:scale-110 px-3 py-1.5 text-[11px] font-medium text-white sm:right-3 sm:px-3.5 sm:py-2 sm:text-xs">
-                                        <Eye size={14} /> {views} views
-                                    </span>
+                                    {portfolio?.title && (
+                                        <div className={`absolute bottom-1.5 left-3 origin-bottom-left text-2xl font-black transition-transform duration-500 group-hover:scale-105 leading-[0.9] tracking-tight sm:left-4 sm:text-[34px] ${template === 'simple' ? 'text-[#8a7e6a]' : 'text-[#1c4fb5]'}`}>
+                                            {portfolio.title.slice(0, 12).toUpperCase()}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
                                     <span className="rounded-full bg-[#eef2f9] px-2.5 py-0.5">{sectionCount} sections</span>
                                     <span className="rounded-full bg-[#eef2f9] px-2.5 py-0.5">{projectCount} projects</span>
-                                    <span className="rounded-full bg-[#dcf3e7] px-2.5 py-0.5 text-[#12875a]">AI review</span>
+                                    <span className={`rounded-full bg-[#dcf3e7] px-2.5 py-0.5 text-[#12875a] ${!portfolio?.review ? 'hidden' : ''}`}>AI review</span>
                                     <span className="ml-auto text-xs text-slate-500">Last edited {lastUpdated}</span>
                                 </div>
                             </article>

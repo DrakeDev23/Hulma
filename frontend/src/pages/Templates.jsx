@@ -134,7 +134,7 @@ export default function Templates({ userName = 'Drake', email = 'youremail@gmail
     const continueToCreate = () => {
         if (!current) return
         localStorage.setItem(STORAGE_KEY, current.id)
-        navigate('/portfolio/create')
+        navigate(`/portfolio/create?template=${current.id}`)
     }
 
     return (

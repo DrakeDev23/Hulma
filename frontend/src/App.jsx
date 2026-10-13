@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom'
+import { BrowserRouter, Route, Routes, Navigate, useNavigate } from 'react-router-dom'
+import { HandleSSOCallback, useUser } from '@clerk/react'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import About from './components/About'
@@ -52,6 +53,44 @@ function HomePage() {
   )
 }
 
+function ProtectedRoute({ children }) {
+  const { isLoaded, isSignedIn } = useUser()
+
+  if (!isLoaded) {
+    return <div className="flex min-h-screen items-center justify-center text-slate-600">Loading...</div>
+  }
+
+  return isSignedIn ? children : <Navigate to="/login" replace />
+}
+
+// Finishes the Google sign-in when the user comes back from Google.
+// Needs @clerk/react 6.17.7 or later.
+function SSOCallbackPage() {
+  const navigate = useNavigate()
+
+  return (
+    <HandleSSOCallback
+      navigateToApp={({ session, decorateUrl }) => {
+        if (session?.currentTask) {
+          console.log('Session task pending:', session.currentTask)
+          navigate('/login')
+          return
+        }
+        const url = decorateUrl('/dashboard')
+        if (url.startsWith('http')) {
+          window.location.href = url
+        } else {
+          navigate(url)
+        }
+      }}
+      // Sign-in needs another step (for example MFA)
+      navigateToSignIn={() => navigate('/login')}
+      // Sign-up needs more info (for example a missing required field)
+      navigateToSignUp={() => navigate('/register')}
+    />
+  )
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -59,11 +98,12 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage mode="login" />} />
         <Route path="/register" element={<RegisterPage mode="register" />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/portfolio" element={<Portfolio />} />
-        <Route path="/templates" element={<Templates />} />
-        <Route path="/review" element={<Review />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route path="/sso-callback" element={<SSOCallbackPage />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/portfolio" element={<ProtectedRoute><Portfolio /></ProtectedRoute>} />
+        <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+        <Route path="/review" element={<ProtectedRoute><Review /></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

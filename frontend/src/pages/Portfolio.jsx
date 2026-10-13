@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { Sparkles, Clock, CheckCircle2, Plus } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import usePortfolio from '../hooks/usePortfolio'
 import puppetImg from '../assets/puppet.png'
 
 const HERO_STATS = [
@@ -49,6 +50,11 @@ const glass = 'border border-white/40 bg-white/15 backdrop-blur-sm transition du
 
 export default function Portfolio({ userName = 'Drake', email = 'youremail@gmail.com' }) {
     const navigate = useNavigate()
+    const { portfolio, loading, error } = usePortfolio()
+
+    if (loading) return <DashboardLayout userName={userName} email={email} subtitle="Loading portfolio..."><div className="mt-6 text-center text-slate-500">Loading...</div></DashboardLayout>
+    if (error) return <DashboardLayout userName={userName} email={email} subtitle="Portfolio error"><div className="mt-4 rounded-2xl bg-red-50 p-6 text-red-700 shadow"><p className="font-medium">Failed to load portfolio.</p><button onClick={() => window.location.reload()} className="mt-3 rounded-xl bg-[#1f6fdc] px-4 py-2 text-sm font-medium text-white hover:bg-[#1558c4]">Retry</button></div></DashboardLayout>
+    const hasPortfolio = Boolean(portfolio)
 
     return (
         <DashboardLayout userName={userName} email={email} subtitle="Create your first portfolio · Start with a template">
@@ -65,10 +71,8 @@ export default function Portfolio({ userName = 'Drake', email = 'youremail@gmail
             <section className="mt-4 rounded-2xl bg-white p-4 shadow-[0_2px_10px_rgba(30,70,140,0.10)] sm:p-6">
                 <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                     <div className="min-w-0">
-                        <h4 className="text-lg font-semibold leading-tight">No portfolios yet</h4>
-                        <p className="mt-1 text-xs text-slate-500 sm:text-[13px]">
-                            Create your first portfolio to organize projects, sections and AI feedback in one place.
-                        </p>
+                        <h4 className="text-lg font-semibold leading-tight">{portfolio ? (portfolio.title || 'Your Portfolio') : 'No portfolios yet'}</h4>
+                        <p className="mt-1 text-xs text-slate-500 sm:text-[13px]">{portfolio ? 'Live portfolio preview' : 'Create your first portfolio to organize projects, sections and AI feedback in one place.'}</p>
                     </div>
                     <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#dce9fb] px-3 py-1 text-xs font-medium text-[#1f6fdc] transition duration-200 hover:scale-105 hover:bg-[#cfe0fa]">
                         24 templates ready
@@ -96,12 +100,21 @@ export default function Portfolio({ userName = 'Drake', email = 'youremail@gmail
                         </div>
 
                         <div className="mt-5 flex flex-wrap gap-3">
-                            <button
-                                onClick={() => navigate('/portfolio/create')}
+                            {portfolio ? (
+                                <button
+                                    onClick={() => navigate('/portfolio/create')}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium text-white shadow hover:bg-[#1558c4] active:scale-95 sm:px-5 sm:py-3"
+                                >
+                                    Edit Portfolio <Plus size={16} />
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => navigate('/portfolio/create')}
                                 className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 sm:px-5 sm:py-3"
                             >
                                 Create Portfolio <Plus size={18} />
                             </button>
+                            )}
                             <button
                                 onClick={() => navigate('/templates')}
                                 className={`rounded-xl px-4 py-2.5 text-sm font-medium hover:-translate-y-0.5 active:scale-95 sm:px-5 sm:py-3 ${glass}`}

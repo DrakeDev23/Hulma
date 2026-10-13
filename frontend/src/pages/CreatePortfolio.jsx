@@ -60,7 +60,7 @@ const parseLinks = (value) => {
     }, {})
 }
 
-function buildPortfolioPayload(form, user, emailAddress) {
+function buildPortfolioPayload(form, user, emailAddress, urlTemplate) {
     const fullName = form.fullName || user?.fullName || user?.firstName || 'Portfolio Owner'
     const email = form.email || emailAddress || 'your@email.com'
 
@@ -68,6 +68,7 @@ function buildPortfolioPayload(form, user, emailAddress) {
         title: form.title || `${fullName}'s Portfolio`,
         summary: form.aboutMe || 'Focused on building impactful digital experiences and measurable outcomes.',
         sections: {
+            meta: urlTemplate ? { templateId: urlTemplate } : undefined,
             profile: {
                 fullName,
                 profilePicture: form.profilePicture || '',
@@ -102,6 +103,8 @@ function buildPortfolioPayload(form, user, emailAddress) {
 
 export default function CreatePortfolio() {
     const navigate = useNavigate()
+    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams()
+    const urlTemplate = searchParams.get('template')
     const { getToken } = useAuth()
     const { user } = useUser()
     const emailAddress = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || ''
@@ -230,7 +233,7 @@ export default function CreatePortfolio() {
         setNotice('')
 
         try {
-            const payload = buildPortfolioPayload(form, user, emailAddress)
+            const payload = buildPortfolioPayload(form, user, emailAddress, urlTemplate)
             const response = await fetch('/api/portfolio/me', {
                 method: 'POST',
                 headers: await getAuthHeaders(),
@@ -270,7 +273,7 @@ export default function CreatePortfolio() {
         setNotice('')
 
         try {
-            const payload = buildPortfolioPayload(form, user, emailAddress)
+            const payload = buildPortfolioPayload(form, user, emailAddress, urlTemplate)
             const response = await fetch('/api/portfolio/review', {
                 method: 'POST',
                 headers: await getAuthHeaders(),
@@ -309,7 +312,7 @@ export default function CreatePortfolio() {
         const saved = await handleSave()
         if (saved) {
             await handleReview()
-            navigate('/portfolio')
+            navigate('/portfolio/live')
         }
     }
 

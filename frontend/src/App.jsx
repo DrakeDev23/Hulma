@@ -15,6 +15,7 @@ import CreatePortfolio from './pages/CreatePortfolio'
 import Templates from './pages/Templates'
 import Review from './pages/Review'
 import Settings from './pages/Settings'
+import PortfolioLive from './pages/PortfolioLive'
 
 function HomePage() {
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function App() {
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/portfolio" element={<ProtectedRoute><Portfolio /></ProtectedRoute>} />
         <Route path="/portfolio/create" element={<ProtectedRoute><CreatePortfolio /></ProtectedRoute>} />
+        <Route path="/portfolio/live" element={<ProtectedRoute><PortfolioLive /></ProtectedRoute>} />
         <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
         <Route path="/review" element={<ProtectedRoute><Review /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

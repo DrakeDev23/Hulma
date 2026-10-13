@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Route, Routes, Navigate, Link } from 'react-router-dom'
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import About from './components/About'
@@ -11,6 +11,8 @@ import RegisterPage from './pages/RegisterPage'
 import Dashboard from './pages/Dashboard'
 import Portfolio from './pages/Portfolio'
 import Templates from './pages/Templates'
+import Review from './pages/Review'
+import Settings from './pages/Settings'
 
 function HomePage() {
   useEffect(() => {
@@ -50,20 +52,6 @@ function HomePage() {
   )
 }
 
-function ComingSoon({ title }) {
-  return (
-    <div className="grid min-h-screen place-items-center bg-[#f3f7ff] text-slate-800">
-      <div className="text-center">
-        <h1 className="text-3xl font-semibold">{title}</h1>
-        <p className="mt-2 text-slate-500">This page is coming soon.</p>
-        <Link to="/dashboard" className="mt-4 inline-block text-[#1f6fdc] underline">
-          Back to dashboard
-        </Link>
-      </div>
-    </div>
-  )
-}
-
 export default function App() {
   return (
     <BrowserRouter>
@@ -74,8 +62,8 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/portfolio" element={<Portfolio />} />
         <Route path="/templates" element={<Templates />} />
-        <Route path="/review" element={<ComingSoon title="AI Review" />} />
-        <Route path="/settings" element={<ComingSoon title="Settings" />} />
+        <Route path="/review" element={<Review />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

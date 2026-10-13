@@ -97,7 +97,7 @@ export default function Portfolio({ userName = 'Drake', email = 'youremail@gmail
 
                         <div className="mt-5 flex flex-wrap gap-3">
                             <button
-                                onClick={() => navigate('/templates')}
+                                onClick={() => navigate('/portfolio/create')}
                                 className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 sm:px-5 sm:py-3"
                             >
                                 Create Portfolio <Plus size={18} />

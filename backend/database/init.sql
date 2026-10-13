@@ -19,5 +19,18 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS portfolios (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(200) NOT NULL DEFAULT 'My Portfolio',
+    summary TEXT,
+    sections JSONB NOT NULL DEFAULT '{}'::jsonb,
+    projects JSONB NOT NULL DEFAULT '[]'::jsonb,
+    views INTEGER NOT NULL DEFAULT 0,
+    completion INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 CREATE INDEX IF NOT EXISTS idx_users_clerk_id ON users (clerk_id);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+CREATE INDEX IF NOT EXISTS idx_portfolios_user_id ON portfolios (user_id);

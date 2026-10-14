@@ -1,4 +1,3 @@
-export const REVIEW_KEY = 'hulmaPortfolioReview'
 export const DRAFT_KEY = 'hulmaPortfolio'
 
 export const pick = (...values) => values.find((v) => v !== undefined && v !== null && v !== '')
@@ -65,7 +64,7 @@ export function normalizePortfolio(raw) {
         views: Number(p.views || 0),
         updatedAt: pick(p.updated_at, p.updatedAt),
         createdAt: pick(p.created_at, p.createdAt),
-        review: pick(p.review, readLocalJSON(REVIEW_KEY)),
+        review: p.review || null,
     }
 }
 

@@ -1,4 +1,4 @@
-import { Mail, Phone, MapPin, Globe, ArrowUpRight, Briefcase, GraduationCap } from 'lucide-react'
+import { Mail, Phone, MapPin, Globe, ArrowUpRight, Briefcase, GraduationCap, ArrowLeft } from 'lucide-react'
 
 const THEMES = {
     simple: {
@@ -76,7 +76,7 @@ function Timeline({ t, items, Icon, label }) {
     )
 }
 
-export default function PortfolioSite({ portfolio, template = 'simple', idPrefix = 'site', stickyNav = true }) {
+export default function PortfolioSite({ portfolio, template = 'simple', idPrefix = 'site', stickyNav = true, onBack, backLabel = 'Back to editor' }) {
     const t = THEMES[template] || THEMES.simple
     const p = portfolio || {}
     const sections = p.sections || {}
@@ -114,6 +114,11 @@ export default function PortfolioSite({ portfolio, template = 'simple', idPrefix
         <div className={`min-h-full ${t.page}`}>
             <nav className={`${stickyNav ? 'sticky top-0' : ''} z-10 border-b backdrop-blur ${t.nav}`}>
                 <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
+                    {onBack && (
+                        <button type="button" onClick={onBack} className="inline-flex shrink-0 items-center gap-1.5 text-sm font-bold tracking-tight hover:underline">
+                            <ArrowLeft size={14} /> {backLabel}
+                        </button>
+                    )}
                     <span className="truncate text-sm font-bold tracking-tight">{name}</span>
                     <div className="flex gap-1 overflow-x-auto text-xs font-medium sm:text-sm">
                         {nav.map((s) => (

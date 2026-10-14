@@ -205,16 +205,27 @@ export default function Dashboard() {
     const [showAllActivity, setShowAllActivity] = useState(false)
     const [showPortfolio, setShowPortfolio] = useState(false)
     const [localDraft, setLocalDraft] = useState(null)
+    const [heroIndex, setHeroIndex] = useState(0)
 
     useEffect(() => { setLocalDraft(readLocalPortfolio()) }, [rawPortfolio])
 
-    const { portfolio, source } = useMemo(() => {
+    const { portfolio: basePortfolio, source } = useMemo(() => {
         const fromBackend = normalizePortfolio(rawPortfolio)
         if (hasContent(fromBackend)) return { portfolio: fromBackend, source: 'backend' }
         const fromLocal = normalizePortfolio(localDraft)
         if (hasContent(fromLocal)) return { portfolio: fromLocal, source: 'local' }
         return { portfolio: fromBackend, source: 'none' }
     }, [rawPortfolio, localDraft])
+
+    const heroList = useMemo(() => {
+        const list = Array.isArray(rawPortfolio) ? rawPortfolio : Array.isArray(rawPortfolio?.portfolios) ? rawPortfolio.portfolios : null
+        const items = list ? list.map(normalizePortfolio).filter(hasContent) : []
+        return items.length ? items : basePortfolio ? [basePortfolio] : []
+    }, [rawPortfolio, basePortfolio])
+
+    const portfolio = heroList[Math.min(heroIndex, heroList.length - 1)] || basePortfolio
+    const activeTemplate = portfolio?.sections?.meta?.templateId || portfolio?.template
+    const editUrl = activeTemplate ? `/portfolio/create?template=${activeTemplate}` : '/portfolio/create'
 
     const displayName = user?.fullName || user?.firstName || user?.username || 'User'
     const emailAddress = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || 'No email'
@@ -223,7 +234,7 @@ export default function Dashboard() {
 
     const derived = useMemo(() => {
         if (!hasPortfolio) return null
-        const sectionCount = Object.values(portfolio.sections).filter(isFilled).length
+        const sectionCount = Object.entries(portfolio.sections).filter(([k, v]) => k !== 'meta' && isFilled(v)).length
         const projectCount = portfolio.projects.length
         const checklist = buildChecklist(portfolio, sectionCount)
         const doneCount = checklist.filter((c) => c.done).length
@@ -251,12 +262,6 @@ export default function Dashboard() {
             templateLabel: titleCase(portfolio.template) || 'Not chosen',
         }
     }, [portfolio, hasPortfolio])
-
-    const heroList = useMemo(() => {
-        const list = Array.isArray(rawPortfolio) ? rawPortfolio : Array.isArray(rawPortfolio?.portfolios) ? rawPortfolio.portfolios : null
-        const items = list ? list.map(normalizePortfolio).filter(hasContent) : []
-        return items.length ? items : portfolio ? [portfolio] : []
-    }, [rawPortfolio, portfolio])
 
     if (!isLoaded) {
         return <div className="flex min-h-screen items-center justify-center text-slate-600">Loading dashboard...</div>
@@ -349,7 +354,7 @@ export default function Dashboard() {
 
                     <div className="mt-5 flex flex-wrap gap-3">
                         <button
-                            onClick={() => navigate('/portfolio/create')}
+                            onClick={() => navigate(editUrl)}
                             className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 sm:px-5 sm:py-3"
                         >
                             Edit portfolio <PenLine size={18} />
@@ -363,7 +368,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                <PortfolioHeroDisplay portfolios={heroList} />
+                <PortfolioHeroDisplay portfolios={heroList} index={heroIndex} onIndexChange={setHeroIndex} />
             </section>
 
             <div className="mt-5 grid items-start gap-4 sm:mt-6 lg:grid-cols-[1.6fr_1fr] lg:gap-5">
@@ -394,7 +399,7 @@ export default function Dashboard() {
                         lastUpdated={lastUpdated}
                         sectionCount={sectionCount}
                         onOpen={() => setShowPortfolio(true)}
-                        onEdit={() => navigate('/portfolio/create')}
+                        onEdit={() => navigate(editUrl)}
                     />
 
                     <article className={card}>
@@ -488,7 +493,7 @@ export default function Dashboard() {
                                     tone={s.tone}
                                     title={s.title}
                                     text={s.text}
-                                    right={<button className={pillBtn} onClick={() => navigate(s.route)}>Open</button>}
+                                    right={<button className={pillBtn} onClick={() => navigate(s.route === '/portfolio/create' ? editUrl : s.route)}>Open</button>}
                                 />
                             ))}
                         </ul>
@@ -499,7 +504,7 @@ export default function Dashboard() {
                 portfolio={portfolio}
                 open={showPortfolio}
                 onClose={() => setShowPortfolio(false)}
-                onEdit={() => navigate('/portfolio/create')}
+                onEdit={() => navigate(editUrl)}
             />
         </DashboardLayout>
     )

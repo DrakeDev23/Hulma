@@ -62,6 +62,29 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 curl http://localhost:8000/health
 ```
 
+## 7) Docker (optional)
+
+```bash
+cp .env.example .env
+# Update DATABASE_URL to use localhost:5433 if port 5432 is taken
+# Example: DATABASE_URL=postgresql+psycopg://hulmauser:change_me_now@localhost:5433/hulma
+docker compose up --build -d
+docker compose ps
+docker compose logs backend --tail 50
+```
+
+Reset (destructive — drops container volume):
+```bash
+docker compose down -v
+```
+
+Data safety: `database/init.sql` only creates tables/indexes. Existing local PostgreSQL data is NOT copied automatically. Move it with:
+```bash
+pg_dump -U hulmauser -d hulma -h localhost -p 5432 > hulma_backup.sql
+# Then restore to container PostgreSQL:
+psql -U hulmauser -d hulma -h localhost -p 5433 < hulma_backup.sql
+```
+
 ## 6) Clerk auth
 
 Use the Clerk issuer and JWKS URL from your Clerk dashboard. The backend validates the JWT before allowing access to protected endpoints.

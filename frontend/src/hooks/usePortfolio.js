@@ -22,8 +22,9 @@ export default function usePortfolio() {
             }
             const data = await res.json()
             if (data) {
-                setPortfolio(data)
-                try { localStorage.setItem('hulmaPortfolio', JSON.stringify(data)) } catch {}
+                const value = Array.isArray(data) ? data : data
+                setPortfolio(value)
+                try { localStorage.setItem('hulmaPortfolio', JSON.stringify(value)) } catch {}
             } else {
                 setPortfolio(null)
             }

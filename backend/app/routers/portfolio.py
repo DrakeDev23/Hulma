@@ -139,7 +139,8 @@ async def upload_portfolio_image(
         ) from exc
 
     public_url = _supabase_public_url(object_path)
-    portfolio = db.query(Portfolio).filter(Portfolio.user_id == user.id).order_by(Portfolio.updated_at.desc()).first()
+    portfolios = db.query(Portfolio).filter(Portfolio.user_id == user.id).order_by(Portfolio.updated_at.desc()).all()
+    portfolio = portfolios[0] if portfolios else None
 
     if portfolio is None:
         portfolio = Portfolio(
@@ -172,7 +173,8 @@ async def delete_portfolio_image(
     if not object_path:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image path.")
 
-    portfolio = db.query(Portfolio).filter(Portfolio.user_id == user.id).order_by(Portfolio.updated_at.desc()).first()
+    portfolios = db.query(Portfolio).filter(Portfolio.user_id == user.id).order_by(Portfolio.updated_at.desc()).all()
+    portfolio = portfolios[0] if portfolios else None
     if portfolio is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No portfolio found for this user.")
 
@@ -215,13 +217,13 @@ async def delete_portfolio_image(
     return PortfolioImageDeleteResponse(deleted=True, path=object_path)
 
 
-@router.get("/me", response_model=PortfolioRead | None)
+@router.get("/me", response_model=list[PortfolioRead])
 def read_portfolio(
     user: User = Depends(get_current_profile),
     db: Session = Depends(get_db),
-) -> Portfolio | None:
-    portfolio = db.query(Portfolio).filter(Portfolio.user_id == user.id).order_by(Portfolio.updated_at.desc()).first()
-    return portfolio
+) -> list[Portfolio]:
+    portfolios = db.query(Portfolio).filter(Portfolio.user_id == user.id).order_by(Portfolio.updated_at.desc()).all()
+    return portfolios
 
 
 @router.post("/me", response_model=PortfolioRead)
@@ -230,31 +232,33 @@ def save_portfolio(
     user: User = Depends(get_current_profile),
     db: Session = Depends(get_db),
 ) -> Portfolio:
-    portfolio = db.query(Portfolio).filter(Portfolio.user_id == user.id).first()
-
-    if portfolio is None:
-        portfolio = Portfolio(
-            user_id=user.id,
-            title=payload.title,
-            summary=payload.summary,
-            sections=payload.sections or {},
-            projects=payload.projects or [],
-            views=payload.views,
-            completion=payload.completion,
-        )
-        db.add(portfolio)
-    else:
-        portfolio.title = payload.title
-        portfolio.summary = payload.summary
-        portfolio.sections = payload.sections or {}
-        portfolio.projects = payload.projects or []
-        portfolio.views = payload.views
-        portfolio.completion = payload.completion
-        portfolio.updated_at = datetime.now(timezone.utc)
-
+    portfolio = Portfolio(
+        user_id=user.id,
+        title=payload.title,
+        summary=payload.summary,
+        sections=payload.sections or {},
+        projects=payload.projects or [],
+        views=payload.views,
+        completion=payload.completion,
+    )
+    db.add(portfolio)
     db.commit()
     db.refresh(portfolio)
     return portfolio
+
+
+@router.delete("/{portfolio_id}", response_model=dict)
+def delete_portfolio(
+    portfolio_id: int,
+    user: User = Depends(get_current_profile),
+    db: Session = Depends(get_db),
+) -> dict:
+    portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id, Portfolio.user_id == user.id).first()
+    if portfolio is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Portfolio not found.")
+    db.delete(portfolio)
+    db.commit()
+    return {"deleted": True, "id": portfolio_id}
 
 
 @router.post("/review", response_model=AiReviewResponse)

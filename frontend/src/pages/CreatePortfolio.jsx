@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/react'
-import { ArrowRight, BrainCircuit, CheckCircle2, Globe, Mail, MapPin, Phone, Save, Sparkles } from 'lucide-react'
+import { ArrowRight, BrainCircuit, Lightbulb, Save, Share2, Sparkles } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import ShareLink, { buildShareUrl, getShareSlug } from '../components/ShareLink'
 
 const MAX_IMAGE_BYTES = 7 * 1024 * 1024
+const REVIEW_KEY = 'hulmaPortfolioReview'
+const DRAFT_KEY = 'hulmaPortfolio'
 
 const DEFAULT_FORM = {
     title: '',
@@ -21,54 +24,71 @@ const DEFAULT_FORM = {
     socialLinks: '',
 }
 
+const safeGet = (key) => {
+    try {
+        return window.localStorage.getItem(key)
+    } catch {
+        return null
+    }
+}
+
+const safeSet = (key, value) => {
+    try {
+        window.localStorage.setItem(key, value)
+    } catch {
+        return
+    }
+}
+
+const readReview = () => {
+    try {
+        const raw = safeGet(REVIEW_KEY)
+        return raw ? JSON.parse(raw) : null
+    } catch {
+        return null
+    }
+}
+
 const parseList = (value) =>
     value
         .split(/\n|,/)
         .map((item) => item.trim())
         .filter(Boolean)
 
-const parseProjects = (value) => {
-    const lines = value
+const parseLines = (value) =>
+    value
         .split(/\n+/)
         .map((item) => item.trim())
         .filter(Boolean)
 
-    if (!lines.length) return []
-
-    return lines.map((line) => ({
+const parseProjects = (value) =>
+    parseLines(value).map((line) => ({
         name: line.split(':')[0]?.trim() || 'Project',
         description: line.includes(':') ? line.split(':').slice(1).join(':').trim() : line,
-        impact: 'Impact tracked and documented',
         link: '',
     }))
-}
 
-const parseLinks = (value) => {
-    const lines = value
-        .split(/\n+/)
-        .map((item) => item.trim())
-        .filter(Boolean)
-
-    if (!lines.length) return {}
-
-    return lines.reduce((acc, line) => {
+const parseLinks = (value) =>
+    parseLines(value).reduce((acc, line) => {
         const [label, ...rest] = line.split(':')
         const key = label.trim() || 'Link'
         const url = rest.join(':').trim()
         if (url) acc[key] = url
         return acc
     }, {})
-}
 
-function buildPortfolioPayload(form, user, emailAddress, urlTemplate) {
-    const fullName = form.fullName || user?.fullName || user?.firstName || 'Portfolio Owner'
-    const email = form.email || emailAddress || 'your@email.com'
+function buildPortfolioPayload(form, user, emailAddress, templateId) {
+    const fullName = form.fullName || user?.fullName || user?.firstName || ''
+    const email = form.email || emailAddress || ''
 
-    const payload = {
-        title: form.title || `${fullName}'s Portfolio`,
-        summary: form.aboutMe || 'Focused on building impactful digital experiences and measurable outcomes.',
+    const checks = [fullName, form.aboutMe, form.skills, form.projects, form.education, form.workExperience, form.socialLinks]
+    const completion = Math.round((checks.filter(Boolean).length / checks.length) * 100)
+
+    return {
+        title: form.title || (fullName ? `${fullName}'s Portfolio` : 'My Portfolio'),
+        summary: form.aboutMe,
         sections: {
-            meta: urlTemplate ? { templateId: urlTemplate } : undefined,
+            meta: { templateId },
             profile: {
                 fullName,
                 profilePicture: form.profilePicture || '',
@@ -77,29 +97,19 @@ function buildPortfolioPayload(form, user, emailAddress, urlTemplate) {
                 address: form.address || '',
                 aboutMe: form.aboutMe || '',
             },
-            education: parseList(form.education),
+            education: parseLines(form.education),
             skills: parseList(form.skills),
-            workExperience: parseList(form.workExperience),
+            workExperience: parseLines(form.workExperience),
             socialLinks: parseLinks(form.socialLinks),
         },
         projects: parseProjects(form.projects),
         views: 0,
-        completion: 0,
+        completion,
     }
-
-    const filledFields = [
-        fullName,
-        form.aboutMe,
-        form.skills,
-        form.projects,
-        form.education,
-        form.workExperience,
-        form.socialLinks,
-    ].filter(Boolean).length
-
-    payload.completion = Math.min(100, Math.max(30, filledFields * 12))
-    return payload
 }
+
+const inputClass = 'rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white'
+const labelClass = 'flex flex-col gap-1.5 text-sm font-medium text-slate-700'
 
 export default function CreatePortfolio() {
     const navigate = useNavigate()
@@ -107,16 +117,27 @@ export default function CreatePortfolio() {
     const urlTemplate = searchParams.get('template')
     const { getToken } = useAuth()
     const { user } = useUser()
+    const userId = user?.id
     const emailAddress = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || ''
 
+    const userRef = useRef({ user, emailAddress })
+    userRef.current = { user, emailAddress }
+
     const [form, setForm] = useState(DEFAULT_FORM)
-    const [review, setReview] = useState(null)
+    const [review, setReview] = useState(readReview)
     const [isSaving, setIsSaving] = useState(false)
     const [isReviewing, setIsReviewing] = useState(false)
     const [notice, setNotice] = useState('')
     const [selectedImageName, setSelectedImageName] = useState('')
+    const [loadedTemplate, setLoadedTemplate] = useState('')
+    const [slug, setSlug] = useState('')
+
+    const templateId = urlTemplate || loadedTemplate || safeGet('hulma-template') || 'simple'
 
     useEffect(() => {
+        if (!userId) return
+        let cancelled = false
+
         const loadCurrentPortfolio = async () => {
             try {
                 const token = await getToken()
@@ -126,15 +147,15 @@ export default function CreatePortfolio() {
 
                 if (!res.ok) return
                 const data = await res.json()
-                if (!data) return
+                if (!data || cancelled) return
 
+                const { user: currentUser, emailAddress: currentEmail } = userRef.current
                 const profile = data.sections?.profile || {}
-                const currentImageName = profile.profilePicture ? profile.profilePicture.split('/').pop() || '' : ''
                 setForm({
                     title: data.title || '',
-                    fullName: profile.fullName || user?.fullName || '',
+                    fullName: profile.fullName || currentUser?.fullName || '',
                     profilePicture: profile.profilePicture || '',
-                    email: profile.email || emailAddress || '',
+                    email: profile.email || currentEmail || '',
                     contactNumber: profile.contactNumber || '',
                     address: profile.address || '',
                     aboutMe: profile.aboutMe || '',
@@ -144,14 +165,19 @@ export default function CreatePortfolio() {
                     workExperience: Array.isArray(data.sections?.workExperience) ? data.sections.workExperience.join('\n') : '',
                     socialLinks: data.sections?.socialLinks ? Object.entries(data.sections.socialLinks).map(([key, value]) => `${key}: ${value}`).join('\n') : '',
                 })
-                setSelectedImageName(currentImageName)
+                setSelectedImageName(profile.profilePicture ? profile.profilePicture.split('/').pop() || '' : '')
+                setLoadedTemplate(data.sections?.meta?.templateId || '')
+                setSlug(getShareSlug(data))
             } catch (error) {
                 console.error('Failed to load portfolio:', error)
             }
         }
 
         loadCurrentPortfolio()
-    }, [emailAddress, getToken, user])
+        return () => {
+            cancelled = true
+        }
+    }, [userId, getToken])
 
     const uploadProfilePicture = async (file) => {
         if (!file) return ''
@@ -174,9 +200,7 @@ export default function CreatePortfolio() {
 
         const response = await fetch('/api/portfolio/images/upload', {
             method: 'POST',
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
+            headers: { Authorization: `Bearer ${token}` },
             body: formData,
         })
 
@@ -200,17 +224,10 @@ export default function CreatePortfolio() {
 
     const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }))
 
-    const preview = useMemo(() => {
-        const fullName = form.fullName || user?.fullName || 'Your Name'
-        const email = form.email || emailAddress || 'your@email.com'
-        const skills = parseList(form.skills)
-        const education = parseList(form.education)
-        const workExperience = parseList(form.workExperience)
-        const projects = parseProjects(form.projects)
-        const links = parseLinks(form.socialLinks)
-
-        return { fullName, email, skills, education, workExperience, projects, links }
-    }, [emailAddress, form, user])
+    const previewPortfolio = useMemo(
+        () => buildPortfolioPayload(form, user, emailAddress, templateId),
+        [form, user, emailAddress, templateId],
+    )
 
     const canReview = Boolean(
         form.fullName || form.aboutMe || form.skills || form.projects || form.workExperience || form.education || form.socialLinks
@@ -233,11 +250,10 @@ export default function CreatePortfolio() {
         setNotice('')
 
         try {
-            const payload = buildPortfolioPayload(form, user, emailAddress, urlTemplate)
             const response = await fetch('/api/portfolio/me', {
                 method: 'POST',
                 headers: await getAuthHeaders(),
-                body: JSON.stringify(payload),
+                body: JSON.stringify(previewPortfolio),
             })
 
             if (!response.ok) {
@@ -249,8 +265,14 @@ export default function CreatePortfolio() {
             }
 
             const saved = await response.json()
-            localStorage.setItem('hulmaPortfolio', JSON.stringify(saved))
-            setNotice('Portfolio saved successfully. Preview is ready below.')
+            safeSet(DRAFT_KEY, JSON.stringify(saved))
+            const savedSlug = getShareSlug(saved)
+            if (savedSlug) {
+                setSlug(savedSlug)
+                setNotice('Portfolio saved. Your public link is ready to share.')
+            } else {
+                setNotice('Portfolio saved, but the server did not return an id or slug for the public link.')
+            }
             return saved
         } catch (error) {
             console.error(error)
@@ -265,7 +287,7 @@ export default function CreatePortfolio() {
         if (!canReview) {
             setNotice('Add your portfolio information before running AI review.')
             setReview(null)
-            return
+            return false
         }
 
         setIsReviewing(true)
@@ -273,11 +295,10 @@ export default function CreatePortfolio() {
         setNotice('')
 
         try {
-            const payload = buildPortfolioPayload(form, user, emailAddress, urlTemplate)
             const response = await fetch('/api/portfolio/review', {
                 method: 'POST',
                 headers: await getAuthHeaders(),
-                body: JSON.stringify(payload),
+                body: JSON.stringify(previewPortfolio),
             })
 
             if (!response.ok) {
@@ -290,19 +311,13 @@ export default function CreatePortfolio() {
 
             const data = await response.json()
             setReview(data)
+            safeSet(REVIEW_KEY, JSON.stringify({ ...data, reviewed_at: new Date().toISOString() }))
             setNotice('AI review completed.')
+            return true
         } catch (error) {
             console.error(error)
-            setReview({
-                summary: 'Your portfolio is clear and strong. Add a few measurable results and tighten the headline to increase impact.',
-                score: 84,
-                suggestions: [
-                    'Highlight one measurable outcome for each project.',
-                    'Keep the profile summary direct and specific.',
-                    'Use consistent spacing and keep the strongest work first.',
-                ],
-            })
-            setNotice(error.message || 'AI review is unavailable right now, so a sample review was used instead.')
+            setNotice(error.message || 'AI review is unavailable right now. Please try again.')
+            return false
         } finally {
             setIsReviewing(false)
         }
@@ -316,16 +331,18 @@ export default function CreatePortfolio() {
         }
     }
 
+    const shareUrl = buildShareUrl(slug)
+
     return (
         <DashboardLayout
             userName={user?.fullName || user?.firstName || 'Portfolio creator'}
-            email={emailAddress || 'your@email.com'}
-            subtitle="Fill in your portfolio details and review the final preview"
+            email={emailAddress || 'No email'}
+            subtitle="Fill in your portfolio details"
         >
             <div className="mt-5 flex flex-col items-start gap-2 sm:mt-6 sm:flex-row sm:justify-between sm:gap-3">
                 <div>
                     <h3 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[28px]">Create Portfolio</h3>
-                    <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">Add your portfolio information, review it, and save a live preview.</p>
+                    <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">Add your information, save it, and share it with a public link. View your finished portfolio from the dashboard.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button
@@ -350,29 +367,18 @@ export default function CreatePortfolio() {
             <section className="mt-4 grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
                 <div className="space-y-4 rounded-2xl bg-white p-4 shadow-[0_2px_10px_rgba(30,70,140,0.10)] sm:p-5">
                     <div className="grid gap-4 md:grid-cols-2">
-                        <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                        <label className={labelClass}>
                             Portfolio title
-                            <input
-                                value={form.title}
-                                onChange={(event) => updateField('title', event.target.value)}
-                                placeholder="My Portfolio"
-                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
-                            />
+                            <input value={form.title} onChange={(e) => updateField('title', e.target.value)} placeholder="My Portfolio" className={inputClass} />
                         </label>
-
-                        <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                        <label className={labelClass}>
                             Full Name
-                            <input
-                                value={form.fullName}
-                                onChange={(event) => updateField('fullName', event.target.value)}
-                                placeholder="Jane Doe"
-                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
-                            />
+                            <input value={form.fullName} onChange={(e) => updateField('fullName', e.target.value)} placeholder="Jane Doe" className={inputClass} />
                         </label>
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-2">
-                        <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                        <label className={labelClass}>
                             Profile Picture
                             <input
                                 type="file"
@@ -384,8 +390,7 @@ export default function CreatePortfolio() {
                                         return
                                     }
 
-                                    const fileName = file.name.split(/[\\/]/).pop() || 'image'
-                                    setSelectedImageName(fileName)
+                                    setSelectedImageName(file.name.split(/[\\/]/).pop() || 'image')
 
                                     try {
                                         const uploadedUrl = await uploadProfilePicture(file)
@@ -396,7 +401,7 @@ export default function CreatePortfolio() {
                                         setNotice(error.message || 'Please choose a valid image file.')
                                     }
                                 }}
-                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
+                                className={inputClass}
                             />
                             {selectedImageName ? (
                                 <span className="mt-1 text-[11px] font-medium text-slate-500">Selected file: {selectedImageName}</span>
@@ -404,177 +409,136 @@ export default function CreatePortfolio() {
                                 <span className="mt-1 text-[11px] text-slate-400">No file selected</span>
                             )}
                         </label>
-
-                        <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                        <label className={labelClass}>
                             Email
-                            <input
-                                value={form.email}
-                                onChange={(event) => updateField('email', event.target.value)}
-                                placeholder="you@example.com"
-                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
-                            />
+                            <input value={form.email} onChange={(e) => updateField('email', e.target.value)} placeholder="you@example.com" className={inputClass} />
                         </label>
                     </div>
 
                     <div className="grid gap-4 md:grid-cols-2">
-                        <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                        <label className={labelClass}>
                             Contact Number
-                            <input
-                                value={form.contactNumber}
-                                onChange={(event) => updateField('contactNumber', event.target.value)}
-                                placeholder="+1 555 123 4567"
-                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
-                            />
+                            <input value={form.contactNumber} onChange={(e) => updateField('contactNumber', e.target.value)} placeholder="+1 555 123 4567" className={inputClass} />
                         </label>
-
-                        <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                        <label className={labelClass}>
                             Address
-                            <input
-                                value={form.address}
-                                onChange={(event) => updateField('address', event.target.value)}
-                                placeholder="Lagos, Nigeria"
-                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
-                            />
+                            <input value={form.address} onChange={(e) => updateField('address', e.target.value)} placeholder="Lagos, Nigeria" className={inputClass} />
                         </label>
                     </div>
 
-                    <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
+                    <label className={labelClass}>
                         About Me
                         <textarea
                             value={form.aboutMe}
-                            onChange={(event) => updateField('aboutMe', event.target.value)}
+                            onChange={(e) => updateField('aboutMe', e.target.value)}
                             rows={4}
                             placeholder="I design and build digital experiences that feel simple, useful, and memorable."
-                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
+                            className={inputClass}
                         />
                     </label>
 
-                    <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
-                        Educational Background
+                    <label className={labelClass}>
+                        Educational Background (one entry per line)
                         <textarea
                             value={form.education}
-                            onChange={(event) => updateField('education', event.target.value)}
+                            onChange={(e) => updateField('education', e.target.value)}
                             rows={3}
-                            placeholder="B.Sc. Computer Science - University of Lagos\n2020 - 2024"
-                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
+                            placeholder={'B.Sc. Computer Science - University of Lagos\n2020 - 2024'}
+                            className={inputClass}
                         />
                     </label>
 
-                    <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
-                        Skills
+                    <label className={labelClass}>
+                        Skills (separated by commas)
                         <input
                             value={form.skills}
-                            onChange={(event) => updateField('skills', event.target.value)}
+                            onChange={(e) => updateField('skills', e.target.value)}
                             placeholder="Product design, UX research, React, Product strategy"
-                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
+                            className={inputClass}
                         />
                     </label>
 
-                    <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
-                        Projects
+                    <label className={labelClass}>
+                        Projects (Name: description, one per line)
                         <textarea
                             value={form.projects}
-                            onChange={(event) => updateField('projects', event.target.value)}
+                            onChange={(e) => updateField('projects', e.target.value)}
                             rows={4}
-                            placeholder="Hulma redesign: Rebuilt the portfolio experience across landing pages and onboarding flows.\n\nGrowth dashboard: Built analytics views for product teams."
-                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
+                            placeholder={'Hulma redesign: Rebuilt the portfolio experience across landing pages and onboarding flows.\nGrowth dashboard: Built analytics views for product teams.'}
+                            className={inputClass}
                         />
                     </label>
 
-                    <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
-                        Work Experience
+                    <label className={labelClass}>
+                        Work Experience (one entry per line)
                         <textarea
                             value={form.workExperience}
-                            onChange={(event) => updateField('workExperience', event.target.value)}
+                            onChange={(e) => updateField('workExperience', e.target.value)}
                             rows={4}
-                            placeholder="Product Designer - Pixel Labs\n2022 - Present\nBuilt user flows, improved conversion, and supported design systems."
-                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
+                            placeholder={'Product Designer - Pixel Labs\n2022 - Present\nBuilt user flows, improved conversion, and supported design systems.'}
+                            className={inputClass}
                         />
                     </label>
 
-                    <label className="flex flex-col gap-1.5 text-sm font-medium text-slate-700">
-                        Social Media / Website Links
+                    <label className={labelClass}>
+                        Social Media / Website Links (Label: url, one per line)
                         <textarea
                             value={form.socialLinks}
-                            onChange={(event) => updateField('socialLinks', event.target.value)}
+                            onChange={(e) => updateField('socialLinks', e.target.value)}
                             rows={3}
-                            placeholder="LinkedIn: https://linkedin.com/in/janedoe\nGitHub: https://github.com/janedoe\nPortfolio: https://janedoe.dev"
-                            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white"
+                            placeholder={'LinkedIn: https://linkedin.com/in/janedoe\nGitHub: https://github.com/janedoe\nPortfolio: https://janedoe.dev'}
+                            className={inputClass}
                         />
                     </label>
                 </div>
 
-                <aside className="space-y-4 rounded-2xl bg-linear-to-br from-[#3e90e2] via-[#2272c4] to-[#1b5c9a] p-4 text-white shadow-md sm:p-5">
+                <aside className="h-fit space-y-4 rounded-2xl bg-linear-to-br from-[#3e90e2] via-[#2272c4] to-[#1b5c9a] p-4 text-white shadow-md sm:p-5 xl:sticky xl:top-4">
                     <div className="flex items-center gap-2">
+                        <Share2 size={18} />
+                        <h4 className="text-lg font-semibold">Public link</h4>
+                    </div>
+
+                    {shareUrl ? (
+                        <>
+                            <ShareLink slug={slug} dark />
+                            <p className="text-xs text-[#d3e5fa]">Anyone with this link can view your portfolio. Save again to publish your latest changes.</p>
+                        </>
+                    ) : (
+                        <p className="rounded-2xl border border-white/30 bg-white/10 p-4 text-sm leading-relaxed text-[#eaf3ff]">
+                            Save your portfolio to get a public link you can share.
+                        </p>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1">
                         <Sparkles size={18} />
-                        <h4 className="text-lg font-semibold">Live portfolio preview</h4>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
-                        <div className="flex items-center gap-3">
-                            {form.profilePicture ? (
-                                <img src={form.profilePicture} alt={preview.fullName} className="h-14 w-14 rounded-full object-cover ring-2 ring-white/40" />
-                            ) : (
-                                <div className="grid h-14 w-14 place-items-center rounded-full bg-white/20 text-lg font-semibold text-white">
-                                    {preview.fullName?.charAt(0)?.toUpperCase() || 'Y'}
-                                </div>
-                            )}
-                            <div className="min-w-0">
-                                <h5 className="truncate text-lg font-semibold">{preview.fullName}</h5>
-                                <p className="text-sm text-[#dbeaff]">{form.title || 'Portfolio'}</p>
-                            </div>
-                        </div>
-
-                        <div className="mt-4 space-y-2 text-sm text-[#ebf3ff]">
-                            <div className="flex items-center gap-2"><Mail size={15} /> <span className="truncate">{preview.email}</span></div>
-                            {form.contactNumber && <div className="flex items-center gap-2"><Phone size={15} /> <span>{form.contactNumber}</span></div>}
-                            {form.address && <div className="flex items-center gap-2"><MapPin size={15} /> <span>{form.address}</span></div>}
-                            {Object.keys(preview.links).length > 0 && <div className="flex items-center gap-2"><Globe size={15} /> <span>{Object.keys(preview.links).length} links</span></div>}
-                        </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
-                        <h6 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#d3e5fa]">About</h6>
-                        <p className="mt-2 text-sm leading-relaxed text-[#ebf3ff]">{form.aboutMe || 'Add a short introduction about yourself and your work.'}</p>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
-                        <h6 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#d3e5fa]">Skills</h6>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                            {preview.skills.length ? preview.skills.map((skill) => (
-                                <span key={skill} className="rounded-full bg-white/15 px-2.5 py-1 text-[11px] text-white">{skill}</span>
-                            )) : <span className="text-sm text-[#ebf3ff]">Add some skills to show your strengths.</span>}
-                        </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
-                        <h6 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#d3e5fa]">Projects</h6>
-                        <div className="mt-2 space-y-2 text-sm text-[#ebf3ff]">
-                            {preview.projects.length ? preview.projects.map((project) => (
-                                <div key={`${project.name}-${project.description}`} className="rounded-xl bg-white/10 p-2.5">
-                                    <div className="font-medium">{project.name}</div>
-                                    <div className="mt-1 text-xs text-[#dbeaff]">{project.description}</div>
-                                </div>
-                            )) : <div className="text-sm text-[#ebf3ff]">Project details will appear here once added.</div>}
-                        </div>
+                        <h4 className="text-lg font-semibold">AI review</h4>
                     </div>
 
                     {review ? (
                         <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
                             <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs uppercase tracking-[0.16em] text-[#d3e5fa]">AI score</span>
+                                <span className="text-xs text-[#d3e5fa]">Score</span>
                                 <span className="text-2xl font-semibold">{review.score}</span>
                             </div>
                             <p className="mt-3 text-sm leading-relaxed text-[#ebf3ff]">{review.summary}</p>
+                            {Array.isArray(review.suggestions) && review.suggestions.length > 0 && (
+                                <ul className="mt-3 space-y-1.5">
+                                    {review.suggestions.slice(0, 4).map((s) => (
+                                        <li key={s} className="flex gap-1.5 text-xs leading-snug text-[#ebf3ff]">
+                                            <Lightbulb size={12} className="mt-0.5 shrink-0" /> {s}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                     ) : (
                         <div className="rounded-2xl border border-white/30 bg-white/10 p-4 text-sm leading-relaxed text-[#eaf3ff]">
-                            Add real portfolio content to enable AI scanning and generate review suggestions.
+                            Add your portfolio content, then run the AI review for feedback.
                         </div>
                     )}
 
                     {notice && (
-                        <div className="rounded-xl border border-white/20 bg-white/10 p-2.5 text-xs text-[#ebf3ff]">
+                        <div role="status" className="rounded-xl border border-white/20 bg-white/10 p-2.5 text-xs text-[#ebf3ff]">
                             {notice}
                         </div>
                     )}
@@ -582,7 +546,8 @@ export default function CreatePortfolio() {
                     <button
                         type="button"
                         onClick={handleSubmit}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1b64dc] px-4 py-3 text-sm font-medium text-white shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4]"
+                        disabled={isSaving || isReviewing}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1b64dc] px-4 py-3 text-sm font-medium text-white shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                         Save and review <ArrowRight size={16} />
                     </button>

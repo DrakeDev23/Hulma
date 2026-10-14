@@ -1,36 +1,23 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useUser } from '@clerk/react'
-import { Sparkles, Clock, CheckCircle2, Plus } from 'lucide-react'
+import { useUser, useAuth } from '@clerk/react'
+import { Sparkles, Clock, CheckCircle2, Plus, ChevronLeft, ChevronRight, Trash2, Layers, Link as LinkIcon, Zap, ListChecks, History, CircleDot, BarChart3, ArrowRight } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import usePortfolio from '../hooks/usePortfolio'
-import puppetImg from '../assets/puppet.png'
-import PortfolioReviewCard from '../components/PortfolioReviewCard'
 import PortfolioModal from '../components/PortfolioModal'
-import PortfolioHeroDisplay from '../components/PortfolioHeroDisplay'
-import {
-    resolvePortfolio,
-    resolvePortfolioList,
-    countSections,
-    reviewInfo,
-    relativeTime,
-    titleCase,
-} from '../utils/portfolioUtils'
+import { resolvePortfolio, resolvePortfolioList, countSections, reviewInfo, relativeTime, titleCase } from '../utils/portfolioUtils'
 
-const TONES = {
-    blue: 'bg-[#dce9fb] text-[#1f6fdc]',
-    green: 'bg-[#dcf3e7] text-[#12875a]',
-    orange: 'bg-[#fde6d8] text-[#e0561b]',
-}
-
-const glass = 'border border-white/40 bg-white/15 backdrop-blur-sm transition duration-200 hover:bg-white/25'
 const cardHover = 'group rounded-xl bg-[#f3f6fb] p-4 transition duration-300 hover:-translate-y-1 hover:bg-[#e8effa] hover:shadow-md'
 
 export default function Portfolio() {
     const navigate = useNavigate()
     const { user } = useUser()
+    const { getToken } = useAuth()
     const { portfolio: raw, loading, error, refetch } = usePortfolio()
     const [showPortfolio, setShowPortfolio] = useState(false)
+    const [selectedPortfolio, setSelectedPortfolio] = useState(null)
+    const [slideIndex, setSlideIndex] = useState(0)
+    const [deleteConfirm, setDeleteConfirm] = useState({ open: false, id: null })
 
     const userName = user?.fullName || user?.firstName || user?.username || 'User'
     const email = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || 'No email'
@@ -40,16 +27,18 @@ export default function Portfolio() {
 
     const d = useMemo(() => {
         const sectionCount = countSections(portfolio)
-        const projectCount = portfolio?.projects.length || 0
+        const projectCount = portfolio?.projects?.length || 0
         const review = reviewInfo(portfolio?.review)
         return {
-            sectionCount,
-            projectCount,
-            review,
+            sectionCount, projectCount, review,
             templateLabel: titleCase(portfolio?.templateId) || 'Not chosen',
             updated: relativeTime(portfolio?.updatedAt),
         }
     }, [portfolio])
+
+    const { sectionCount, projectCount, review, templateLabel, updated } = d
+    const totalProjects = heroList.reduce((sum, p) => sum + (p.projects?.length || 0), 0)
+    const totalSections = heroList.reduce((sum, p) => sum + countSections(p), 0)
 
     if (loading) {
         return (
@@ -58,7 +47,6 @@ export default function Portfolio() {
             </DashboardLayout>
         )
     }
-
     if (error && !portfolio) {
         return (
             <DashboardLayout userName={userName} email={email} subtitle="Portfolio error">
@@ -70,182 +58,155 @@ export default function Portfolio() {
         )
     }
 
-    const { sectionCount, projectCount, review, templateLabel, updated } = d
-    const projectLabel = projectCount === 1 ? '1 project' : `${projectCount} projects`
+    const openDeleteConfirm = (id) => {
+        if (!id) return
+        setDeleteConfirm({ open: true, id })
+    }
 
-    const heroStats = [
-        { label: 'Template', value: templateLabel },
-        { label: 'Sections', value: `${sectionCount} filled` },
-        { label: 'AI review', value: review.label },
-    ]
+    const confirmDelete = async () => {
+        const id = deleteConfirm.id
+        if (!id) return
+        try {
+            const token = await getToken?.()
+            const res = await fetch(`/api/portfolio/${id}`, { method: 'DELETE', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+            if (res.ok) { refetch?.(); setSelectedPortfolio(null); setShowPortfolio(false); }
+        } catch (e) { console.error('Delete failed', e) }
+        finally { setDeleteConfirm({ open: false, id: null }) }
+    }
 
-    const steps = [
-        { title: 'Choose a template', text: 'Start with a curated layout and swap sections in seconds.', done: Boolean(portfolio?.templateId), tone: 'blue', path: '/templates' },
-        { title: 'Add projects and sections', text: 'Organize case studies, skills and experience into a clear story.', done: projectCount > 0 && sectionCount >= 3, tone: 'green', path: '/portfolio/create' },
-        { title: 'Review AI feedback', text: 'Get clarity checks, tone suggestions and publish-ready guidance.', done: Boolean(portfolio?.review), tone: 'orange', path: '/portfolio/create' },
-    ]
-
-    const features = [
-        { title: 'AI review', badge: review.label, tone: 'green', text: review.summary || 'Run an AI review to get clarity checks and suggestions for your portfolio.', path: '/review' },
-        { title: 'Templates', badge: templateLabel, tone: 'blue', text: portfolio?.templateId ? 'Switch to a different layout without losing your content.' : 'Browse layouts and pick one for your portfolio.', path: '/templates' },
-        { title: 'Sections', badge: `${sectionCount} filled`, tone: 'blue', text: sectionCount > 0 ? `You have ${sectionCount} sections filled in. Add more to tell a fuller story.` : 'Add about, skills, education and experience to structure your story.', path: '/portfolio/create' },
-    ]
+    const checkTips = []
+    if (!portfolio?.summary) checkTips.push('Add a short summary')
+    if (!portfolio?.sections?.socialLinks || Object.keys(portfolio.sections?.socialLinks || {}).length === 0) checkTips.push('Add social links')
+    if (!portfolio?.review) checkTips.push('Run AI review')
+    if (portfolio?.completion < 100) checkTips.push('Complete all sections')
 
     return (
-        <DashboardLayout
-            userName={userName}
-            email={email}
-            subtitle={portfolio ? `${sectionCount} sections · ${projectLabel}` : 'No portfolio generated yet'}
-        >
+        <DashboardLayout userName={userName} email={email} subtitle={portfolio ? 'Content Health & Quick Actions' : 'Create your first portfolio'}>
             <div className="mt-5 flex flex-col items-start gap-2 sm:mt-6 sm:flex-row sm:justify-between sm:gap-3">
                 <div>
-                    <h3 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[28px]">Your Portfolio</h3>
-                    <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">Bring your projects, skills and experience together</p>
+                    <h3 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[28px]">Content Health Center</h3>
+                    <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">Review, edit and optimize your portfolio drafts</p>
                 </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#1f6fdc] bg-white px-3 py-1.5 text-xs font-medium text-[#1f6fdc] transition duration-200 hover:bg-[#1f6fdc] hover:text-white">
+                <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#1f6fdc] bg-white px-3 py-1.5 text-xs font-medium text-[#1f6fdc]">
                     <Clock size={13} /> {portfolio ? `Updated ${updated || 'recently'}` : 'Not started'}
                 </span>
             </div>
 
             {source === 'local' && (
-                <p className="mt-3 rounded-xl bg-[#fde6d8] px-3 py-2 text-xs text-[#a8400f]">
-                    Showing a draft saved on this device. It was not found on your account yet.
-                </p>
+                <p className="mt-3 rounded-xl bg-[#fde6d8] px-3 py-2 text-xs text-[#a8400f]">Showing a draft saved on this device. It was not found on your account yet.</p>
             )}
 
             <section className="mt-4 rounded-2xl bg-white p-4 shadow-[0_2px_10px_rgba(30,70,140,0.10)] sm:p-6">
-                <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-                    <div className="min-w-0">
-                        <h4 className="truncate text-lg font-semibold leading-tight">{portfolio ? (portfolio.title || 'Your Portfolio') : 'No portfolios yet'}</h4>
-                        <p className="mt-1 text-xs text-slate-500 sm:text-[13px]">
-                            {portfolio ? 'Live portfolio preview' : 'Create your first portfolio to organize projects, sections and AI feedback in one place.'}
-                        </p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-[#f3f6fb] to-white p-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500"><BarChart3 size={14} className="text-[#1f6fdc]" /> Completion Score</div>
+                        <div className="mt-2 flex items-baseline gap-2"><span className="text-3xl font-black text-[#1f6fdc]">{portfolio?.completion || 0}%</span></div>
+                        <div className="mt-2 h-2 w-full rounded-full bg-slate-200 overflow-hidden"><div className="h-full rounded-full bg-[#1f6fdc]" style={{ width: `${portfolio?.completion || 0}%` }} /></div>
                     </div>
-                    {portfolio && (
-                        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#dce9fb] px-3 py-1 text-xs font-medium text-[#1f6fdc]">
-                            {templateLabel} template
-                        </span>
-                    )}
+                    <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-[#f3f6fb] to-white p-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500"><Zap size={14} className="text-[#ffa502]" /> AI Audit</div>
+                        <div className="mt-2 text-3xl font-black text-slate-800">{review?.label || 'Not run yet'}</div>
+                        <p className="mt-1 text-xs text-slate-500">{review?.summary || 'Run AI audit for optimization feedback'}</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-[#f3f6fb] to-white p-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs font-medium text-slate-500"><Layers size={14} className="text-[#12875a]" /> Content Count</div>
+                        <div className="mt-2 text-3xl font-black text-slate-800">{heroList.length}</div>
+                        <p className="mt-1 text-xs text-slate-500">{totalProjects} projects · {totalSections} sections active</p>
+                    </div>
                 </div>
 
-                <div className="mt-4 grid gap-5 rounded-2xl bg-linear-to-br from-[#3e90e2] via-[#2272c4] to-[#1b5c9a] p-4 text-white sm:p-5 lg:grid-cols-[1fr_1.1fr] lg:gap-6">
-                    <div>
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${glass}`}>
-                            <Sparkles size={13} /> AI-assisted portfolio builder
-                        </span>
-
-                        <h3 className="mt-4 text-2xl font-semibold leading-tight sm:text-3xl">
-                            {portfolio ? (portfolio.title || 'Your portfolio') : 'Create your portfolio'}
-                        </h3>
-                        <p className="mt-3 line-clamp-4 max-w-md text-sm leading-relaxed text-[#bcd7f6] sm:text-base">
-                            {portfolio
-                                ? (portfolio.summary || 'Add a short summary so visitors know who you are.')
-                                : 'Turn your skills, projects and experience into a professional portfolio with templates, sections and instant AI feedback.'}
-                        </p>
-
-                        <div className="mt-5 grid grid-cols-1 gap-2.5 min-[480px]:grid-cols-3">
-                            {heroStats.map((s) => (
-                                <div key={s.label} className={`rounded-xl px-3 py-2.5 hover:-translate-y-0.5 ${glass}`}>
-                                    <small className="block text-xs text-[#d3e5fa]">{s.label}</small>
-                                    <strong className="text-sm font-semibold">{s.value}</strong>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-5 flex flex-wrap gap-3">
-                            <button
-                                onClick={() => navigate('/portfolio/create')}
-                                className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 sm:px-5 sm:py-3"
-                            >
-                                {portfolio ? 'Edit Portfolio' : 'Create Portfolio'} <Plus size={16} />
-                            </button>
-                            <button
-                                onClick={() => navigate('/templates')}
-                                className={`rounded-xl px-4 py-2.5 text-sm font-medium hover:-translate-y-0.5 active:scale-95 sm:px-5 sm:py-3 ${glass}`}
-                            >
-                                View templates
-                            </button>
-                        </div>
-                    </div>
-
-                    {portfolio ? (
-                        <PortfolioHeroDisplay portfolios={heroList} />
-                    ) : (
-                        <div className="group relative min-h-72 overflow-hidden rounded-2xl border border-white/30 bg-white/10 p-3 transition duration-300 hover:bg-white/15 sm:min-h-80 sm:p-4 lg:min-h-0">
-                            <div className="flex items-start justify-between gap-2">
+                <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_0.9fr]">
+                    <div className="space-y-5">
+                        <div className="rounded-2xl bg-gradient-to-br from-[#2563eb] via-[#1d4ed8] to-[#1e3a8a] p-5 text-white shadow-lg shadow-blue-900/10">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
                                 <div>
-                                    <strong className="block text-sm font-semibold">Portfolio inspiration</strong>
-                                    <small className="text-xs text-[#d3e5fa]">Preview your portfolio hero</small>
+                                    <h4 className="text-xl font-bold">{portfolio?.title || 'Untitled Portfolio'}</h4>
+                                    <p className="text-sm text-[#cfe0fa]">{templateLabel} template · Published</p>
                                 </div>
-                                <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium sm:px-3 sm:text-xs ${glass}`}>
-                                    <Sparkles size={13} /> Sample preview
-                                </span>
+                                <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-medium backdrop-blur">Ready to publish</span>
                             </div>
-                            <span className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium sm:px-3 sm:text-xs ${glass}`}>
-                                <CheckCircle2 size={13} /> Make it yours
-                            </span>
-                            <img
-                                src={puppetImg}
-                                alt="Hulma mascot"
-                                className="pointer-events-none absolute bottom-0 right-2 h-52 w-auto max-w-[70%] origin-bottom object-contain object-bottom transition-transform duration-500 group-hover:scale-105 sm:right-4 sm:h-60 lg:h-[85%]"
-                            />
+                            <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-[#cfe0fa]">
+                                {portfolio?.id && <a href="#" className="inline-flex items-center gap-1 text-white hover:underline"><LinkIcon size={12} /> Live URL</a>}
+                                <span>Updated {updated || 'recently'}</span>
+                            </div>
+                            <div className="mt-4 flex gap-3">
+                                <button onClick={() => navigate('/portfolio/create')} className="inline-flex items-center gap-2 rounded-xl bg-white text-[#1d4ed8] px-4 py-2.5 text-sm font-semibold shadow hover:bg-slate-100 active:scale-95">Edit in Portfolio Tab <ArrowRight size={14} /></button>
+                            </div>
                         </div>
-                    )}
-                </div>
 
-                {portfolio && (
-                    <div className="mt-5">
-                        <PortfolioReviewCard
-                            portfolio={portfolio}
-                            review={review}
-                            completion={portfolio.completion}
-                            views={portfolio.views}
-                            statusText={portfolio.completion >= 100 ? 'Ready to publish' : portfolio.completion > 0 ? 'In progress' : 'Draft'}
-                            templateLabel={templateLabel}
-                            lastUpdated={updated}
-                            sectionCount={sectionCount}
-                            onOpen={() => setShowPortfolio(true)}
-                            onEdit={() => navigate('/portfolio/create')}
-                        />
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <h5 className="text-sm font-semibold text-slate-800 flex items-center gap-2"><ListChecks size={16} className="text-[#1f6fdc]" /> AI Recommendations & Checklist</h5>
+                            <ul className="mt-3 space-y-2">
+                                {checkTips.length === 0 ? (
+                                    <li className="flex items-start gap-2 text-xs text-slate-500"><CheckCircle2 size={14} className="text-green-500 shrink-0" /> All good — portfolio looks complete.</li>
+                                ) : checkTips.map((tip, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-xs text-slate-600"><CircleDot size={14} className="text-[#ffa502] shrink-0" /> {tip}</li>
+                                ))}
+                            </ul>
+                            <button onClick={() => navigate('/review')} className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[#1f6fdc] px-4 py-2 text-xs font-medium text-white hover:bg-[#1558c4] shadow transition">Run AI Audit <Zap size={12} /></button>
+                        </div>
                     </div>
-                )}
 
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
-                    {steps.map((s, i) => (
-                        <button key={s.title} onClick={() => navigate(s.path)} className={`${cardHover} text-left`}>
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-transform duration-200 group-hover:scale-110 ${s.done ? TONES.green : TONES[s.tone]}`}>
-                                {s.done ? <><CheckCircle2 size={12} /> Done</> : `Step ${i + 1}`}
-                            </span>
-                            <h5 className="mt-2.5 text-sm font-semibold text-slate-800">{s.title}</h5>
-                            <p className="mt-1 text-xs leading-snug text-slate-500">{s.text}</p>
-                        </button>
-                    ))}
-                </div>
-
-                <div className="mt-3 grid gap-3 md:grid-cols-3">
-                    {features.map((f) => (
-                        <article key={f.title} className={`flex flex-col ${cardHover}`}>
-                            <div className="flex items-center justify-between gap-2">
-                                <h5 className="text-sm font-semibold text-slate-800">{f.title}</h5>
-                                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-transform duration-200 group-hover:scale-110 ${TONES[f.tone]}`}>{f.badge}</span>
+                    <aside className="space-y-5">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <h5 className="text-sm font-semibold text-slate-800 flex items-center gap-2"><Zap size={16} className="text-[#ffa502]" /> Quick Actions</h5>
+                            <div className="mt-4 grid grid-cols-2 gap-2">
+                                <button onClick={() => navigate('/portfolio/create')} className="rounded-xl bg-[#f3f6fb] hover:bg-[#e8effa] px-3 py-3 text-xs font-medium text-[#1f6fdc] transition text-center">Add Project</button>
+                                <button onClick={() => navigate('/templates')} className="rounded-xl bg-[#f3f6fb] hover:bg-[#e8effa] px-3 py-3 text-xs font-medium text-[#1f6fdc] transition text-center">Change Template</button>
+                                <button onClick={() => { navigator.clipboard?.writeText(window.location.origin + '/' + (portfolio?.id || '')); }} className="rounded-xl bg-[#f3f6fb] hover:bg-[#e8effa] px-3 py-3 text-xs font-medium text-[#1f6fdc] transition text-center">Copy Link</button>
+                                <button onClick={() => navigate('/review')} className="rounded-xl bg-[#1f6fdc] hover:bg-[#1558c4] px-3 py-3 text-xs font-medium text-white transition text-center shadow">Run AI Audit</button>
                             </div>
-                            <p className="mt-2 line-clamp-4 text-xs leading-snug text-slate-500">{f.text}</p>
-                            <button
-                                onClick={() => navigate(f.path)}
-                                className="mt-3 self-start rounded-full border border-slate-200 bg-white px-3.5 py-1 text-xs font-medium text-slate-800 transition duration-200 hover:-translate-y-0.5 hover:border-[#1f6fdc] hover:text-[#1f6fdc] active:scale-95"
-                            >
-                                Open
-                            </button>
-                        </article>
-                    ))}
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <h5 className="text-sm font-semibold text-slate-800 flex items-center gap-2"><History size={16} className="text-slate-500" /> Recent Activity</h5>
+                            <div className="mt-3 space-y-3">
+                                <div className="flex gap-2 text-xs text-slate-600"><span className="shrink-0 text-slate-400 w-16">{updated || 'Recently'}</span><span>Portfolio updated · {portfolio?.title || 'Untitled'}</span></div>
+                                <div className="flex gap-2 text-xs text-slate-400"><span className="shrink-0 w-16">Earlier</span><span>Created portfolio draft</span></div>
+                            </div>
+                        </div>
+                    </aside>
                 </div>
+
+                <div className="mt-6">
+                        <h4 className="text-sm font-semibold text-slate-800">Your portfolios</h4>
+                        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                            <div className="flex gap-3 px-3 py-3 overflow-x-auto snap-x snap-mandatory">
+                                {heroList.map((p, i) => (
+                                    <button key={p?.id ?? i} onClick={() => { setSelectedPortfolio(p); setShowPortfolio(true); }} className={`snap-start shrink-0 rounded-xl border transition hover:-translate-y-0.5 hover:shadow-md text-left px-4 py-3 w-56 ${i === slideIndex ? 'border-[#1f6fdc] bg-[#f3f6fb]' : 'border-slate-200 bg-white'}`}>
+                                        <div className="flex items-start justify-between gap-2">
+                                            <span className="block truncate text-sm font-semibold text-slate-800">{p.title || 'Portfolio'}</span>
+                                            <span onClick={(e) => { e.stopPropagation(); openDeleteConfirm(p?.id); }} className="text-red-500 hover:text-red-700 cursor-pointer" aria-label="Delete portfolio" role="button" tabIndex={0}><Trash2 size={14} /></span>
+                                        </div>
+                                        <span className="block truncate text-xs text-slate-500">{titleCase(p.templateId) || 'Simple'} template</span>
+                                    </button>
+                                ))}
+                            </div>
+                            {heroList.length >= 5 && (
+                            <div className="flex items-center justify-between px-3 py-2 border-t border-slate-100 bg-slate-50">
+                                <button onClick={() => setSlideIndex((i) => Math.max(0, i - 1))} disabled={slideIndex <= 0} className="rounded-full p-1 hover:bg-slate-200 disabled:opacity-30"><ChevronLeft size={16} /></button>
+                                <span className="text-xs text-slate-500">{slideIndex + 1} / {heroList.length}</span>
+                                <button onClick={() => setSlideIndex((i) => Math.min(heroList.length - 1, i + 1))} disabled={slideIndex >= heroList.length - 1} className="rounded-full p-1 hover:bg-slate-200 disabled:opacity-30"><ChevronRight size={16} /></button>
+                            </div>
+                            )}
+                        </div>
+                    </div>
             </section>
-        <PortfolioModal
-                portfolio={portfolio}
-                open={showPortfolio}
-                onClose={() => setShowPortfolio(false)}
-                onEdit={() => navigate('/portfolio/create')}
-            />
+
+            {deleteConfirm.open && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100">
+                        <h4 className="text-base font-semibold text-slate-800">Delete portfolio?</h4>
+                        <p className="mt-2 text-sm text-slate-500">This action cannot be undone. The portfolio will be permanently removed.</p>
+                        <div className="mt-5 flex gap-3 justify-end">
+                            <button onClick={() => setDeleteConfirm({ open: false, id: null })} className="rounded-xl px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition">Cancel</button>
+                            <button onClick={() => confirmDelete()} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 shadow transition">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <PortfolioModal portfolio={selectedPortfolio || portfolio} open={showPortfolio} onClose={() => { setShowPortfolio(false); setSelectedPortfolio(null); }} onEdit={() => navigate('/portfolio/create')} />
         </DashboardLayout>
     )
 }

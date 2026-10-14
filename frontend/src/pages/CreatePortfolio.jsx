@@ -148,26 +148,27 @@ export default function CreatePortfolio() {
                 if (!res.ok) return
                 const data = await res.json()
                 if (!data || cancelled) return
-
+                const portfolioData = Array.isArray(data) ? data[0] : data
+                if (!portfolioData) return
                 const { user: currentUser, emailAddress: currentEmail } = userRef.current
-                const profile = data.sections?.profile || {}
+                const profile = portfolioData.sections?.profile || {}
                 setForm({
-                    title: data.title || '',
+                    title: portfolioData.title || '',
                     fullName: profile.fullName || currentUser?.fullName || '',
                     profilePicture: profile.profilePicture || '',
                     email: profile.email || currentEmail || '',
                     contactNumber: profile.contactNumber || '',
                     address: profile.address || '',
                     aboutMe: profile.aboutMe || '',
-                    education: Array.isArray(data.sections?.education) ? data.sections.education.join('\n') : '',
-                    skills: Array.isArray(data.sections?.skills) ? data.sections.skills.join(', ') : '',
-                    projects: Array.isArray(data.projects) ? data.projects.map((project) => `${project.name}: ${project.description}`).join('\n\n') : '',
-                    workExperience: Array.isArray(data.sections?.workExperience) ? data.sections.workExperience.join('\n') : '',
-                    socialLinks: data.sections?.socialLinks ? Object.entries(data.sections.socialLinks).map(([key, value]) => `${key}: ${value}`).join('\n') : '',
+                    education: Array.isArray(portfolioData.sections?.education) ? portfolioData.sections.education.join('\n') : '',
+                    skills: Array.isArray(portfolioData.sections?.skills) ? portfolioData.sections.skills.join(', ') : '',
+                    projects: Array.isArray(portfolioData.projects) ? portfolioData.projects.map((project) => `${project.name}: ${project.description}`).join('\n\n') : '',
+                    workExperience: Array.isArray(portfolioData.sections?.workExperience) ? portfolioData.sections.workExperience.join('\n') : '',
+                    socialLinks: portfolioData.sections?.socialLinks ? Object.entries(portfolioData.sections.socialLinks).map(([key, value]) => `${key}: ${value}`).join('\n') : '',
                 })
                 setSelectedImageName(profile.profilePicture ? profile.profilePicture.split('/').pop() || '' : '')
-                setLoadedTemplate(data.sections?.meta?.templateId || '')
-                setSlug(getShareSlug(data))
+                setLoadedTemplate(portfolioData.sections?.meta?.templateId || '')
+                setSlug(getShareSlug(portfolioData))
             } catch (error) {
                 console.error('Failed to load portfolio:', error)
             }

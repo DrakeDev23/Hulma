@@ -31,6 +31,8 @@ class Portfolio(Base):
     projects: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
     views: Mapped[int] = mapped_column(default=0, nullable=False)
     completion: Mapped[int] = mapped_column(default=0, nullable=False)
+    slug: Mapped[Optional[str]] = mapped_column(String(32), unique=True, index=True, nullable=True)
+    review: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     user: Mapped[User] = relationship(back_populates="portfolios")

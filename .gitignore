@@ -9,5 +9,10 @@ backend/__pycache__
 backend/.env
 backend/**/*.pyc
 
+# Docker / Container
+backend/.env
+.env
+
 # OS
 .DS_Store
+backup.sql

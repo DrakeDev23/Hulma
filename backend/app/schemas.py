@@ -32,6 +32,8 @@ class PortfolioRead(PortfolioBase):
     id: int
     user_id: int
     updated_at: datetime
+    slug: Optional[str] = None
+    review: Optional[dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
 

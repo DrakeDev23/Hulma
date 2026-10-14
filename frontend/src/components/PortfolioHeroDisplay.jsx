@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { UserRound, Mail, Phone, MapPin, Eye, Layers, Briefcase, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react'
 
+const MAX_DOTS = 5
+
 const THEMES = {
     simple: {
         panel: 'bg-gradient-to-br from-[#f3f0eb] to-[#e4dfd3] text-[#2d2d2d] font-serif',
@@ -67,7 +69,7 @@ function Slide({ portfolio }) {
     const hasRight = skills.length > 0 || projects.length > 0
 
     return (
-        <div className={`flex select-none flex-col gap-4 p-4 sm:p-5 ${t.panel}`}>
+        <div className={`flex h-full select-none flex-col gap-4 p-4 sm:p-5 ${t.panel}`}>
             <div className="flex items-center gap-3">
                 <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl sm:h-16 sm:w-16 ${t.avatar}`}>
                     {portfolio.picture || profile.profilePicture ? (
@@ -136,7 +138,7 @@ function Slide({ portfolio }) {
                 </div>
             )}
 
-            <div className={`grid grid-cols-4 gap-1.5 border-t pt-3 ${t.line}`}>
+            <div className={`mt-auto grid grid-cols-4 gap-1.5 border-t pt-3 ${t.line}`}>
                 {stats.map(({ Icon, label, value }) => (
                     <div key={label} className="text-center">
                         <strong className="block text-lg font-bold leading-tight">{value}</strong>
@@ -148,62 +150,113 @@ function Slide({ portfolio }) {
     )
 }
 
-export default function PortfolioHeroDisplay({ portfolios = [], portfolio }) {
+export default function PortfolioHeroDisplay({ portfolios = [], portfolio, index, onIndexChange, onOpen }) {
     const list = portfolios.length ? portfolios : portfolio ? [portfolio] : []
-    const [index, setIndex] = useState(0)
+
+    // Works controlled (parent passes index + onIndexChange) or on its own.
+    const [localIndex, setLocalIndex] = useState(0)
+    const controlled = typeof onIndexChange === 'function'
 
     if (!list.length) return null
 
-    const current = Math.min(index, list.length - 1)
-    const go = (step) => setIndex((current + step + list.length) % list.length)
+    const rawIndex = controlled ? index ?? 0 : localIndex
+    const activeIndex = Math.min(Math.max(rawIndex, 0), list.length - 1)
+    const many = list.length > 1
+
+    const select = (i) => {
+        const next = Math.max(0, Math.min(list.length - 1, i))
+        if (controlled) onIndexChange(next)
+        else setLocalIndex(next)
+    }
 
     return (
         <div className="min-w-0">
-            <div className="overflow-hidden rounded-2xl border border-white/30 shadow-lg shadow-blue-950/20" aria-roledescription="carousel">
+            <div className="relative">
                 <div
-                    className="flex transition-transform duration-300 ease-out motion-reduce:transition-none"
-                    style={{ transform: `translateX(-${current * 100}%)` }}
+                    className="overflow-hidden rounded-2xl border border-white/30 shadow-lg shadow-blue-950/20"
+                    role="region"
+                    aria-roledescription="carousel"
+                    aria-label="Your portfolios"
                 >
-                    {list.map((p, n) => (
-                        <div key={p?.id ?? n} className="w-full shrink-0" role="group" aria-label={`Portfolio ${n + 1} of ${list.length}`} aria-hidden={n !== current}>
-                            <Slide portfolio={p} />
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {list.length > 1 && (
-                <div className="mt-2.5 flex items-center justify-center gap-3 text-white">
-                    <button
-                        type="button"
-                        onClick={() => go(-1)}
-                        aria-label="Previous portfolio"
-                        className="grid h-7 w-7 place-items-center rounded-full border border-white/40 bg-white/15 transition hover:bg-white/25 active:scale-95"
+                    <div
+                        className="flex items-stretch transition-transform duration-300 ease-out motion-reduce:transition-none"
+                        style={{ transform: `translateX(-${activeIndex * 100}%)` }}
                     >
-                        <ChevronLeft size={16} />
-                    </button>
-                    <div className="flex items-center gap-1.5">
-                        {list.map((p, n) => (
-                            <button
-                                key={p?.id ?? n}
-                                type="button"
-                                onClick={() => setIndex(n)}
-                                aria-label={`Show portfolio ${n + 1}`}
-                                aria-current={n === current}
-                                className={`h-1.5 rounded-full transition-all ${n === current ? 'w-5 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/70'}`}
-                            />
+                        {list.map((p, i) => (
+                            <div
+                                key={p?.id ?? i}
+                                role="button"
+                                tabIndex={i === activeIndex ? 0 : -1}
+                                aria-hidden={i !== activeIndex}
+                                aria-label={`Preview portfolio ${i + 1} of ${list.length}`}
+                                onClick={() => onOpen?.(i)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault()
+                                        onOpen?.(i)
+                                    } else if (e.key === 'ArrowLeft') {
+                                        select(i - 1)
+                                    } else if (e.key === 'ArrowRight') {
+                                        select(i + 1)
+                                    }
+                                }}
+                                className={`w-full shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-white ${onOpen ? 'cursor-pointer' : ''}`}
+                            >
+                                <Slide portfolio={p} />
+                            </div>
                         ))}
                     </div>
-                    <span className="text-[11px] text-[#d3e5fa]">{current + 1} / {list.length}</span>
-                    <button
-                        type="button"
-                        onClick={() => go(1)}
-                        aria-label="Next portfolio"
-                        className="grid h-7 w-7 place-items-center rounded-full border border-white/40 bg-white/15 transition hover:bg-white/25 active:scale-95"
-                    >
-                        <ChevronRight size={16} />
-                    </button>
                 </div>
+
+                {many && (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => select(activeIndex - 1)}
+                            aria-label="Previous portfolio"
+                            disabled={activeIndex <= 0}
+                            className="absolute left-2 top-1/2 z-10 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white backdrop-blur transition hover:bg-black/60 active:scale-95 disabled:opacity-30"
+                        >
+                            <ChevronLeft size={18} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => select(activeIndex + 1)}
+                            aria-label="Next portfolio"
+                            disabled={activeIndex >= list.length - 1}
+                            className="absolute right-2 top-1/2 z-10 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full bg-black/40 text-white backdrop-blur transition hover:bg-black/60 active:scale-95 disabled:opacity-30"
+                        >
+                            <ChevronRight size={18} />
+                        </button>
+                    </>
+                )}
+            </div>
+
+            {many && (
+                <div className="mt-3 flex items-center justify-center gap-2 text-white">
+                    {list.length <= MAX_DOTS ? (
+                        list.map((p, i) => (
+                            <button
+                                key={p?.id ?? i}
+                                type="button"
+                                onClick={() => select(i)}
+                                aria-label={`Go to portfolio ${i + 1}`}
+                                aria-current={i === activeIndex}
+                                className={`h-2 rounded-full transition-all duration-200 ${
+                                    i === activeIndex ? 'w-5 bg-white' : 'w-2 bg-white/40 hover:bg-white/70'
+                                }`}
+                            />
+                        ))
+                    ) : (
+                        <span className="text-[11px] text-[#d3e5fa]">
+                            {activeIndex + 1} / {list.length}
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {onOpen && (
+                <p className="mt-2 text-center text-[11px] text-[#d3e5fa]">Click the portfolio to preview it</p>
             )}
         </div>
     )

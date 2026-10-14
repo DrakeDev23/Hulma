@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: hulma
+      POSTGRES_USER: hulmauser
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me_now}
+    ports:
+      - "5433:5432"
+    volumes:
+      - hulma_data:/var/lib/postgresql/data
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hulmauser -d hulma"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://hulmauser:${POSTGRES_PASSWORD:-change_me_now}@db:5432/hulma
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    env_file:
+      - ./frontend/.env
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8000
+    ports:
+      - "5174:5173"
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  hulma_data:

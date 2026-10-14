@@ -28,7 +28,8 @@ export default function PortfolioLive() {
                 })
                 if (res.ok) {
                     const data = await res.json()
-                    if (data) setPortfolio(data)
+                    const item = Array.isArray(data) ? data[0] : data
+                    if (item) setPortfolio(item)
                 }
             } catch (e) {
                 console.error('Failed to load portfolio:', e)
@@ -56,10 +57,10 @@ export default function PortfolioLive() {
         <div className="min-h-screen">
             <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-2.5 backdrop-blur">
                 <button
-                    onClick={() => navigate('/portfolio')}
+                    onClick={() => navigate('/portfolio/create')}
                     className="inline-flex items-center gap-2 rounded-full bg-[#eaf1fc] px-3 py-1.5 text-xs font-medium text-[#1f6fdc] transition hover:bg-[#dce9fb]"
                 >
-                    <ArrowLeft size={14} /> Back to dashboard
+                    <ArrowLeft size={14} /> Back to editor
                 </button>
                 <div className="min-w-0 flex-1 sm:max-w-xl sm:ml-auto">
                     <ShareLink slug={slug} />

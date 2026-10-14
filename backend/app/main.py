@@ -5,7 +5,10 @@ from fastapi.middleware.gzip import GZipMiddleware
 from app.config import settings
 from app.database import Base, engine
 from app.routers.auth import router as auth_router
-from app.routers.portfolio import router as portfolio_router
+
+from app.routers.portfolio_images import router as portfolio_images_router
+from app.routers.portfolio_core import router as portfolio_core_router
+from app.routers.portfolio_review import router as portfolio_review_router
 
 app = FastAPI(
     title=settings.app_name,
@@ -30,7 +33,9 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api")
-app.include_router(portfolio_router, prefix="/api")
+app.include_router(portfolio_images_router, prefix="/api")
+app.include_router(portfolio_core_router, prefix="/api")
+app.include_router(portfolio_review_router, prefix="/api")
 
 
 @app.get("/health")

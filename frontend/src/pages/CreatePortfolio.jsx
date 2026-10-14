@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/react'
 import { ArrowRight, BrainCircuit, Lightbulb, Save, Share2, Sparkles } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import ShareLink, { buildShareUrl, getShareSlug } from '../components/ShareLink'
 
 const MAX_IMAGE_BYTES = 7 * 1024 * 1024
-const REVIEW_KEY = 'hulmaPortfolioReview'
+const TEMPLATES = ['simple', 'modern', 'creative']
 const DRAFT_KEY = 'hulmaPortfolio'
 
 const DEFAULT_FORM = {
@@ -37,15 +37,6 @@ const safeSet = (key, value) => {
         window.localStorage.setItem(key, value)
     } catch {
         return
-    }
-}
-
-const readReview = () => {
-    try {
-        const raw = safeGet(REVIEW_KEY)
-        return raw ? JSON.parse(raw) : null
-    } catch {
-        return null
     }
 }
 
@@ -113,7 +104,7 @@ const labelClass = 'flex flex-col gap-1.5 text-sm font-medium text-slate-700'
 
 export default function CreatePortfolio() {
     const navigate = useNavigate()
-    const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams()
+    const [searchParams] = useSearchParams()
     const urlTemplate = searchParams.get('template')
     const { getToken } = useAuth()
     const { user } = useUser()
@@ -124,7 +115,9 @@ export default function CreatePortfolio() {
     userRef.current = { user, emailAddress }
 
     const [form, setForm] = useState(DEFAULT_FORM)
-    const [review, setReview] = useState(readReview)
+    const [review, setReview] = useState(null)
+    const [portfolioId, setPortfolioId] = useState(null)
+    const [savedTemplates, setSavedTemplates] = useState([])
     const [isSaving, setIsSaving] = useState(false)
     const [isReviewing, setIsReviewing] = useState(false)
     const [notice, setNotice] = useState('')
@@ -148,9 +141,22 @@ export default function CreatePortfolio() {
                 if (!res.ok) return
                 const data = await res.json()
                 if (!data || cancelled) return
-                const portfolioData = Array.isArray(data) ? data[0] : data
-                if (!portfolioData) return
+                const list = (Array.isArray(data) ? data : [data]).filter(Boolean)
+                setSavedTemplates(list.map((p) => p.sections?.meta?.templateId || 'simple'))
+                const portfolioData = urlTemplate
+                    ? list.find((p) => (p.sections?.meta?.templateId || 'simple') === urlTemplate)
+                    : list[0]
+
                 const { user: currentUser, emailAddress: currentEmail } = userRef.current
+                if (!portfolioData) {
+                    setForm({ ...DEFAULT_FORM, fullName: currentUser?.fullName || '', email: currentEmail || '' })
+                    setSelectedImageName('')
+                    setLoadedTemplate('')
+                    setSlug('')
+                    setPortfolioId(null)
+                    setReview(null)
+                    return
+                }
                 const profile = portfolioData.sections?.profile || {}
                 setForm({
                     title: portfolioData.title || '',
@@ -169,6 +175,8 @@ export default function CreatePortfolio() {
                 setSelectedImageName(profile.profilePicture ? profile.profilePicture.split('/').pop() || '' : '')
                 setLoadedTemplate(portfolioData.sections?.meta?.templateId || '')
                 setSlug(getShareSlug(portfolioData))
+                setPortfolioId(portfolioData.id ?? null)
+                setReview(portfolioData.review || null)
             } catch (error) {
                 console.error('Failed to load portfolio:', error)
             }
@@ -178,7 +186,7 @@ export default function CreatePortfolio() {
         return () => {
             cancelled = true
         }
-    }, [userId, getToken])
+    }, [userId, getToken, urlTemplate])
 
     const uploadProfilePicture = async (file) => {
         if (!file) return ''
@@ -266,7 +274,10 @@ export default function CreatePortfolio() {
             }
 
             const saved = await response.json()
-            safeSet(DRAFT_KEY, JSON.stringify(saved))
+            localStorage.removeItem(DRAFT_KEY)
+            setPortfolioId(saved.id ?? null)
+            setSavedTemplates((current) => (current.includes(templateId) ? current : [...current, templateId]))
+            setReview(saved.review || null)
             const savedSlug = getShareSlug(saved)
             if (savedSlug) {
                 setSlug(savedSlug)
@@ -284,7 +295,8 @@ export default function CreatePortfolio() {
         }
     }
 
-    const handleReview = async () => {
+    const handleReview = async (idOverride) => {
+        const targetId = typeof idOverride === 'number' ? idOverride : portfolioId
         if (!canReview) {
             setNotice('Add your portfolio information before running AI review.')
             setReview(null)
@@ -296,7 +308,7 @@ export default function CreatePortfolio() {
         setNotice('')
 
         try {
-            const response = await fetch('/api/portfolio/review', {
+            const response = await fetch(`/api/portfolio/review${targetId ? `?portfolio_id=${targetId}` : ''}`, {
                 method: 'POST',
                 headers: await getAuthHeaders(),
                 body: JSON.stringify(previewPortfolio),
@@ -312,7 +324,6 @@ export default function CreatePortfolio() {
 
             const data = await response.json()
             setReview(data)
-            safeSet(REVIEW_KEY, JSON.stringify({ ...data, reviewed_at: new Date().toISOString() }))
             setNotice('AI review completed.')
             return true
         } catch (error) {
@@ -327,7 +338,7 @@ export default function CreatePortfolio() {
     const handleSubmit = async () => {
         const saved = await handleSave()
         if (saved) {
-            await handleReview()
+            await handleReview(saved.id)
             navigate('/portfolio/live')
         }
     }
@@ -354,6 +365,7 @@ export default function CreatePortfolio() {
                     >
                         <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
                     </button>
+                    <button type="button" onClick={() => { setForm(DEFAULT_FORM); setPortfolioId(null); localStorage.removeItem(DRAFT_KEY); }} className="rounded-xl border px-4 py-2.5 text-sm text-white/90 hover:bg-white/10">Clear</button>
                     <button
                         type="button"
                         onClick={handleReview}
@@ -367,6 +379,27 @@ export default function CreatePortfolio() {
 
             <section className="mt-4 grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
                 <div className="space-y-4 rounded-2xl bg-white p-4 shadow-[0_2px_10px_rgba(30,70,140,0.10)] sm:p-5">
+                    <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-medium text-slate-500">Template</span>
+                            {TEMPLATES.map((id) => (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    aria-pressed={id === templateId}
+                                    onClick={() => navigate(`/portfolio/create?template=${id}`)}
+                                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition active:scale-95 ${
+                                        id === templateId ? 'bg-[#1f6fdc] text-white shadow' : 'bg-[#f3f6fb] text-slate-600 hover:bg-[#e8effa]'
+                                    }`}
+                                >
+                                    {id}
+                                    {savedTemplates.includes(id) && <span title="Saved" className={`h-1.5 w-1.5 rounded-full ${id === templateId ? 'bg-white' : 'bg-[#12875a]'}`} />}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="mt-1.5 text-[11px] text-slate-400">Each template keeps its own portfolio. Save before switching templates.</p>
+                    </div>
+
                     <div className="grid gap-4 md:grid-cols-2">
                         <label className={labelClass}>
                             Portfolio title

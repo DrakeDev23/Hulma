@@ -6,8 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 
+from sqlalchemy import text
+
 from app.config import settings
-from app.database import Base, engine
+from app.database import engine
 from app.routers.auth import router as auth_router
 from app.routers.portfolio_images import router as portfolio_images_router
 from app.routers.portfolio_core import router as portfolio_core_router
@@ -19,10 +21,12 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables verified.")
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        logger.info("Database connection verified.")
     except Exception as exc:
-        logger.warning("Database not ready yet: %s", exc)
+        logger.error("Database connection check failed: %s", exc)
+        raise
     yield
 
 
@@ -58,6 +62,11 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(portfolio_images_router, prefix="/api")
 app.include_router(portfolio_core_router, prefix="/api")
 app.include_router(portfolio_review_router, prefix="/api")
+
+
+@app.get("/")
+def root() -> dict[str, str]:
+    return {"app": settings.app_name, "status": "running"}
 
 
 @app.get("/health")

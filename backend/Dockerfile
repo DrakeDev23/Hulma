@@ -10,10 +10,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser \
+    && chmod +x /app/entrypoint.sh
+
 USER appuser
 
 EXPOSE 8000
+
+ENTRYPOINT ["/app/entrypoint.sh"]
 
 # Production: gunicorn with uvicorn workers
 # Development override via docker-compose command

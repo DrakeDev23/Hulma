@@ -1,3 +1,4 @@
+export { apiUrl, API_BASE_URL } from './api'
 export const DRAFT_KEY = 'hulmaPortfolio'
 
 export const pick = (...values) => values.find((v) => v !== undefined && v !== null && v !== '')
@@ -19,7 +20,7 @@ export const readLocalJSON = (key) => {
     }
 }
 
-export const toText = (x) => (typeof x === 'string' ? x : pick(x?.name, x?.title, x?.label, ''))
+export const toText = (x) => (typeof x === 'string' ? x : pick(x?.text, x?.title, x?.name, x?.label, ''))
 
 export const titleCase = (s) =>
     s ? String(s).replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : ''
@@ -101,4 +102,48 @@ export const reviewInfo = (review) => {
         summary: pick(review.summary, review.feedback, ''),
         suggestions: Array.isArray(review.suggestions) ? review.suggestions.map(toText).filter(Boolean) : [],
     }
+}
+
+export function getStoredUsername() {
+    try {
+        if (typeof window === 'undefined') return ''
+        const raw = window.localStorage.getItem('hulma-settings')
+        if (!raw) return ''
+        const parsed = JSON.parse(raw)
+        const u = parsed?.username
+        if (u && typeof u === 'string' && !u.startsWith('user_') && u.toLowerCase() !== 'user') {
+            return u.trim()
+        }
+        return ''
+    } catch {
+        return ''
+    }
+}
+
+export function resolveDisplayName(user, fallback = 'User') {
+    const metaUsername = user?.unsafeMetadata?.username
+    if (metaUsername && typeof metaUsername === 'string' && !metaUsername.startsWith('user_')) {
+        return metaUsername.trim()
+    }
+    const username = user?.username
+    if (username && typeof username === 'string' && !username.startsWith('user_')) {
+        return username.trim()
+    }
+    const stored = getStoredUsername()
+    if (stored) {
+        return stored
+    }
+    const fullName = user?.fullName
+    if (fullName && typeof fullName === 'string' && !fullName.startsWith('user_')) {
+        return fullName.trim()
+    }
+    const firstName = user?.firstName
+    if (firstName && typeof firstName === 'string' && !firstName.startsWith('user_')) {
+        return firstName.trim()
+    }
+    const email = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress
+    if (email && typeof email === 'string' && !email.includes('@clerk.local')) {
+        return email.split('@')[0]
+    }
+    return fallback
 }

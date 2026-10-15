@@ -1,3 +1,5 @@
+import logoImg from '../assets/logo.png'
+
 const footerLinks = {
   create: ['AI Portfolio Generator', 'Portfolio Templates', 'AI Review', 'Customize Portfolio'],
   resources: [
@@ -50,19 +52,19 @@ const socialLinks = [
 
 export default function Footer() {
   return (
-    <footer className="scroll-reveal bg-[#f0f7ff] pt-16 pb-8 px-6">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8">
+    <footer className="scroll-reveal bg-[#f0f7ff] pt-12 sm:pt-16 pb-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8">
         <div className="lg:col-span-4">
-          <div className="flex items-center gap-2.5 text-2xl font-bold text-slate-900">
-            <img src="/src/assets/logo.png" alt="Hulma" className="h-9 w-auto object-contain" />
+          <div className="flex items-center gap-2 text-2xl font-bold text-slate-900">
+            <img src={logoImg} alt="Hulma" className="h-8 sm:h-9 w-auto object-contain" />
             <span>Hulma</span>
           </div>
 
-          <p className="text-sm text-slate-600 max-w-xs mt-4 leading-relaxed">
+          <p className="text-sm text-slate-600 max-w-xs mt-3 sm:mt-4 leading-relaxed">
             Shape your story. Build your portfolio. Stand out.
           </p>
 
-          <div className="flex items-center gap-3 mt-6">
+          <div className="flex items-center gap-3 mt-5 sm:mt-6">
             {socialLinks.map(({ label, href, Icon }) => (
               <a
                 key={label}
@@ -79,7 +81,7 @@ export default function Footer() {
         </div>
 
         <div className="lg:col-span-3">
-          <h3 className="text-sm font-semibold text-slate-800 mb-4">Create</h3>
+          <h3 className="text-sm font-semibold text-slate-800 mb-3 sm:mb-4">Create</h3>
           <ul className="space-y-2.5 text-xs sm:text-sm text-slate-600">
             {footerLinks.create.map((link) => (
               <li key={link}>
@@ -92,7 +94,7 @@ export default function Footer() {
         </div>
 
         <div className="lg:col-span-2">
-          <h3 className="text-sm font-semibold text-slate-800 mb-4">Resources</h3>
+          <h3 className="text-sm font-semibold text-slate-800 mb-3 sm:mb-4">Resources</h3>
           <ul className="space-y-2.5 text-xs sm:text-sm text-slate-600">
             {footerLinks.resources.map((link) => (
               <li key={link.label}>
@@ -108,7 +110,7 @@ export default function Footer() {
         </div>
 
         <div className="lg:col-span-3">
-          <h3 className="text-sm font-semibold text-slate-800 mb-4">Contact Information</h3>
+          <h3 className="text-sm font-semibold text-slate-800 mb-3 sm:mb-4">Contact Information</h3>
           <ul className="space-y-2 text-xs sm:text-sm text-slate-600">
             <li>Hulma@gmail.com</li>
             <li>0912312312</li>
@@ -117,8 +119,9 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="mt-16 pt-6 max-w-7xl mx-auto border-t border-slate-200/80">
+      <div className="mt-12 sm:mt-16 pt-6 max-w-7xl mx-auto border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
         <p className="text-xs text-slate-500">Copyright 2026 Hulma. All rights reserved.</p>
+        <p className="text-xs text-slate-400">Crafted with care for creators & professionals</p>
       </div>
     </footer>
   )

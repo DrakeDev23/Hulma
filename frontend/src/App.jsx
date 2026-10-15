@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Route, Routes, Navigate, useNavigate } from 'react-router-dom'
-import { HandleSSOCallback, useUser } from '@clerk/react'
+import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom'
+import { AuthenticateWithRedirectCallback, useUser, useAuth } from '@clerk/react'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import About from './components/About'
@@ -16,6 +16,8 @@ import Templates from './pages/Templates'
 import Review from './pages/Review'
 import Settings from './pages/Settings'
 import PortfolioLive from './pages/PortfolioLive'
+import PortfolioPublic from './pages/PortfolioPublic'
+import { apiUrl } from './utils/api'
 
 function HomePage() {
   useEffect(() => {
@@ -55,6 +57,63 @@ function HomePage() {
   )
 }
 
+function UserSync() {
+  const { user, isLoaded, isSignedIn } = useUser()
+  const { getToken } = useAuth()
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user) return
+
+    const email = user.primaryEmailAddress?.emailAddress || user.emailAddresses?.[0]?.emailAddress
+    if (!email || email.includes('@clerk.local')) return
+
+    const username = user.unsafeMetadata?.username || user.username || user.firstName || ''
+    const syncKey = `hulma_synced_${user.id}_${email}_${username}`
+
+    if (sessionStorage.getItem(syncKey)) return
+
+    getToken().then((token) => {
+      if (!token) return
+      fetch(apiUrl('/api/auth/me'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          'X-User-Email': email,
+          'X-User-Username': username,
+        },
+        body: JSON.stringify({
+          email,
+          username: username || undefined,
+          avatar_url: user.imageUrl || undefined,
+        }),
+      })
+        .then((res) => {
+          if (res.ok) {
+            sessionStorage.setItem(syncKey, 'true')
+            return res.json().catch(() => null)
+          }
+          return null
+        })
+        .then((data) => {
+          if (data && data.settings) {
+            try {
+              const current = JSON.parse(localStorage.getItem('hulma-settings') || '{}')
+              const merged = { ...data.settings, ...current }
+              localStorage.setItem('hulma-settings', JSON.stringify(merged))
+              if (data.settings.defaultTemplate && !localStorage.getItem('hulma-template')) {
+                localStorage.setItem('hulma-template', data.settings.defaultTemplate)
+              }
+            } catch {}
+          }
+        })
+        .catch(() => {})
+    })
+  }, [isLoaded, isSignedIn, user, getToken])
+
+  return null
+}
+
 function ProtectedRoute({ children }) {
   const { isLoaded, isSignedIn } = useUser()
 
@@ -65,38 +124,23 @@ function ProtectedRoute({ children }) {
   return isSignedIn ? children : <Navigate to="/login" replace />
 }
 
-function SSOCallbackPage() {
-  const navigate = useNavigate()
-
-  return (
-    <HandleSSOCallback
-      navigateToApp={({ session, decorateUrl }) => {
-        if (session?.currentTask) {
-          console.log('Session task pending:', session.currentTask)
-          navigate('/login')
-          return
-        }
-        const url = decorateUrl('/dashboard')
-        if (url.startsWith('http')) {
-          window.location.href = url
-        } else {
-          navigate(url)
-        }
-      }}
-      navigateToSignIn={() => navigate('/login')}
-      navigateToSignUp={() => navigate('/register')}
-    />
-  )
-}
-
 export default function App() {
   return (
     <BrowserRouter>
+      <UserSync />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage mode="login" />} />
         <Route path="/register" element={<RegisterPage mode="register" />} />
-        <Route path="/sso-callback" element={<SSOCallbackPage />} />
+        <Route
+          path="/sso-callback"
+          element={
+            <AuthenticateWithRedirectCallback
+              signInForceRedirectUrl="/dashboard"
+              signUpForceRedirectUrl="/dashboard"
+            />
+          }
+        />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/portfolio" element={<ProtectedRoute><Portfolio /></ProtectedRoute>} />
         <Route path="/portfolio/create" element={<ProtectedRoute><CreatePortfolio /></ProtectedRoute>} />
@@ -104,6 +148,7 @@ export default function App() {
         <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
         <Route path="/review" element={<ProtectedRoute><Review /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/p/:slug" element={<PortfolioPublic />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

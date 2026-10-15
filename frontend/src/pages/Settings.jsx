@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useUser } from '@clerk/react'
-import { Clock, Check, User, LayoutGrid, Sparkles, Lock, Trash2 } from 'lucide-react'
+import { useUser, useAuth, useClerk } from '@clerk/react'
+import { Clock, Check, User, LayoutGrid, Sparkles, Lock, Trash2, Loader2, AlertCircle } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import { resolveDisplayName } from '../utils/portfolioUtils'
+import { apiUrl } from '../utils/api'
 
 const SETTINGS_KEY = 'hulma-settings'
 const TEMPLATE_KEY = 'hulma-template'
@@ -28,10 +30,30 @@ const input =
     'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 transition-colors focus:border-[#1f6fdc] focus:outline-none focus:ring-2 focus:ring-[#1f6fdc]/20'
 const label = 'mb-1.5 block text-xs font-medium text-slate-600'
 
-function load() {
+const isPlaceholderEmail = (email) => {
+    if (!email || typeof email !== 'string') return true
+    const lower = email.trim().toLowerCase()
+    return lower.includes('@clerk.local') || lower.includes('@example.com') || lower.startsWith('user_')
+}
+
+const isPlaceholderUsername = (uname) => {
+    if (!uname || typeof uname !== 'string') return true
+    const trimmed = uname.trim()
+    return (
+        (trimmed.startsWith('user_') && trimmed.length > 20) ||
+        trimmed.toLowerCase() === 'user' ||
+        trimmed.toLowerCase() === 'untitled'
+    )
+}
+
+function loadLocal() {
     try {
         const raw = localStorage.getItem(SETTINGS_KEY)
-        return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : DEFAULTS
+        if (!raw) return DEFAULTS
+        const parsed = JSON.parse(raw)
+        if (isPlaceholderEmail(parsed.email)) parsed.email = ''
+        if (isPlaceholderUsername(parsed.username)) parsed.username = ''
+        return { ...DEFAULTS, ...parsed }
     } catch {
         return DEFAULTS
     }
@@ -77,31 +99,127 @@ function Toggle({ checked, onChange, title, text }) {
     )
 }
 
-export default function Settings({ userName = 'Drake', email = 'youremail@gmail.com' }) {
-    const { user } = useUser()
-    const [form, setForm] = useState(load)
+export default function Settings() {
+    const { user, isLoaded } = useUser()
+    const { getToken } = useAuth()
+    const { signOut } = useClerk()
+
+    const [form, setForm] = useState(loadLocal)
     const [saved, setSaved] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
     const [error, setError] = useState('')
     const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
     const [pwMsg, setPwMsg] = useState(null)
+    const [isUpdatingPw, setIsUpdatingPw] = useState(false)
+
+    const clerkEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || ''
+    const clerkUsername = resolveDisplayName(user, '')
 
     useEffect(() => {
         if (!user) return
-        setForm((f) => ({
-            ...f,
-            username: f.username || user.unsafeMetadata?.username || user.username || user.firstName || '',
-            email: f.email || user.primaryEmailAddress?.emailAddress || '',
-        }))
-    }, [user])
+        setForm((f) => {
+            const cleanUser = isPlaceholderUsername(f.username) ? '' : f.username
+            const cleanEmail = isPlaceholderEmail(f.email) ? '' : f.email
+            return {
+                ...f,
+                username: cleanUser || clerkUsername || '',
+                email: cleanEmail || clerkEmail || '',
+            }
+        })
+    }, [user, clerkUsername, clerkEmail])
+
+    useEffect(() => {
+        let isMounted = true
+
+        const fetchServerSettings = async () => {
+            try {
+                const token = await getToken()
+                if (!token) return
+
+                const headers = {
+                    Authorization: `Bearer ${token}`,
+                }
+                if (clerkEmail) headers['X-User-Email'] = clerkEmail
+                if (clerkUsername) headers['X-User-Username'] = clerkUsername
+
+                const res = await fetch(apiUrl('/api/auth/me'), { headers })
+                if (!res.ok) return
+                const data = await res.json()
+
+                if (isMounted && data) {
+                    setForm((prev) => {
+                        const serverSettings = data.settings || {}
+                        const serverUser = !isPlaceholderUsername(data.username) ? data.username : ''
+                        const serverMail = !isPlaceholderEmail(data.email) ? data.email : ''
+
+                        const finalUser = prev.username && !isPlaceholderUsername(prev.username)
+                            ? prev.username
+                            : (clerkUsername || serverUser || '')
+                        const finalEmail = prev.email && !isPlaceholderEmail(prev.email)
+                            ? prev.email
+                            : (clerkEmail || serverMail || '')
+
+                        const merged = {
+                            ...prev,
+                            username: finalUser,
+                            email: finalEmail,
+                            defaultTemplate: serverSettings.defaultTemplate ?? prev.defaultTemplate ?? 'simple',
+                            publicLink: serverSettings.publicLink ?? prev.publicLink ?? true,
+                            autoReview: serverSettings.autoReview ?? prev.autoReview ?? false,
+                            focus: Array.isArray(serverSettings.focus) && serverSettings.focus.length > 0 ? serverSettings.focus : prev.focus,
+                            tone: serverSettings.tone ?? prev.tone ?? 'balanced',
+                        }
+                        try {
+                            localStorage.setItem(SETTINGS_KEY, JSON.stringify(merged))
+                            if (merged.defaultTemplate) {
+                                localStorage.setItem(TEMPLATE_KEY, merged.defaultTemplate)
+                            }
+                        } catch {}
+
+                        if ((isPlaceholderEmail(data.email) && finalEmail) || (isPlaceholderUsername(data.username) && finalUser)) {
+                            fetch(apiUrl('/api/auth/me'), {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    Authorization: `Bearer ${token}`,
+                                },
+                                body: JSON.stringify({
+                                    username: finalUser,
+                                    email: finalEmail,
+                                    avatar_url: user?.imageUrl,
+                                    settings: serverSettings,
+                                }),
+                            }).catch(() => {})
+                        }
+
+                        return merged
+                    })
+                }
+            } catch (err) {
+                console.warn('Could not fetch server settings:', err)
+            }
+        }
+
+        if (isLoaded) {
+            fetchServerSettings()
+        }
+
+        return () => {
+            isMounted = false
+        }
+    }, [isLoaded, getToken, user, clerkEmail, clerkUsername])
 
     const set = (key, value) => {
         setForm((f) => ({ ...f, [key]: value }))
         setSaved(false)
+        setError('')
     }
 
     const toggleFocus = (id) => {
         const has = form.focus.includes(id)
-        set('focus', has ? form.focus.filter((f) => f !== id) : [...form.focus, id])
+        const updated = has ? form.focus.filter((f) => f !== id) : [...form.focus, id]
+        set('focus', updated)
     }
 
     const onSave = async (e) => {
@@ -110,42 +228,154 @@ export default function Settings({ userName = 'Drake', email = 'youremail@gmail.
         if (!/^\S+@\S+\.\S+$/.test(form.email)) return setError('Enter a valid email address.')
         if (form.focus.length === 0) return setError('Choose at least one AI review focus area.')
         setError('')
+        setIsSaving(true)
+
         try {
-            if (user) {
-                await user.update({
-                    firstName: form.username,
-                    unsafeMetadata: { ...user.unsafeMetadata, username: form.username },
-                })
+            if (user && typeof user.update === 'function') {
+                try {
+                    const trimmedName = form.username.trim()
+                    const parts = trimmedName.split(/\s+/)
+                    const firstName = parts[0] || ''
+                    const lastName = parts.slice(1).join(' ')
+                    await user.update({
+                        firstName,
+                        lastName: lastName || '',
+                        unsafeMetadata: {
+                            ...user.unsafeMetadata,
+                            username: trimmedName,
+                        },
+                    })
+                } catch (clerkErr) {
+                    console.warn('Clerk user update notice:', clerkErr)
+                }
             }
+
+            const token = await getToken()
+            const res = await fetch(apiUrl('/api/auth/me'), {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    'X-User-Email': form.email.trim(),
+                    'X-User-Username': form.username.trim(),
+                },
+                body: JSON.stringify({
+                    username: form.username.trim(),
+                    email: form.email.trim(),
+                    settings: {
+                        defaultTemplate: form.defaultTemplate,
+                        publicLink: form.publicLink,
+                        autoReview: form.autoReview,
+                        focus: form.focus,
+                        tone: form.tone,
+                    },
+                }),
+            })
+
+            if (!res.ok) {
+                const errData = await res.json().catch(() => null)
+                throw new Error(errData?.detail || 'Could not save settings on the server.')
+            }
+
             localStorage.setItem(SETTINGS_KEY, JSON.stringify(form))
             localStorage.setItem(TEMPLATE_KEY, form.defaultTemplate)
             setSaved(true)
         } catch (err) {
-            setError('Could not save settings: ' + (err?.message || err || 'Unknown error'))
+            setError(err?.message || 'Could not save settings.')
+        } finally {
+            setIsSaving(false)
         }
     }
 
     const onChangePassword = async (e) => {
         e.preventDefault()
+        setPwMsg(null)
         if (pw.next.length < 8) return setPwMsg({ ok: false, text: 'New password must be at least 8 characters.' })
         if (pw.next !== pw.confirm) return setPwMsg({ ok: false, text: 'New passwords do not match.' })
-        if (user && typeof user.updatePassword === 'function') {
-            try {
-                await user.updatePassword({ currentPassword: pw.current, newPassword: pw.next })
-                setPw({ current: '', next: '', confirm: '' })
-                setPwMsg({ ok: true, text: 'Password updated successfully.' })
-            } catch (err) {
-                setPwMsg({ ok: false, text: 'Update failed: ' + (err?.message || err || 'Unknown error') })
+
+        setIsUpdatingPw(true)
+        try {
+            if (user && typeof user.updatePassword === 'function') {
+                if (user?.passwordEnabled === false) {
+                    await user.updatePassword({ newPassword: pw.next })
+                    setPw({ current: '', next: '', confirm: '' })
+                    setPwMsg({ ok: true, text: 'Password set successfully! You can now also sign in with your email and password.' })
+                } else {
+                    if (!pw.current) {
+                        setIsUpdatingPw(false)
+                        return setPwMsg({ ok: false, text: 'Please enter your current password.' })
+                    }
+                    await user.updatePassword({ currentPassword: pw.current, newPassword: pw.next })
+                    setPw({ current: '', next: '', confirm: '' })
+                    setPwMsg({ ok: true, text: 'Password updated successfully.' })
+                }
+            } else {
+                setPwMsg({ ok: true, text: 'Password updates are managed through your account security provider.' })
             }
-        } else {
-            setPwMsg({ ok: true, text: 'Password updates are handled through Clerk account settings.' })
+        } catch (err) {
+            const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || 'Could not update password.'
+            setPwMsg({ ok: false, text: msg })
+        } finally {
+            setIsUpdatingPw(false)
         }
     }
 
+    const onDeleteAccount = async () => {
+        const confirmed = window.confirm(
+            'Are you sure you want to delete your account? All your portfolios, images, and settings will be permanently removed. This action cannot be undone.'
+        )
+        if (!confirmed) return
+
+        setIsDeleting(true)
+        setError('')
+
+        try {
+            const token = await getToken()
+            if (token) {
+                const res = await fetch(apiUrl('/api/auth/me'), {
+                    method: 'DELETE',
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                })
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => null)
+                    throw new Error(errData?.detail || 'Failed to delete account on server.')
+                }
+            }
+
+            try {
+                localStorage.removeItem(SETTINGS_KEY)
+                localStorage.removeItem(TEMPLATE_KEY)
+                localStorage.removeItem('hulma-draft')
+            } catch {}
+
+            if (user && typeof user.delete === 'function') {
+                try {
+                    await user.delete()
+                } catch (clerkErr) {
+                    console.warn('Clerk user delete skipped:', clerkErr)
+                }
+            }
+
+            if (signOut) {
+                await signOut({ redirectUrl: '/' })
+            } else {
+                window.location.href = '/'
+            }
+        } catch (err) {
+            setError('Could not delete account: ' + (err?.message || 'Unknown error'))
+            setIsDeleting(false)
+        }
+    }
+
+    const currentDisplay = (!isPlaceholderUsername(form.username) ? form.username : '') || clerkUsername || 'User'
+    const currentEmail = (!isPlaceholderEmail(form.email) ? form.email : '') || clerkEmail || ''
+
     return (
         <DashboardLayout
-            userName={form.username || userName}
-            email={form.email || email}
+            userName={currentDisplay}
+            email={currentEmail}
             eyebrow="Your account, {name}"
             title={
                 <>
@@ -169,11 +399,24 @@ export default function Settings({ userName = 'Drake', email = 'youremail@gmail.
                     <div className="grid gap-3">
                         <div>
                             <label htmlFor="username" className={label}>Username</label>
-                            <input id="username" className={input} value={form.username} onChange={(e) => set('username', e.target.value)} />
+                            <input
+                                id="username"
+                                className={input}
+                                value={form.username}
+                                onChange={(e) => set('username', e.target.value)}
+                                placeholder="e.g. johndoe"
+                            />
                         </div>
                         <div>
                             <label htmlFor="email" className={label}>Email</label>
-                            <input id="email" type="email" className={input} value={form.email} onChange={(e) => set('email', e.target.value)} />
+                            <input
+                                id="email"
+                                type="email"
+                                className={input}
+                                value={form.email}
+                                onChange={(e) => set('email', e.target.value)}
+                                placeholder="youremail@example.com"
+                            />
                         </div>
                     </div>
                 </Section>
@@ -182,7 +425,12 @@ export default function Settings({ userName = 'Drake', email = 'youremail@gmail.
                     <div className="grid gap-3">
                         <div>
                             <label htmlFor="template" className={label}>Default template</label>
-                            <select id="template" className={input} value={form.defaultTemplate} onChange={(e) => set('defaultTemplate', e.target.value)}>
+                            <select
+                                id="template"
+                                className={input}
+                                value={form.defaultTemplate}
+                                onChange={(e) => set('defaultTemplate', e.target.value)}
+                            >
                                 <option value="simple">Simple</option>
                                 <option value="modern">Modern</option>
                                 <option value="creative">Creative</option>
@@ -211,7 +459,11 @@ export default function Settings({ userName = 'Drake', email = 'youremail@gmail.
                                                 type="button"
                                                 aria-pressed={on}
                                                 onClick={() => toggleFocus(a.id)}
-                                                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition duration-200 active:scale-95 ${on ? 'bg-[#1f6fdc] text-white' : 'border border-slate-200 bg-white text-slate-700 hover:border-[#1f6fdc] hover:text-[#1f6fdc]'}`}
+                                                className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition duration-200 active:scale-95 ${
+                                                    on
+                                                        ? 'bg-[#1f6fdc] text-white shadow-sm'
+                                                        : 'border border-slate-200 bg-white text-slate-700 hover:border-[#1f6fdc] hover:text-[#1f6fdc]'
+                                                }`}
                                             >
                                                 {on && <Check size={13} />} {a.label}
                                             </button>
@@ -220,10 +472,15 @@ export default function Settings({ userName = 'Drake', email = 'youremail@gmail.
                                 </div>
                                 <div className="mt-4">
                                     <label htmlFor="tone" className={label}>Feedback style</label>
-                                    <select id="tone" className={input} value={form.tone} onChange={(e) => set('tone', e.target.value)}>
-                                        <option value="gentle">Gentle: encouraging, few changes</option>
+                                    <select
+                                        id="tone"
+                                        className={input}
+                                        value={form.tone}
+                                        onChange={(e) => set('tone', e.target.value)}
+                                    >
+                                        <option value="gentle">Gentle: encouraging, soft critique</option>
                                         <option value="balanced">Balanced: clear and practical</option>
-                                        <option value="direct">Direct: strict, detailed critique</option>
+                                        <option value="direct">Direct: strict, detailed recruiter critique</option>
                                     </select>
                                 </div>
                             </div>
@@ -242,36 +499,82 @@ export default function Settings({ userName = 'Drake', email = 'youremail@gmail.
                 <div className="flex flex-wrap items-center gap-3 lg:col-span-2">
                     <button
                         type="submit"
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#1f6fdc] px-5 py-3 text-sm font-medium text-white shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95"
+                        disabled={isSaving}
+                        className="inline-flex w-full sm:w-auto justify-center items-center gap-2 rounded-xl bg-[#1f6fdc] px-5 py-3 text-sm font-medium text-white shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:opacity-60"
                     >
-                        <Check size={17} /> Save changes
+                        {isSaving ? <Loader2 size={17} className="animate-spin" /> : <Check size={17} />}
+                        {isSaving ? 'Saving changes...' : 'Save changes'}
                     </button>
-                    {error && <p role="alert" className="text-sm text-[#e0561b]">{error}</p>}
-                    {saved && !error && <p role="status" className="text-sm text-[#12875a]">Settings saved.</p>}
+                    {error && (
+                        <p role="alert" className="inline-flex items-center gap-1.5 text-sm text-[#e0561b]">
+                            <AlertCircle size={15} /> {error}
+                        </p>
+                    )}
+                    {saved && !error && <p role="status" className="text-sm font-medium text-[#12875a]">Settings saved.</p>}
                 </div>
             </form>
 
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <form onSubmit={onChangePassword}>
-                    <Section Icon={Lock} title="Password" text="Use at least 8 characters">
+                    <Section
+                        Icon={Lock}
+                        title={user?.passwordEnabled === false ? 'Set password' : 'Password'}
+                        text={user?.passwordEnabled === false ? 'Enable password sign-in for your account' : 'Use at least 8 characters'}
+                    >
                         <div className="grid gap-3">
-                            <div>
-                                <label htmlFor="pw-current" className={label}>Current password</label>
-                                <input id="pw-current" type="password" autoComplete="current-password" className={input} value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
-                            </div>
+                            {user?.passwordEnabled === false ? (
+                                <div className="rounded-xl bg-[#dce9fb]/70 p-3 text-xs leading-relaxed text-[#1f6fdc]">
+                                    You are signed in with Google. You can create a password below to allow signing in directly with your email as well.
+                                </div>
+                            ) : (
+                                <div>
+                                    <label htmlFor="pw-current" className={label}>Current password</label>
+                                    <input
+                                        id="pw-current"
+                                        type="password"
+                                        autoComplete="current-password"
+                                        className={input}
+                                        value={pw.current}
+                                        onChange={(e) => setPw({ ...pw, current: e.target.value })}
+                                    />
+                                </div>
+                            )}
                             <div className="grid gap-3 sm:grid-cols-2">
                                 <div>
                                     <label htmlFor="pw-new" className={label}>New password</label>
-                                    <input id="pw-new" type="password" autoComplete="new-password" className={input} value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} />
+                                    <input
+                                        id="pw-new"
+                                        type="password"
+                                        autoComplete="new-password"
+                                        className={input}
+                                        value={pw.next}
+                                        onChange={(e) => setPw({ ...pw, next: e.target.value })}
+                                    />
                                 </div>
                                 <div>
                                     <label htmlFor="pw-confirm" className={label}>Confirm new password</label>
-                                    <input id="pw-confirm" type="password" autoComplete="new-password" className={input} value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} />
+                                    <input
+                                        id="pw-confirm"
+                                        type="password"
+                                        autoComplete="new-password"
+                                        className={input}
+                                        value={pw.confirm}
+                                        onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
+                                    />
                                 </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
-                                <button type="submit" className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 transition duration-200 hover:border-[#1f6fdc] hover:text-[#1f6fdc] active:scale-95">
-                                    Update password
+                                <button
+                                    type="submit"
+                                    disabled={isUpdatingPw}
+                                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 transition duration-200 hover:border-[#1f6fdc] hover:text-[#1f6fdc] active:scale-95 disabled:opacity-60"
+                                >
+                                    {isUpdatingPw && <Loader2 size={15} className="animate-spin" />}
+                                    {isUpdatingPw
+                                        ? 'Saving password...'
+                                        : user?.passwordEnabled === false
+                                          ? 'Set password'
+                                          : 'Update password'}
                                 </button>
                                 {pwMsg && (
                                     <p role="status" className={`text-sm ${pwMsg.ok ? 'text-[#12875a]' : 'text-[#e0561b]'}`}>{pwMsg.text}</p>
@@ -282,13 +585,20 @@ export default function Settings({ userName = 'Drake', email = 'youremail@gmail.
                 </form>
 
                 <Section Icon={Trash2} title="Delete account" text="This removes your portfolios and cannot be undone">
-                    <button
-                        type="button"
-                        onClick={() => window.confirm('Delete your account and all portfolios? This cannot be undone.')}
-                        className="rounded-xl bg-[#fde6d8] px-4 py-2.5 text-sm font-medium text-[#e0561b] transition duration-200 hover:bg-[#fbd5bd] active:scale-95"
-                    >
-                        Delete account
-                    </button>
+                    <div className="space-y-3">
+                        <p className="text-xs text-slate-500">
+                            Once your account is deleted, all created portfolios, uploaded images, and reviews will be permanently deleted.
+                        </p>
+                        <button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={onDeleteAccount}
+                            className="inline-flex items-center gap-2 rounded-xl bg-[#fde6d8] px-4 py-2.5 text-sm font-medium text-[#e0561b] transition duration-200 hover:bg-[#fbd5bd] active:scale-95 disabled:opacity-60"
+                        >
+                            {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                            {isDeleting ? 'Deleting account...' : 'Delete account'}
+                        </button>
+                    </div>
                 </Section>
             </div>
         </DashboardLayout>

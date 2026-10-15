@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useUser } from '@clerk/react'
 import { Check, ArrowRight, FileText, LayoutGrid, Palette, Clock } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import { resolveDisplayName } from '../utils/portfolioUtils'
 
 const STORAGE_KEY = 'hulma-template'
 
@@ -111,16 +113,23 @@ const TEMPLATES = [
 
 function readSaved() {
     try {
-        return localStorage.getItem(STORAGE_KEY)
+        const direct = localStorage.getItem(STORAGE_KEY)
+        if (direct) return direct
+        const settings = JSON.parse(localStorage.getItem('hulma-settings') || '{}')
+        return settings.defaultTemplate || 'simple'
     } catch {
-        return null
+        return 'simple'
     }
 }
 
-export default function Templates({ userName = 'Drake', email = 'youremail@gmail.com' }) {
+export default function Templates() {
     const navigate = useNavigate()
+    const { user } = useUser()
     const [selected, setSelected] = useState(readSaved)
     const current = TEMPLATES.find((t) => t.id === selected)
+
+    const displayName = resolveDisplayName(user, '')
+    const emailAddress = user?.primaryEmailAddress?.emailAddress || ''
 
     const choose = (id) => {
         setSelected(id)
@@ -138,7 +147,7 @@ export default function Templates({ userName = 'Drake', email = 'youremail@gmail
     }
 
     return (
-        <DashboardLayout userName={userName} email={email} subtitle="Pick a layout for your portfolio">
+        <DashboardLayout userName={displayName} email={emailAddress} subtitle="Pick a layout for your portfolio">
             <div className="mt-5 flex flex-col items-start gap-2 sm:mt-6 sm:flex-row sm:justify-between sm:gap-3">
                 <div>
                     <h3 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[28px]">Choose a template</h3>
@@ -149,7 +158,7 @@ export default function Templates({ userName = 'Drake', email = 'youremail@gmail
                 </span>
             </div>
 
-            <div role="radiogroup" aria-label="Portfolio templates" className="mt-4 grid gap-4 md:grid-cols-3">
+            <div role="radiogroup" aria-label="Portfolio templates" className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {TEMPLATES.map(({ id, num, name, Icon, text, tags, Preview }) => {
                     const isSelected = selected === id
                     return (
@@ -239,7 +248,7 @@ export default function Templates({ userName = 'Drake', email = 'youremail@gmail
                     type="button"
                     disabled={!current}
                     onClick={continueToCreate}
-                    className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-5 py-3 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                    className="inline-flex w-full sm:w-auto justify-center shrink-0 items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-5 py-3 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                 >
                     Continue <ArrowRight size={18} />
                 </button>

@@ -15,4 +15,11 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Production: gunicorn with uvicorn workers
+# Development override via docker-compose command
+CMD ["gunicorn", "app.main:app", \
+     "--bind", "0.0.0.0:8000", \
+     "--worker-class", "uvicorn.workers.UvicornWorker", \
+     "--workers", "2", \
+     "--timeout", "120", \
+     "--access-logfile", "-"]

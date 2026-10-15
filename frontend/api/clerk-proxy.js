@@ -3,8 +3,56 @@ export const config = {
 };
 
 /**
+ * Validates that an origin belongs strictly to an allowed Clerk upstream domain.
+ * Prevents SSRF and leaking Clerk-Secret-Key to arbitrary or deceptive domains.
+ */
+function isAllowedClerkOrigin(originUrl, verifiedInstanceOrigin) {
+  try {
+    const parsed = typeof originUrl === "string" ? new URL(originUrl) : originUrl;
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return false;
+    }
+
+    const host = parsed.hostname.toLowerCase();
+
+    // 1. Official Clerk Frontend API proxy host
+    if (host === "frontend-api.clerk.dev") {
+      return true;
+    }
+
+    // 2. Verified instance origin (from configuration or publishable key)
+    if (verifiedInstanceOrigin) {
+      try {
+        const parsedInstance = new URL(verifiedInstanceOrigin);
+        if (parsed.origin === parsedInstance.origin) {
+          return true;
+        }
+      } catch {
+        // Ignore invalid URL
+      }
+    }
+
+    // 3. Strict match for development instances: <instance-name>.clerk.accounts.dev
+    const parts = host.split(".");
+    if (
+      parts.length === 4 &&
+      parts[0].length > 0 &&
+      parts[1] === "clerk" &&
+      parts[2] === "accounts" &&
+      parts[3] === "dev"
+    ) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Resolves and validates the upstream Clerk Frontend API URL.
- * Guarantees that the proxy never forwards requests back to itself or broken CNAMEs.
+ * Guarantees that the proxy never forwards requests back to itself or unmapped CNAMEs.
  */
 function resolveUpstreamBaseUrl(frontendApiUrl, publishableKey) {
   // If explicitly configured, validate that it is not our own domain or broken CNAME
@@ -33,10 +81,7 @@ function resolveUpstreamBaseUrl(frontendApiUrl, publishableKey) {
         const decoded = Buffer.from(parts[2], "base64").toString("utf-8");
         if (decoded.endsWith("$")) {
           const host = decoded.slice(0, -1).toLowerCase();
-          if (
-            host.includes(".clerk.accounts.") ||
-            (host.endsWith(".clerk.dev") && host !== "frontend-api.clerk.dev")
-          ) {
+          if (isAllowedClerkOrigin(`https://${host}`)) {
             return `https://${host}`;
           }
         }
@@ -80,6 +125,63 @@ async function getRequestBody(req) {
   return Buffer.concat(chunks);
 }
 
+/**
+ * Sanitizes and filters upstream Set-Cookie headers before sending to client.
+ * Drops Cloudflare bot cookies targeting upstream domains and fixes/preserves legitimate cookies.
+ */
+function sanitizeSetCookieHeaders(cookies, reqHost) {
+  if (!cookies || !Array.isArray(cookies) || cookies.length === 0) {
+    return [];
+  }
+
+  const cleanCookies = [];
+  const normalizedReqHost = reqHost.toLowerCase().split(":")[0];
+  const knownAuthCookies = new Set([
+    "__session",
+    "__client",
+    "__client_uat",
+    "__clerk_db_jwt",
+    "__clerk_handshake",
+  ]);
+
+  for (const cookieStr of cookies) {
+    if (!cookieStr || typeof cookieStr !== "string") continue;
+
+    // Extract cookie name
+    const nameMatch = cookieStr.match(/^\s*([^=;]+)=/);
+    const cookieName = nameMatch ? nameMatch[1].trim().toLowerCase() : "";
+
+    // Extract Domain attribute if present
+    const domainMatch = cookieStr.match(/;\s*Domain=([^;]+)/i);
+    const cookieDomain = domainMatch
+      ? domainMatch[1].trim().toLowerCase().replace(/^\./, "")
+      : null;
+
+    // Drop Cloudflare bot & infrastructure cookies targeted at frontend-api.clerk.dev
+    if (["__cf_bm", "_cfuvid", "__cfruid", "cf_clearance"].includes(cookieName)) {
+      if (cookieDomain && !normalizedReqHost.endsWith(cookieDomain)) {
+        continue;
+      }
+    }
+
+    // Check foreign domain mismatch
+    if (cookieDomain && !normalizedReqHost.endsWith(cookieDomain)) {
+      // If it's a known Clerk authentication cookie with an upstream domain, strip the Domain attribute so it becomes a valid host-only cookie for reqHost
+      if (knownAuthCookies.has(cookieName) || cookieDomain === "frontend-api.clerk.dev") {
+        const fixedCookie = cookieStr.replace(/;\s*Domain=[^;]+/i, "");
+        cleanCookies.push(fixedCookie);
+        continue;
+      }
+      // Drop other foreign cookies that browsers would reject
+      continue;
+    }
+
+    cleanCookies.push(cookieStr);
+  }
+
+  return cleanCookies;
+}
+
 export default async function handler(req, res) {
   const secretKey = process.env.CLERK_SECRET_KEY;
   const configuredFrontendApi = process.env.CLERK_FRONTEND_API_URL;
@@ -108,23 +210,33 @@ export default async function handler(req, res) {
 
   const incoming = new URL(req.url || "/", `${proto}://${reqHost}`);
 
-  // Extract path from __clerk_path query param or pathname
-  let path = incoming.searchParams.get("__clerk_path");
-  if (path !== null && path !== undefined) {
-    incoming.searchParams.delete("__clerk_path");
-  } else if (incoming.pathname.startsWith("/__clerk")) {
+  // Extract path from __clerk_path, subpath, path, or pathname
+  let path =
+    incoming.searchParams.get("__clerk_path") ||
+    incoming.searchParams.get("subpath");
+
+  // Clean internal routing query parameters injected by Vercel
+  incoming.searchParams.delete("__clerk_path");
+  incoming.searchParams.delete("subpath");
+
+  if (!path && incoming.pathname.startsWith("/__clerk")) {
     path = incoming.pathname.replace(/^\/__clerk\/?/, "");
-  } else if (incoming.pathname.startsWith("/api/clerk-proxy")) {
+  } else if (!path && incoming.pathname.startsWith("/api/clerk-proxy")) {
     path = incoming.pathname.replace(/^\/api\/clerk-proxy\/?/, "");
-  } else {
-    path = "";
   }
 
-  const upstreamUrl = new URL(
+  path = path || "";
+
+  // Delete Vercel route param 'path' if it matches the extracted path
+  if (incoming.searchParams.get("path") === path) {
+    incoming.searchParams.delete("path");
+  }
+
+  let currentTargetUrl = new URL(
     path.replace(/^\/+/, ""),
     upstreamOrigin.endsWith("/") ? upstreamOrigin : `${upstreamOrigin}/`
   );
-  upstreamUrl.search = incoming.search;
+  currentTargetUrl.search = incoming.search;
 
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
@@ -155,22 +267,75 @@ export default async function handler(req, res) {
 
   try {
     const body = await getRequestBody(req);
+    const method = req.method || "GET";
 
-    const upstream = await fetch(upstreamUrl, {
-      method: req.method,
-      headers,
-      body,
-      redirect: "manual",
-    });
+    let upstream;
+    const accumulatedCookies = [];
+    const maxRedirects = 3;
+    let redirectCount = 0;
+
+    // Execute upstream request with controlled redirect following for verified Clerk internal origins
+    while (true) {
+      upstream = await fetch(currentTargetUrl, {
+        method,
+        headers,
+        body: redirectCount === 0 ? body : undefined,
+        redirect: "manual",
+      });
+
+      // Collect cookies from this hop
+      if (typeof upstream.headers.getSetCookie === "function") {
+        const hopCookies = upstream.headers.getSetCookie();
+        if (hopCookies && hopCookies.length > 0) {
+          accumulatedCookies.push(...hopCookies);
+        }
+      }
+
+      // Check if response is a redirect (301, 302, 307, 308)
+      if ([301, 302, 307, 308].includes(upstream.status)) {
+        const location = upstream.headers.get("location");
+        if (location) {
+          let resolvedLocation = new URL(location, currentTargetUrl);
+
+          // If upstream formatted redirect using Clerk-Proxy-Url back to our proxy
+          let isProxyPath = false;
+          if (resolvedLocation.href.startsWith(proxyUrl)) {
+            isProxyPath = true;
+            const proxyUrlPath = new URL(proxyUrl).pathname;
+            const subpath = resolvedLocation.pathname
+              .slice(proxyUrlPath.length)
+              .replace(/^\/+/, "");
+            const newTarget = new URL(
+              subpath,
+              upstreamOrigin.endsWith("/") ? upstreamOrigin : `${upstreamOrigin}/`
+            );
+            newTarget.search = resolvedLocation.search;
+            resolvedLocation = newTarget;
+          }
+
+          // Strict validation: Only follow internal redirects to verified Clerk upstream origins
+          const isVerifiedClerkOrigin =
+            isProxyPath || isAllowedClerkOrigin(resolvedLocation.origin, upstreamOrigin);
+          const isSafeMethod = ["GET", "HEAD"].includes(method);
+
+          if (isVerifiedClerkOrigin && isSafeMethod && redirectCount < maxRedirects) {
+            currentTargetUrl = resolvedLocation;
+            redirectCount++;
+            continue;
+          }
+        }
+      }
+
+      // Exit loop for non-redirects, external OAuth redirects, non-GET redirects, or max redirects reached
+      break;
+    }
 
     res.status(upstream.status);
 
-    // Forward Set-Cookie headers properly preserving array structure
-    if (typeof upstream.headers.getSetCookie === "function") {
-      const cookies = upstream.headers.getSetCookie();
-      if (cookies && cookies.length > 0) {
-        res.setHeader("set-cookie", cookies);
-      }
+    // Apply sanitized cookies to response
+    const sanitizedCookies = sanitizeSetCookieHeaders(accumulatedCookies, reqHost);
+    if (sanitizedCookies.length > 0) {
+      res.setHeader("set-cookie", sanitizedCookies);
     }
 
     upstream.headers.forEach((value, name) => {
@@ -196,7 +361,7 @@ export default async function handler(req, res) {
       res.setHeader(name, value);
     });
 
-    if (req.method === "HEAD" || upstream.status === 204 || upstream.status === 304) {
+    if (method === "HEAD" || upstream.status === 204 || upstream.status === 304) {
       return res.end();
     }
 

@@ -137,7 +137,6 @@ def save_portfolio(
         except IntegrityError as exc:
             db.rollback()
             if attempt < 2:
-                # Retry with a freshly generated slug in case of collision
                 portfolio.slug = _new_slug(db)
                 db.add(portfolio)
             else:
@@ -215,7 +214,6 @@ def read_public_portfolio(slug: str, db: Session = Depends(get_db)) -> dict:
             detail="This portfolio is private. The owner has disabled public link sharing in settings.",
         )
 
-    # Atomic SQL increment prevents lost update race conditions across concurrent viewers
     db.query(Portfolio).filter(Portfolio.id == portfolio.id).update(
         {Portfolio.views: Portfolio.views + 1},
         synchronize_session=False,

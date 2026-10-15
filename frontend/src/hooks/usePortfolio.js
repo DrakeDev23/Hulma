@@ -30,7 +30,7 @@ export default function usePortfolio() {
                 setPortfolio(null)
             }
             return data
-        } catch (e) {
+        } catch {
             setError('Failed to load portfolio.')
             setPortfolio(null)
             return null

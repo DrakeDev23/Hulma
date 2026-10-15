@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSignUp } from '@clerk/react/legacy'
 import { useUser } from '@clerk/react'
 import { FcGoogle } from 'react-icons/fc'
-import { FiEye, FiEyeOff, FiArrowLeft } from 'react-icons/fi'
+import { FiEye, FiEyeOff, FiArrowLeft, FiAlertCircle, FiCheckCircle } from 'react-icons/fi'
 import logoImg from '../assets/logo.png'
 import puppetImg from '../assets/puppet.png'
 
@@ -19,17 +19,23 @@ export default function RegisterPage({ mode = 'register' }) {
   const { isLoaded, signUp, setActive } = useSignUp()
   const { isSignedIn } = useUser()
 
+  const searchParams = new URLSearchParams(location.search)
+  const initialEmail = searchParams.get('email') || location.state?.email || ''
+
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [username, setUsername] = useState('')
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [code, setCode] = useState('')
   const [pendingVerification, setPendingVerification] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false)
+  const [isEmailTaken, setIsEmailTaken] = useState(false)
+  const [infoMessage, setInfoMessage] = useState('')
   const [error, setError] = useState(location.state?.notice || '')
+
 
   const needsCode = pendingVerification || (signUp?.status === 'missing_requirements' && signUp?.unverifiedFields?.includes('email_address'))
 
@@ -46,6 +52,8 @@ export default function RegisterPage({ mode = 'register' }) {
     }
 
     setError('')
+    setIsEmailTaken(false)
+    setInfoMessage('')
     setIsGoogleSubmitting(true)
 
     try {
@@ -65,6 +73,8 @@ export default function RegisterPage({ mode = 'register' }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setIsEmailTaken(false)
+    setInfoMessage('')
 
     if (!isLoaded || !signUp) {
       setError('Registration service is not ready yet.')
@@ -84,12 +94,18 @@ export default function RegisterPage({ mode = 'register' }) {
     setIsSubmitting(true)
 
     try {
-      await signUp.create({
+      const result = await signUp.create({
         emailAddress: email.trim(),
         password,
         firstName: username.trim() || undefined,
         unsafeMetadata: { username: username.trim() },
       })
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId })
+        navigate('/dashboard')
+        return
+      }
 
       await signUp.prepareEmailAddressVerification({
         strategy: 'email_code',
@@ -98,7 +114,20 @@ export default function RegisterPage({ mode = 'register' }) {
       setPendingVerification(true)
     } catch (err) {
       console.error('Sign up error:', err)
-      setError(errorText(err, 'Registration failed. Please check your information.'))
+      const errCode = err?.errors?.[0]?.code
+      const errMsg = err?.errors?.[0]?.message || err?.message || ''
+      const isTaken =
+        errCode === 'form_identifier_exists' ||
+        errMsg.toLowerCase().includes('taken') ||
+        errMsg.toLowerCase().includes('already in use') ||
+        errMsg.toLowerCase().includes('already exists')
+
+      if (isTaken) {
+        setIsEmailTaken(true)
+        setError('An account with this email address already exists.')
+      } else {
+        setError(errorText(err, 'Registration failed. Please check your information.'))
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -107,6 +136,7 @@ export default function RegisterPage({ mode = 'register' }) {
   const handleVerify = async (e) => {
     e.preventDefault()
     setError('')
+    setInfoMessage('')
 
     if (!isLoaded || !signUp) return
     setIsSubmitting(true)
@@ -133,9 +163,9 @@ export default function RegisterPage({ mode = 'register' }) {
 
   const resendCode = async () => {
     try {
-      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
       setError('')
-      alert('A new verification code has been sent to your email.')
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
+      setInfoMessage('A new verification code has been sent to your email.')
     } catch (err) {
       setError(errorText(err, 'Could not send verification code.'))
     }
@@ -166,8 +196,22 @@ export default function RegisterPage({ mode = 'register' }) {
             <>
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-slate-900 mb-1">Verify your email</h2>
-                <p className="text-xs text-slate-500">We sent a code to {email}. Enter it below to finish.</p>
+                <p className="text-xs text-slate-500">We sent a verification code to <strong>{email}</strong>. Enter it below to finish.</p>
               </div>
+
+              {infoMessage && (
+                <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700 flex items-start gap-2">
+                  <FiCheckCircle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                  <span>{infoMessage}</span>
+                </div>
+              )}
+
+              {error && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
+                  <FiAlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
 
               <form className="w-full" onSubmit={handleVerify}>
                 <div className="mb-6">
@@ -177,13 +221,16 @@ export default function RegisterPage({ mode = 'register' }) {
                     autoComplete="one-time-code"
                     required
                     value={code}
-                    onChange={(e) => setCode(e.target.value)}
+                    onChange={(e) => {
+                      setCode(e.target.value)
+                      setError('')
+                    }}
                     placeholder="Verification code"
                     className={inputClass}
                   />
                 </div>
 
-                {error && <p className="mb-4 text-xs text-red-600">{error}</p>}
+                <div id="clerk-captcha" className="my-2" />
 
                 <button
                   type="submit"
@@ -195,7 +242,7 @@ export default function RegisterPage({ mode = 'register' }) {
               </form>
 
               <div className="flex justify-between text-xs">
-                <button type="button" onClick={resendCode} className="text-blue-600 font-semibold hover:underline">
+                <button type="button" onClick={resendCode} className="text-blue-600 font-semibold hover:underline cursor-pointer">
                   Send a new code
                 </button>
                 <button
@@ -203,9 +250,10 @@ export default function RegisterPage({ mode = 'register' }) {
                   onClick={() => {
                     setCode('')
                     setError('')
+                    setInfoMessage('')
                     setPendingVerification(false)
                   }}
-                  className="text-slate-500 hover:underline"
+                  className="text-slate-500 hover:underline cursor-pointer"
                 >
                   Start over
                 </button>
@@ -235,13 +283,41 @@ export default function RegisterPage({ mode = 'register' }) {
                 <span className="relative bg-white px-3 text-xs text-slate-400">or continue with email</span>
               </div>
 
+              {isEmailTaken ? (
+                <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+                  <div className="flex items-start gap-2">
+                    <FiAlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-semibold text-slate-900 mb-1">Account already exists</p>
+                      <p className="text-slate-600 mb-3">
+                        An account is already registered with <strong className="text-slate-900">{email}</strong>.
+                      </p>
+                      <Link
+                        to={`/login?email=${encodeURIComponent(email)}`}
+                        className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                      >
+                        Sign in to your account &rarr;
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
+                  <FiAlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              ) : null}
+
               <form className="w-full" onSubmit={handleSubmit}>
                 <div className="mb-6">
                   <input
                     type="text"
                     required
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => {
+                      setUsername(e.target.value)
+                      if (error) setError('')
+                    }}
                     placeholder="Username"
                     className={inputClass}
                   />
@@ -252,7 +328,11 @@ export default function RegisterPage({ mode = 'register' }) {
                     type="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      setIsEmailTaken(false)
+                      if (error) setError('')
+                    }}
                     placeholder="Email"
                     className={inputClass}
                   />
@@ -263,7 +343,10 @@ export default function RegisterPage({ mode = 'register' }) {
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      if (error) setError('')
+                    }}
                     placeholder="Password"
                     className={`${inputClass} pr-8`}
                   />
@@ -282,7 +365,10 @@ export default function RegisterPage({ mode = 'register' }) {
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value)
+                      if (error) setError('')
+                    }}
                     placeholder="Confirm Password"
                     className={`${inputClass} pr-8`}
                   />
@@ -296,7 +382,7 @@ export default function RegisterPage({ mode = 'register' }) {
                   </button>
                 </div>
 
-                {error && <p className="mb-4 text-xs text-red-600">{error}</p>}
+                <div id="clerk-captcha" className="my-2" />
 
                 <button
                   type="submit"
@@ -309,7 +395,10 @@ export default function RegisterPage({ mode = 'register' }) {
 
               <p className="text-xs text-slate-600 text-center">
                 Already have an account?{' '}
-                <Link to="/login" className="font-semibold text-blue-600 hover:underline">
+                <Link
+                  to={email ? `/login?email=${encodeURIComponent(email)}` : '/login'}
+                  className="font-semibold text-blue-600 hover:underline"
+                >
                   Sign in
                 </Link>
               </p>

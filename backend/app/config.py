@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     db_pool_timeout: int = 30
     db_pool_recycle: int = 1800
     secret_key: str = "replace-me-with-a-strong-secret"
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "https://hulma.vercel.app,http://localhost:5173"
+    cors_origin_regex: str | None = None
     clerk_issuer: str = ""
     clerk_jwks_url: str = ""
     clerk_audience: str = ""

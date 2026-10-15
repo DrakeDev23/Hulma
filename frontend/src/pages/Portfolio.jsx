@@ -15,6 +15,8 @@ import {
     reviewInfo,
     relativeTime,
     titleCase,
+    resolveDisplayName,
+    apiUrl,
 } from '../utils/portfolioUtils'
 
 const TONES = {
@@ -34,13 +36,12 @@ export default function Portfolio() {
     const [showPortfolio, setShowPortfolio] = useState(false)
     const [heroIndex, setHeroIndex] = useState(0)
 
-    const userName = user?.fullName || user?.firstName || user?.username || 'User'
+    const userName = resolveDisplayName(user, 'User')
     const email = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || 'No email'
 
     const { portfolio: basePortfolio, source } = useMemo(() => resolvePortfolio(raw), [raw])
     const heroList = useMemo(() => resolvePortfolioList(raw), [raw])
 
-    // Keep the selected index inside the list (e.g. after a delete).
     const activeIndex = Math.min(heroIndex, Math.max(heroList.length - 1, 0))
     const portfolio = heroList[activeIndex] || basePortfolio
 
@@ -48,7 +49,7 @@ export default function Portfolio() {
         if (!portfolio?.id) return
         try {
             const token = await getToken()
-            const res = await fetch(`/api/portfolio/${portfolio.id}`, {
+            const res = await fetch(apiUrl(`/api/portfolio/${portfolio.id}`), {
                 method: 'DELETE',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             })
@@ -59,7 +60,7 @@ export default function Portfolio() {
             } else {
                 alert('Failed to delete portfolio.')
             }
-        } catch (e) {
+        } catch {
             alert('Delete failed.')
         }
     }
@@ -110,7 +111,7 @@ export default function Portfolio() {
     const steps = [
         { title: 'Choose a template', text: 'Start with a curated layout and swap sections in seconds.', done: Boolean(portfolio?.templateId), tone: 'blue', path: '/templates' },
         { title: 'Add projects and sections', text: 'Organize case studies, skills and experience into a clear story.', done: projectCount > 0 && sectionCount >= 3, tone: 'green', path: '/portfolio/create' },
-        { title: 'Review AI feedback', text: 'Get clarity checks, tone suggestions and publish-ready guidance.', done: Boolean(portfolio?.review), tone: 'orange', path: '/portfolio/create' },
+        { title: 'Review AI feedback', text: 'Get clarity checks, tone suggestions and publish-ready guidance.', done: Boolean(portfolio?.review), tone: 'orange', path: '/review' },
     ]
 
     const features = [
@@ -171,25 +172,25 @@ export default function Portfolio() {
                                 : 'Turn your skills, projects and experience into a professional portfolio with templates, sections and instant AI feedback.'}
                         </p>
 
-                        <div className="mt-5 grid grid-cols-1 gap-2.5 min-[480px]:grid-cols-3">
+                        <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-2.5">
                             {heroStats.map((s) => (
-                                <div key={s.label} className={`rounded-xl px-3 py-2.5 hover:-translate-y-0.5 ${glass}`}>
-                                    <small className="block text-xs text-[#d3e5fa]">{s.label}</small>
-                                    <strong className="text-sm font-semibold">{s.value}</strong>
+                                <div key={s.label} className={`rounded-xl p-2 sm:px-3 sm:py-2.5 hover:-translate-y-0.5 ${glass}`}>
+                                    <small className="block truncate text-[11px] sm:text-xs text-[#d3e5fa]">{s.label}</small>
+                                    <strong className="mt-0.5 block truncate text-xs sm:text-sm font-semibold">{s.value}</strong>
                                 </div>
                             ))}
                         </div>
 
-                        <div className="mt-5 flex flex-wrap gap-3">
+                        <div className="mt-5 flex flex-wrap gap-2.5 sm:gap-3">
                             <button
                                 onClick={() => navigate(editUrl)}
-                                className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 sm:px-5 sm:py-3"
+                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 min-[440px]:w-auto sm:px-5 sm:py-3"
                             >
                                 {portfolio ? 'Edit Portfolio' : 'Create Portfolio'} <Plus size={16} />
                             </button>
                             <button
                                 onClick={() => navigate('/templates')}
-                                className={`rounded-xl px-4 py-2.5 text-sm font-medium hover:-translate-y-0.5 active:scale-95 sm:px-5 sm:py-3 ${glass}`}
+                                className={`w-full rounded-xl px-4 py-2.5 text-center text-sm font-medium hover:-translate-y-0.5 active:scale-95 min-[440px]:w-auto sm:px-5 sm:py-3 ${glass}`}
                             >
                                 View templates
                             </button>
@@ -238,7 +239,7 @@ export default function Portfolio() {
                     </div>
                 )}
 
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {steps.map((s, i) => (
                         <button key={s.title} onClick={() => navigate(s.path === '/portfolio/create' ? editUrl : s.path)} className={`${cardHover} text-left`}>
                             <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-transform duration-200 group-hover:scale-110 ${s.done ? TONES.green : TONES[s.tone]}`}>
@@ -250,7 +251,7 @@ export default function Portfolio() {
                     ))}
                 </div>
 
-                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {features.map((f) => (
                         <article key={f.title} className={`flex flex-col ${cardHover}`}>
                             <div className="flex items-center justify-between gap-2">
@@ -271,7 +272,7 @@ export default function Portfolio() {
                 {heroList.length > 0 && (
                     <div className="mt-6">
                         <h5 className="text-sm font-semibold text-slate-800">Your completed portfolios</h5>
-                        <div className="mt-3 grid gap-3 md:grid-cols-3">
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                             {heroList.map((p) => (
                                 <button key={p?.id ?? p?.title} onClick={() => { setHeroIndex(heroList.indexOf(p)); setShowPortfolio(true); }} className={`${cardHover} text-left`}>
                                     {(() => {

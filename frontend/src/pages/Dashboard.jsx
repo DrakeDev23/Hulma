@@ -17,10 +17,11 @@ import usePortfolio from '../hooks/usePortfolio'
 import PortfolioReviewCard from '../components/PortfolioReviewCard'
 import PortfolioModal from '../components/PortfolioModal'
 import PortfolioHeroDisplay from '../components/PortfolioHeroDisplay'
+import { resolveDisplayName } from '../utils/portfolioUtils'
 
 const pick = (...values) => values.find((v) => v !== undefined && v !== null && v !== '')
 
-const toText = (x) => (typeof x === 'string' ? x : pick(x?.name, x?.title, x?.label, '') )
+const toText = (x) => (typeof x === 'string' ? x : pick(x?.text, x?.title, x?.name, x?.label, ''))
 
 const isFilled = (v) => {
     if (Array.isArray(v)) return v.length > 0
@@ -130,7 +131,7 @@ const buildChecklist = (p, sectionCount) => [
     { key: 'picture', done: Boolean(p.picture), Icon: UserRound, tone: 'orange', title: 'Upload a profile picture', text: 'A photo makes your portfolio feel personal.', route: '/portfolio/create' },
     { key: 'projects', done: p.projects.length > 0, Icon: Layers, tone: 'orange', title: 'Add a project', text: 'Showcase at least one piece of work.', route: '/portfolio/create' },
     { key: 'sections', done: sectionCount >= 3, Icon: PenLine, tone: 'blue', title: 'Fill in more sections', text: 'Add skills, experience or education.', route: '/portfolio/create' },
-    { key: 'review', done: Boolean(p.review), Icon: CheckCircle2, tone: 'green', title: 'Run the AI review', text: 'Get feedback and refine your draft.', route: '/portfolio' },
+    { key: 'review', done: Boolean(p.review), Icon: CheckCircle2, tone: 'green', title: 'Run the AI review', text: 'Get feedback and refine your draft.', route: '/review' },
 ]
 
 const buildActivity = (p) => {
@@ -227,7 +228,7 @@ export default function Dashboard() {
     const activeTemplate = portfolio?.sections?.meta?.templateId || portfolio?.template
     const editUrl = activeTemplate ? `/portfolio/create?template=${activeTemplate}` : '/portfolio/create'
 
-    const displayName = user?.fullName || user?.firstName || user?.username || 'User'
+    const displayName = resolveDisplayName(user, 'User')
     const emailAddress = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || 'No email'
 
     const hasPortfolio = hasContent(portfolio)
@@ -326,8 +327,6 @@ export default function Dashboard() {
         { label: 'AI review', value: review.label },
     ]
 
-    const previewTitle = portfolio.title || 'Untitled portfolio'
-
     return (
         <DashboardLayout userName={displayName} email={emailAddress} subtitle={`${sectionCount} sections · ${projectLabel}`}>
             <section className="mt-4 grid gap-5 rounded-2xl bg-linear-to-br from-[#3e90e2] via-[#2272c4] to-[#1b5c9a] p-4 text-white shadow-md sm:mt-5 sm:p-5 lg:grid-cols-[1.12fr_1fr] lg:gap-6 lg:pr-1">
@@ -343,25 +342,25 @@ export default function Dashboard() {
                             : `Your portfolio is ${completion}% complete. Pick up where you left off.`}
                     </p>
 
-                    <div className="mt-5 grid grid-cols-1 gap-2.5 min-[480px]:grid-cols-3">
+                    <div className="mt-5 grid grid-cols-3 gap-2 sm:gap-2.5">
                         {heroStats.map((s) => (
-                            <div key={s.label} className={`rounded-xl px-3 py-2.5 hover:-translate-y-0.5 ${glass}`}>
-                                <small className="block text-xs text-[#d3e5fa]">{s.label}</small>
-                                <strong className="text-sm font-semibold">{s.value}</strong>
+                            <div key={s.label} className={`rounded-xl p-2 sm:px-3 sm:py-2.5 hover:-translate-y-0.5 ${glass}`}>
+                                <small className="block truncate text-[11px] sm:text-xs text-[#d3e5fa]">{s.label}</small>
+                                <strong className="mt-0.5 block truncate text-xs sm:text-sm font-semibold">{s.value}</strong>
                             </div>
                         ))}
                     </div>
 
-                    <div className="mt-5 flex flex-wrap gap-3">
+                    <div className="mt-5 flex flex-wrap gap-2.5 sm:gap-3">
                         <button
                             onClick={() => navigate(editUrl)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 sm:px-5 sm:py-3"
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 min-[440px]:w-auto sm:px-5 sm:py-3"
                         >
                             Edit portfolio <PenLine size={18} />
                         </button>
                         <button
                             onClick={() => navigate('/templates')}
-                            className={`rounded-xl px-4 py-2.5 text-sm font-medium hover:-translate-y-0.5 active:scale-95 sm:px-5 sm:py-3 ${glass}`}
+                            className={`w-full rounded-xl px-4 py-2.5 text-center text-sm font-medium hover:-translate-y-0.5 active:scale-95 min-[440px]:w-auto sm:px-5 sm:py-3 ${glass}`}
                         >
                             View templates
                         </button>

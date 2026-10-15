@@ -9,6 +9,18 @@ export const buildShareUrl = (slug) =>
 export default function ShareLink({ slug, dark = false }) {
     const [copied, setCopied] = useState(false)
     const url = buildShareUrl(slug)
+
+    const isPublicDisabled = (() => {
+        try {
+            const raw = localStorage.getItem('hulma-settings')
+            if (raw) {
+                const parsed = JSON.parse(raw)
+                return parsed.publicLink === false
+            }
+        } catch {}
+        return false
+    })()
+
     if (!url) return null
 
     const copy = async () => {
@@ -38,6 +50,11 @@ export default function ShareLink({ slug, dark = false }) {
         <div className={`flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-2 ${box}`}>
             <Link2 size={15} className="shrink-0 opacity-70" />
             <span className="min-w-0 flex-1 truncate text-xs sm:text-sm" title={url}>{url}</span>
+            {isPublicDisabled && (
+                <span className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${dark ? 'bg-amber-400/25 text-amber-100' : 'bg-amber-100 text-amber-700'}`} title="Public access is turned off in Settings">
+                    Private
+                </span>
+            )}
             <button onClick={copy} className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition active:scale-95 ${btn}`}>
                 {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? 'Copied' : 'Copy'}
             </button>

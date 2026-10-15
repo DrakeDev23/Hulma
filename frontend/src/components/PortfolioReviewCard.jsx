@@ -27,8 +27,8 @@ function Ring({ value }) {
     const c = 2 * Math.PI * r
     const v = Math.min(100, Math.max(0, Number(value) || 0))
     return (
-        <div className="relative grid h-[72px] w-[72px] shrink-0 place-items-center" aria-label={`${v}% complete`}>
-            <svg width="72" height="72" viewBox="0 0 72 72" className="-rotate-90">
+        <div className="relative grid h-14 w-14 shrink-0 place-items-center sm:h-[72px] sm:w-[72px]" aria-label={`${v}% complete`}>
+            <svg viewBox="0 0 72 72" className="h-full w-full -rotate-90">
                 <circle cx="36" cy="36" r={r} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="6" />
                 <circle
                     cx="36"
@@ -43,7 +43,7 @@ function Ring({ value }) {
                     className="transition-all duration-700"
                 />
             </svg>
-            <span className="absolute text-sm font-semibold">{v}%</span>
+            <span className="absolute text-xs font-semibold sm:text-sm">{v}%</span>
         </div>
     )
 }
@@ -115,29 +115,29 @@ export default function PortfolioReviewCard({
                     }}
                     className="flex cursor-pointer items-center gap-3 rounded-xl outline-none transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-white/70 sm:gap-4"
                 >
-                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/20 ring-2 ring-white/40 sm:h-20 sm:w-20">
+                    <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/20 ring-2 ring-white/40 sm:h-20 sm:w-20 sm:rounded-2xl">
                         {portfolio.picture ? (
                             <img src={portfolio.picture} alt={name} className="h-full w-full object-cover" />
                         ) : (
-                            <UserRound size={30} className="text-white/80" />
+                            <UserRound size={26} className="text-white/80 sm:size-8" />
                         )}
                     </div>
                     <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <h4 className="truncate text-lg font-semibold leading-tight sm:text-xl">{name}</h4>
-                            <span className="rounded-full border border-white/40 bg-white/15 px-2.5 py-0.5 text-[11px] font-medium">{statusText}</span>
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                            <h4 className="truncate text-base font-semibold leading-tight sm:text-xl">{name}</h4>
+                            <span className="rounded-full border border-white/40 bg-white/15 px-2 py-0.5 text-[10px] font-medium sm:px-2.5 sm:text-[11px]">{statusText}</span>
                         </div>
-                        <p className="mt-0.5 truncate text-sm text-[#d3e5fa]">{portfolio.title || 'Untitled portfolio'}</p>
-                        <p className="mt-1 text-[11px] text-[#bcd7f6]">Click to view your portfolio{templateLabel ? ` · ${templateLabel} template` : ''}</p>
+                        <p className="mt-0.5 truncate text-xs text-[#d3e5fa] sm:text-sm">{portfolio.title || 'Untitled portfolio'}</p>
+                        <p className="mt-0.5 text-[10px] text-[#bcd7f6] sm:text-[11px]">Click to view your portfolio{templateLabel ? ` · ${templateLabel} template` : ''}</p>
                     </div>
                     <Ring value={completion} />
                 </div>
 
                 {(contacts.length > 0 || links.length > 0) && (
-                    <div className="mt-4 flex flex-wrap gap-2 text-[11px] sm:text-xs">
+                    <div className="mt-3.5 flex flex-wrap gap-1.5 text-[11px] sm:mt-4 sm:gap-2 sm:text-xs">
                         {contacts.map(({ Icon, text }) => (
-                            <span key={text} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-2.5 py-1">
-                                <Icon size={12} /> <span className="truncate">{text}</span>
+                            <span key={text} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-2 py-0.5 sm:px-2.5 sm:py-1">
+                                <Icon size={12} className="shrink-0" /> <span className="truncate">{text}</span>
                             </span>
                         ))}
                         {links.map(([label, url]) => (
@@ -147,7 +147,7 @@ export default function PortfolioReviewCard({
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-2.5 py-1 transition hover:bg-white/25"
+                                className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/10 px-2 py-0.5 transition hover:bg-white/25 sm:px-2.5 sm:py-1"
                             >
                                 <Globe size={12} /> {label} <ExternalLink size={10} />
                             </a>
@@ -156,8 +156,8 @@ export default function PortfolioReviewCard({
                 )}
             </header>
 
-            <div className="p-3.5 sm:p-5">
-                <div role="tablist" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+            <div className="p-3 sm:p-5">
+                <div role="tablist" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 no-scrollbar">
                     {tabs.map(({ id, label, Icon, count }) => {
                         const active = tab === id
                         return (
@@ -166,8 +166,8 @@ export default function PortfolioReviewCard({
                                 role="tab"
                                 aria-selected={active}
                                 onClick={() => setTab(id)}
-                                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition duration-200 ${
-                                    active ? 'bg-[#1f6fdc] text-white shadow' : 'bg-[#f3f6fb] text-slate-600 hover:bg-[#e8effa]'
+                                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium transition duration-200 sm:px-3 ${
+                                    active ? 'bg-[#1f6fdc] text-white shadow-xs' : 'bg-[#f3f6fb] text-slate-600 hover:bg-[#e8effa]'
                                 }`}
                             >
                                 <Icon size={13} /> {label}
@@ -183,15 +183,15 @@ export default function PortfolioReviewCard({
                     {tab === 'overview' && (
                         <div className="grid gap-3 md:grid-cols-[1.2fr_1fr]">
                             <div className="flex flex-col gap-3">
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                                     {[
                                         { label: 'Views', value: views, Icon: Eye },
                                         { label: 'Sections', value: sectionCount, Icon: FileText },
                                         { label: 'Projects', value: projects.length, Icon: Layers },
                                     ].map(({ label, value, Icon }) => (
-                                        <div key={label} className="rounded-xl bg-[#f3f6fb] px-3 py-2.5">
-                                            <small className="flex items-center gap-1 text-xs text-slate-500"><Icon size={11} /> {label}</small>
-                                            <strong className="block text-2xl font-semibold leading-tight">{value}</strong>
+                                        <div key={label} className="rounded-xl bg-[#f3f6fb] p-2 sm:px-3 sm:py-2.5">
+                                            <small className="flex items-center gap-1 text-[11px] sm:text-xs text-slate-500"><Icon size={11} className="shrink-0" /> <span className="truncate">{label}</span></small>
+                                            <strong className="mt-0.5 block text-lg sm:text-2xl font-semibold leading-tight">{value}</strong>
                                         </div>
                                     ))}
                                 </div>
@@ -215,11 +215,14 @@ export default function PortfolioReviewCard({
                                 )}
                                 {review.suggestions?.length > 0 && (
                                     <ul className="mt-2 flex flex-col gap-1.5">
-                                        {review.suggestions.slice(0, 3).map((s) => (
-                                            <li key={s} className="flex gap-1.5 text-xs leading-snug">
-                                                <Lightbulb size={12} className="mt-0.5 shrink-0" /> {s}
-                                            </li>
-                                        ))}
+                                        {review.suggestions.slice(0, 3).map((s, idx) => {
+                                            const text = typeof s === 'object' && s !== null ? (s.title ? `${s.title}: ${s.text || ''}` : (s.text || '')) : String(s)
+                                            return (
+                                                <li key={typeof s === 'object' ? (s.id || idx) : s} className="flex gap-1.5 text-xs leading-snug">
+                                                    <Lightbulb size={12} className="mt-0.5 shrink-0" /> {text}
+                                                </li>
+                                            )
+                                        })}
                                     </ul>
                                 )}
                             </div>

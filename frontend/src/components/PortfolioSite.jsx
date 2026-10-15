@@ -113,16 +113,16 @@ export default function PortfolioSite({ portfolio, template = 'simple', idPrefix
     return (
         <div className={`min-h-full ${t.page}`}>
             <nav className={`${stickyNav ? 'sticky top-0' : ''} z-10 border-b backdrop-blur ${t.nav}`}>
-                <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-3">
+                <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3.5 sm:px-6 py-2.5 sm:py-3">
                     {onBack && (
-                        <button type="button" onClick={onBack} className="inline-flex shrink-0 items-center gap-1.5 text-sm font-bold tracking-tight hover:underline">
-                            <ArrowLeft size={14} /> {backLabel}
+                        <button type="button" onClick={onBack} className="inline-flex shrink-0 items-center gap-1.5 text-xs sm:text-sm font-bold tracking-tight hover:underline">
+                            <ArrowLeft size={14} /> <span className="hidden sm:inline">{backLabel}</span><span className="sm:hidden">Back</span>
                         </button>
                     )}
-                    <span className="truncate text-sm font-bold tracking-tight">{name}</span>
-                    <div className="flex gap-1 overflow-x-auto text-xs font-medium sm:text-sm">
+                    <span className="truncate max-w-[120px] sm:max-w-xs text-xs sm:text-sm font-bold tracking-tight">{name}</span>
+                    <div className="flex gap-1 overflow-x-auto text-xs font-medium sm:text-sm no-scrollbar">
                         {nav.map((s) => (
-                            <a key={s.id} href={`#${idPrefix}-${s.id}`} onClick={go(s.id)} className="shrink-0 rounded-full px-3 py-1.5 transition hover:bg-black/5 hover:underline">
+                            <a key={s.id} href={`#${idPrefix}-${s.id}`} onClick={go(s.id)} className="shrink-0 rounded-full px-2.5 sm:px-3 py-1 sm:py-1.5 transition hover:bg-black/5 hover:underline">
                                 {s.label}
                             </a>
                         ))}
@@ -131,25 +131,25 @@ export default function PortfolioSite({ portfolio, template = 'simple', idPrefix
             </nav>
 
             <header className={`relative overflow-hidden bg-gradient-to-br ${t.hero}`}>
-                <div className="mx-auto grid max-w-6xl items-center gap-10 px-6 pb-20 pt-12 sm:pt-16 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="mx-auto grid max-w-6xl items-center gap-8 sm:gap-10 px-4 sm:px-6 pb-16 sm:pb-20 pt-10 sm:pt-16 lg:grid-cols-[1.15fr_0.85fr]">
                     <div className="text-white">
                         {p.title && <span className="inline-block rounded-full bg-white/15 px-3 py-1 text-xs font-medium">{p.title}</span>}
-                        <h1 className="mt-4 text-4xl font-black leading-[0.98] tracking-tight sm:text-5xl lg:text-6xl">{name}</h1>
-                        {p.summary && <p className={`mt-4 line-clamp-4 max-w-xl text-base leading-relaxed sm:text-lg ${t.heroMuted}`}>{p.summary}</p>}
-                        <div className="mt-6 flex flex-wrap gap-3">
+                        <h1 className="mt-4 text-3xl font-black leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">{name}</h1>
+                        {p.summary && <p className={`mt-3 sm:mt-4 line-clamp-4 max-w-xl text-sm sm:text-base leading-relaxed lg:text-lg ${t.heroMuted}`}>{p.summary}</p>}
+                        <div className="mt-5 sm:mt-6 flex flex-wrap gap-2.5 sm:gap-3">
                             {projects.length > 0 && (
-                                <a href={`#${idPrefix}-projects`} onClick={go('projects')} className={`rounded-full px-5 py-2.5 text-sm font-semibold transition active:scale-95 ${t.btn}`}>View projects</a>
+                                <a href={`#${idPrefix}-projects`} onClick={go('projects')} className={`rounded-full px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold transition active:scale-95 ${t.btn}`}>View projects</a>
                             )}
-                            <a href={`#${idPrefix}-contact`} onClick={go('contact')} className="rounded-full border border-white/40 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 active:scale-95">Contact me</a>
+                            <a href={`#${idPrefix}-contact`} onClick={go('contact')} className="rounded-full border border-white/40 px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm font-semibold text-white transition hover:bg-white/10 active:scale-95">Contact me</a>
                         </div>
                     </div>
 
-                    <div className="relative mx-auto w-full max-w-[16rem] sm:max-w-xs">
+                    <div className="relative mx-auto w-full max-w-[13rem] sm:max-w-xs">
                         <div className={`absolute -bottom-3 -right-3 h-full w-full rounded-[2rem] ${t.blob}`} />
                         {picture ? (
                             <img src={picture} alt={name} className="relative aspect-square w-full rounded-[2rem] object-cover shadow-2xl" />
                         ) : (
-                            <div className="relative grid aspect-square w-full place-items-center rounded-[2rem] bg-white/15 text-7xl font-black text-white shadow-2xl">
+                            <div className="relative grid aspect-square w-full place-items-center rounded-[2rem] bg-white/15 text-6xl sm:text-7xl font-black text-white shadow-2xl">
                                 {name.charAt(0).toUpperCase()}
                             </div>
                         )}
@@ -158,11 +158,11 @@ export default function PortfolioSite({ portfolio, template = 'simple', idPrefix
             </header>
 
             {stats.length > 0 && (
-                <div className="relative z-[1] mx-auto -mt-9 max-w-6xl px-6">
-                    <div className={`grid gap-px overflow-hidden rounded-2xl ${t.card}`} style={{ gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))` }}>
+                <div className="relative z-[1] mx-auto -mt-9 max-w-6xl px-4 sm:px-6">
+                    <div className={`grid gap-px overflow-hidden rounded-2xl ${t.card} ${stats.length >= 4 ? 'grid-cols-2 sm:grid-cols-4' : stats.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
                         {stats.map((s) => (
-                            <div key={s.label} className="px-4 py-4 text-center">
-                                <div className={`text-2xl font-black sm:text-3xl ${t.heading}`}>{s.value}</div>
+                            <div key={s.label} className="px-3 sm:px-4 py-3 sm:py-4 text-center">
+                                <div className={`text-xl sm:text-2xl md:text-3xl font-black ${t.heading}`}>{s.value}</div>
                                 <div className={`text-xs ${t.muted}`}>{s.label}</div>
                             </div>
                         ))}
@@ -170,7 +170,7 @@ export default function PortfolioSite({ portfolio, template = 'simple', idPrefix
                 </div>
             )}
 
-            <main className="mx-auto max-w-6xl space-y-16 px-6 py-14">
+            <main className="mx-auto max-w-6xl space-y-12 sm:space-y-16 px-4 sm:px-6 py-10 sm:py-14">
                 {about && (
                     <section id={`${idPrefix}-about`} className="scroll-mt-16">
                         <Title t={t}>About</Title>

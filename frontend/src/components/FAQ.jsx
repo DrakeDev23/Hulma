@@ -54,22 +54,22 @@ export default function FAQ() {
   }, [])
 
   return (
-    <section id="faq" className="bg-[#f3f8ff] py-16 scroll-mt-24">
-      <div ref={ref} className="reveal-on-scroll max-w-3xl mx-auto px-6">
+    <section id="faq" className="bg-[#f3f8ff] py-12 sm:py-16 scroll-mt-24">
+      <div ref={ref} className="reveal-on-scroll max-w-3xl mx-auto px-4 sm:px-6">
         <div className="text-center">
           <p className="mb-3 text-blue-600 font-bold text-xs sm:text-sm tracking-wider uppercase">
             FAQ
           </p>
-          <h2 className="mb-4 text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+          <h2 className="mb-3 sm:mb-4 text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 tracking-tight">
             Your privacy and data, answered
           </h2>
-          <p className="mx-auto max-w-2xl text-slate-600 text-base sm:text-lg leading-relaxed">
+          <p className="mx-auto max-w-2xl text-slate-600 text-sm sm:text-base md:text-lg leading-relaxed">
             We believe you should know exactly how your information is handled. Here are
             answers to the questions we hear most.
           </p>
         </div>
 
-        <div className="mt-10">
+        <div className="mt-8 sm:mt-10">
           {faqs.map((item, index) => {
             const isOpen = openIndex === index
             const panelId = `faq-panel-${index}`
@@ -78,7 +78,7 @@ export default function FAQ() {
             return (
               <div
                 key={item.question}
-                className="mb-4 bg-white rounded-2xl shadow-sm transition-shadow duration-200 hover:shadow-md"
+                className="mb-3.5 sm:mb-4 bg-white rounded-2xl shadow-sm transition-shadow duration-200 hover:shadow-md"
               >
                 <button
                   id={buttonId}
@@ -86,9 +86,9 @@ export default function FAQ() {
                   onClick={() => setOpenIndex(isOpen ? null : index)}
                   aria-expanded={isOpen}
                   aria-controls={panelId}
-                  className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left cursor-pointer"
+                  className="flex w-full items-center justify-between gap-3 sm:gap-4 px-4 sm:px-6 py-4 sm:py-5 text-left cursor-pointer"
                 >
-                  <span className="text-base font-semibold text-slate-900">{item.question}</span>
+                  <span className="text-sm sm:text-base font-semibold text-slate-900">{item.question}</span>
                   <FiChevronDown
                     className={`h-5 w-5 text-blue-600 shrink-0 transition-transform duration-200 ${
                       isOpen ? 'rotate-180' : ''
@@ -106,7 +106,7 @@ export default function FAQ() {
                       id={panelId}
                       role="region"
                       aria-labelledby={buttonId}
-                      className="px-6 pb-5 text-sm sm:text-base text-slate-600 leading-relaxed"
+                      className="px-4 sm:px-6 pb-4 sm:pb-5 text-xs sm:text-sm md:text-base text-slate-600 leading-relaxed"
                     >
                       {item.answer}
                     </div>

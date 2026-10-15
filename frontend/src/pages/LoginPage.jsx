@@ -1,70 +1,59 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useSignIn, useUser } from '@clerk/react'
+import { useSignIn } from '@clerk/react/legacy'
+import { useUser } from '@clerk/react'
 import { FcGoogle } from 'react-icons/fc'
 import { FiEye, FiEyeOff, FiArrowLeft } from 'react-icons/fi'
 import logoImg from '../assets/logo.png'
 import puppetImg from '../assets/puppet.png'
 
-const errorText = (err, fallback) => err?.longMessage || err?.message || fallback
+const errorText = (err, fallback) =>
+  err?.errors?.[0]?.longMessage ||
+  err?.errors?.[0]?.message ||
+  err?.message ||
+  fallback
 
 export default function LoginPage({ mode = 'login' }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const { signIn, fetchStatus } = useSignIn()
+  const { isLoaded, signIn, setActive } = useSignIn()
   const { isSignedIn } = useUser()
+
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
+  const [needsCode, setNeedsCode] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false)
   const [error, setError] = useState(location.state?.notice || '')
-
-  const busy = fetchStatus === 'fetching'
-  const needsCode = signIn?.status === 'needs_client_trust'
 
   useEffect(() => {
     if (isSignedIn) navigate('/dashboard', { replace: true })
   }, [isSignedIn, navigate])
 
-  const goToApp = ({ session, decorateUrl }) => {
-    if (session?.currentTask) {
-      setError('Your account needs one more step before you can continue.')
-      return
-    }
-    const url = decorateUrl('/dashboard')
-    if (url.startsWith('http')) {
-      window.location.href = url
-    } else {
-      navigate(url)
-    }
-  }
-
-  const finish = async () => {
-    const { error: finalizeError } = await signIn.finalize({ navigate: goToApp })
-    if (finalizeError) setError(errorText(finalizeError, 'Could not finish signing in.'))
-  }
-
   const handleGoogleLogin = async () => {
-    if (!signIn) {
-      setError('Authentication service is not ready yet.')
+    if (isGoogleSubmitting || isSubmitting) return
+
+    if (!isLoaded || !signIn) {
+      setError('Authentication service is still initializing. Please wait a moment and try again.')
       return
     }
 
     setError('')
+    setIsGoogleSubmitting(true)
 
     try {
-      const { error: ssoError } = await signIn.sso({
+      await signIn.authenticateWithRedirect({
         strategy: 'oauth_google',
-        redirectCallbackUrl: '/sso-callback',
-        redirectUrl: '/dashboard',
+        redirectUrl: '/sso-callback',
+        redirectUrlComplete: '/dashboard',
+        continueSignUp: true,
       })
-      if (ssoError) {
-        console.error('Google login failed:', ssoError)
-        setError(errorText(ssoError, 'Google sign in failed.'))
-      }
     } catch (err) {
       console.error('Google login failed:', err)
       setError(errorText(err, 'Google sign in failed.'))
+      setIsGoogleSubmitting(false)
     }
   }
 
@@ -72,30 +61,47 @@ export default function LoginPage({ mode = 'login' }) {
     e.preventDefault()
     setError('')
 
-    if (!signIn) {
+    if (!isLoaded || !signIn) {
       setError('Authentication service is not ready yet.')
       return
     }
 
-    const { error: pwError } = await signIn.password({ emailAddress: email, password })
-    if (pwError) {
-      setError(errorText(pwError, 'Login failed. Please try again.'))
-      return
-    }
+    setIsSubmitting(true)
 
-    if (signIn.status === 'complete') {
-      await finish()
-    } else if (signIn.status === 'needs_client_trust') {
-      const canEmail = signIn.supportedSecondFactors?.some((f) => f.strategy === 'email_code')
-      if (canEmail) {
-        const { error: sendError } = await signIn.mfa.sendEmailCode()
-        if (sendError) setError(errorText(sendError, 'Could not send the verification code.'))
+    try {
+      const result = await signIn.create({
+        identifier: email.trim(),
+        password,
+      })
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId })
+        navigate('/dashboard')
+      } else if (result.status === 'needs_second_factor') {
+        setNeedsCode(true)
+        const hasEmailCode = result.supportedSecondFactors?.some((f) => f.strategy === 'email_code')
+        if (hasEmailCode) {
+          await signIn.prepareSecondFactor({ strategy: 'email_code' })
+        }
+      } else if (result.status === 'needs_first_factor') {
+        const factorResult = await signIn.attemptFirstFactor({
+          strategy: 'password',
+          password,
+        })
+        if (factorResult.status === 'complete') {
+          await setActive({ session: factorResult.createdSessionId })
+          navigate('/dashboard')
+        } else {
+          setError('Additional verification required.')
+        }
       } else {
-        setError('This device needs verification that is not supported here yet.')
+        setError('Sign in status: ' + result.status)
       }
-    } else {
-      console.error('Sign-in not complete:', signIn)
-      setError('Please complete the additional verification steps.')
+    } catch (err) {
+      console.error('Login error:', err)
+      setError(errorText(err, 'Login failed. Please check your credentials and try again.'))
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -103,16 +109,36 @@ export default function LoginPage({ mode = 'login' }) {
     e.preventDefault()
     setError('')
 
-    const { error: verifyError } = await signIn.mfa.verifyEmailCode({ code })
-    if (verifyError) {
-      setError(errorText(verifyError, 'That code did not work. Try again.'))
-      return
-    }
+    if (!isLoaded || !signIn) return
+    setIsSubmitting(true)
 
-    if (signIn.status === 'complete') {
-      await finish()
-    } else {
-      setError('Could not verify this device. Please try again.')
+    try {
+      const result = await signIn.attemptSecondFactor({
+        strategy: 'email_code',
+        code: code.trim(),
+      })
+
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId })
+        navigate('/dashboard')
+      } else {
+        setError('Could not verify this device. Please try again.')
+      }
+    } catch (err) {
+      console.error('Verify error:', err)
+      setError(errorText(err, 'That code did not work. Try again.'))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const resendCode = async () => {
+    try {
+      await signIn.prepareSecondFactor({ strategy: 'email_code' })
+      setError('')
+      alert('A new verification code has been sent.')
+    } catch (err) {
+      setError(errorText(err, 'Could not send verification code.'))
     }
   }
 
@@ -145,7 +171,7 @@ export default function LoginPage({ mode = 'login' }) {
         </div>
       </div>
 
-      <div className="w-full lg:w-1/2 flex items-center justify-center bg-white px-8 py-12 sm:px-12">
+      <div className="w-full lg:w-1/2 flex items-center justify-center bg-white px-5 py-8 sm:px-10 md:px-12">
         <div className="w-full max-w-md">
           <Link
             to="/"
@@ -186,15 +212,15 @@ export default function LoginPage({ mode = 'login' }) {
 
                 <button
                   type="submit"
-                  disabled={busy}
-                  className="w-full py-3.5 mb-4 bg-blue-400 hover:bg-blue-500 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-md cursor-pointer transition-colors duration-200"
+                  disabled={isSubmitting || isGoogleSubmitting}
+                  className="w-full py-3.5 mb-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow-md cursor-pointer transition-colors duration-200"
                 >
-                  Verify and continue
+                  {isSubmitting ? 'Verifying...' : 'Verify and continue'}
                 </button>
               </form>
 
               <div className="flex justify-between text-xs">
-                <button type="button" onClick={() => signIn.mfa.sendEmailCode()} className="text-blue-600 font-semibold hover:underline">
+                <button type="button" onClick={resendCode} className="text-blue-600 font-semibold hover:underline">
                   Send a new code
                 </button>
                 <button
@@ -202,7 +228,7 @@ export default function LoginPage({ mode = 'login' }) {
                   onClick={() => {
                     setCode('')
                     setError('')
-                    signIn.reset()
+                    setNeedsCode(false)
                   }}
                   className="text-slate-500 hover:underline"
                 >
@@ -220,11 +246,11 @@ export default function LoginPage({ mode = 'login' }) {
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                disabled={busy}
-                className="w-full flex items-center justify-center gap-3 py-3 px-4 mb-6 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 shadow-sm cursor-pointer transition-colors duration-200 hover:bg-slate-50 disabled:opacity-60"
+                disabled={isGoogleSubmitting || isSubmitting}
+                className="w-full flex items-center justify-center gap-3 py-3 px-4 mb-6 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 shadow-sm cursor-pointer transition-colors duration-200 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <FcGoogle className="h-5 w-5" aria-hidden="true" />
-                Google
+                <span>{isGoogleSubmitting ? 'Connecting to Google...' : 'Continue with Google'}</span>
               </button>
 
               <div className="relative flex items-center justify-center mb-6">
@@ -274,10 +300,10 @@ export default function LoginPage({ mode = 'login' }) {
 
                 <button
                   type="submit"
-                  disabled={busy}
-                  className="w-full py-3.5 mb-6 bg-blue-400 hover:bg-blue-500 disabled:opacity-60 text-white text-sm font-semibold rounded-xl shadow-md cursor-pointer transition-colors duration-200"
+                  disabled={isSubmitting || isGoogleSubmitting}
+                  className="w-full py-3.5 mb-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow-md cursor-pointer transition-colors duration-200"
                 >
-                  {busy ? 'Signing in...' : 'Login'}
+                  {isSubmitting ? 'Signing in...' : 'Login'}
                 </button>
               </form>
 

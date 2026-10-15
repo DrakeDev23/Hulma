@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/react'
-import { ArrowRight, BrainCircuit, Lightbulb, Save, Share2, Sparkles } from 'lucide-react'
+import { ArrowRight, Save, Share2, Sparkles, Check, RefreshCw } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import ShareLink, { buildShareUrl, getShareSlug } from '../components/ShareLink'
+import { resolveDisplayName } from '../utils/portfolioUtils'
+import { apiUrl } from '../utils/api'
 
 const MAX_IMAGE_BYTES = 7 * 1024 * 1024
 const TEMPLATES = ['simple', 'modern', 'creative']
@@ -32,13 +34,6 @@ const safeGet = (key) => {
     }
 }
 
-const safeSet = (key, value) => {
-    try {
-        window.localStorage.setItem(key, value)
-    } catch {
-        return
-    }
-}
 
 const parseList = (value) =>
     value
@@ -69,7 +64,7 @@ const parseLinks = (value) =>
     }, {})
 
 function buildPortfolioPayload(form, user, emailAddress, templateId) {
-    const fullName = form.fullName || user?.fullName || user?.firstName || ''
+    const fullName = form.fullName || resolveDisplayName(user, '')
     const email = form.email || emailAddress || ''
 
     const checks = [fullName, form.aboutMe, form.skills, form.projects, form.education, form.workExperience, form.socialLinks]
@@ -112,20 +107,29 @@ export default function CreatePortfolio() {
     const emailAddress = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || ''
 
     const userRef = useRef({ user, emailAddress })
-    userRef.current = { user, emailAddress }
+    useEffect(() => {
+        userRef.current = { user, emailAddress }
+    }, [user, emailAddress])
 
     const [form, setForm] = useState(DEFAULT_FORM)
-    const [review, setReview] = useState(null)
+    const [draftFeedback, setDraftFeedback] = useState(null)
     const [portfolioId, setPortfolioId] = useState(null)
     const [savedTemplates, setSavedTemplates] = useState([])
     const [isSaving, setIsSaving] = useState(false)
-    const [isReviewing, setIsReviewing] = useState(false)
+    const [isCheckingDraft, setIsCheckingDraft] = useState(false)
     const [notice, setNotice] = useState('')
     const [selectedImageName, setSelectedImageName] = useState('')
     const [loadedTemplate, setLoadedTemplate] = useState('')
     const [slug, setSlug] = useState('')
 
-    const templateId = urlTemplate || loadedTemplate || safeGet('hulma-template') || 'simple'
+    const templateId = urlTemplate || loadedTemplate || safeGet('hulma-template') || (() => {
+        try {
+            const parsed = JSON.parse(safeGet('hulma-settings') || '{}')
+            return parsed.defaultTemplate || 'simple'
+        } catch {
+            return 'simple'
+        }
+    })()
 
     useEffect(() => {
         if (!userId) return
@@ -134,7 +138,7 @@ export default function CreatePortfolio() {
         const loadCurrentPortfolio = async () => {
             try {
                 const token = await getToken()
-                const res = await fetch('/api/portfolio/me', {
+                const res = await fetch(apiUrl('/api/portfolio/me'), {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 })
 
@@ -149,18 +153,17 @@ export default function CreatePortfolio() {
 
                 const { user: currentUser, emailAddress: currentEmail } = userRef.current
                 if (!portfolioData) {
-                    setForm({ ...DEFAULT_FORM, fullName: currentUser?.fullName || '', email: currentEmail || '' })
+                    setForm({ ...DEFAULT_FORM, fullName: resolveDisplayName(currentUser, ''), email: currentEmail || '' })
                     setSelectedImageName('')
                     setLoadedTemplate('')
                     setSlug('')
                     setPortfolioId(null)
-                    setReview(null)
                     return
                 }
                 const profile = portfolioData.sections?.profile || {}
                 setForm({
                     title: portfolioData.title || '',
-                    fullName: profile.fullName || currentUser?.fullName || '',
+                    fullName: profile.fullName || resolveDisplayName(currentUser, ''),
                     profilePicture: profile.profilePicture || '',
                     email: profile.email || currentEmail || '',
                     contactNumber: profile.contactNumber || '',
@@ -176,7 +179,6 @@ export default function CreatePortfolio() {
                 setLoadedTemplate(portfolioData.sections?.meta?.templateId || '')
                 setSlug(getShareSlug(portfolioData))
                 setPortfolioId(portfolioData.id ?? null)
-                setReview(portfolioData.review || null)
             } catch (error) {
                 console.error('Failed to load portfolio:', error)
             }
@@ -207,7 +209,12 @@ export default function CreatePortfolio() {
         const formData = new FormData()
         formData.append('file', file)
 
-        const response = await fetch('/api/portfolio/images/upload', {
+        const queryParams = new URLSearchParams()
+        if (templateId) queryParams.set('template_id', templateId)
+        if (portfolioId) queryParams.set('portfolio_id', String(portfolioId))
+        const queryStr = queryParams.toString() ? `?${queryParams.toString()}` : ''
+
+        const response = await fetch(apiUrl(`/api/portfolio/images/upload${queryStr}`), {
             method: 'POST',
             headers: { Authorization: `Bearer ${token}` },
             body: formData,
@@ -259,10 +266,10 @@ export default function CreatePortfolio() {
         setNotice('')
 
         try {
-            const response = await fetch('/api/portfolio/me', {
+            const response = await fetch(apiUrl('/api/portfolio/me'), {
                 method: 'POST',
                 headers: await getAuthHeaders(),
-                body: JSON.stringify(previewPortfolio),
+                body: JSON.stringify({ ...previewPortfolio, id: portfolioId }),
             })
 
             if (!response.ok) {
@@ -277,14 +284,24 @@ export default function CreatePortfolio() {
             localStorage.removeItem(DRAFT_KEY)
             setPortfolioId(saved.id ?? null)
             setSavedTemplates((current) => (current.includes(templateId) ? current : [...current, templateId]))
-            setReview(saved.review || null)
+            const rawSettings = localStorage.getItem('hulma-settings')
+            let userSettings = {}
+            try {
+                if (rawSettings) userSettings = JSON.parse(rawSettings)
+            } catch {}
+
             const savedSlug = getShareSlug(saved)
             if (savedSlug) {
                 setSlug(savedSlug)
-                setNotice('Portfolio saved. Your public link is ready to share.')
+                setNotice(
+                    userSettings.publicLink === false
+                        ? 'Portfolio saved. (Public link sharing is currently disabled in your Settings).'
+                        : 'Portfolio saved. Your public link is ready to share.'
+                )
             } else {
-                setNotice('Portfolio saved, but the server did not return an id or slug for the public link.')
+                setNotice('Portfolio saved.')
             }
+
             return saved
         } catch (error) {
             console.error(error)
@@ -295,20 +312,17 @@ export default function CreatePortfolio() {
         }
     }
 
-    const handleReview = async (idOverride) => {
-        const targetId = typeof idOverride === 'number' ? idOverride : portfolioId
+    const handleCheckDraft = async () => {
         if (!canReview) {
-            setNotice('Add your portfolio information before running AI review.')
-            setReview(null)
-            return false
+            setNotice('Please enter some information in the form before checking draft quality.')
+            return
         }
 
-        setIsReviewing(true)
-        setReview(null)
+        setIsCheckingDraft(true)
         setNotice('')
 
         try {
-            const response = await fetch(`/api/portfolio/review${targetId ? `?portfolio_id=${targetId}` : ''}`, {
+            const response = await fetch(apiUrl('/api/portfolio/draft-check'), {
                 method: 'POST',
                 headers: await getAuthHeaders(),
                 body: JSON.stringify(previewPortfolio),
@@ -316,29 +330,23 @@ export default function CreatePortfolio() {
 
             if (!response.ok) {
                 const text = await response.text()
-                if (response.status === 401) {
-                    throw new Error('Your session is expired or invalid. Please log in again.')
-                }
-                throw new Error(text || 'Review request failed')
+                throw new Error(text || 'Draft check failed.')
             }
 
             const data = await response.json()
-            setReview(data)
-            setNotice('AI review completed.')
-            return true
+            setDraftFeedback(data)
+            setNotice('Draft quality evaluated.')
         } catch (error) {
             console.error(error)
-            setNotice(error.message || 'AI review is unavailable right now. Please try again.')
-            return false
+            setNotice(error.message || 'Draft check is currently unavailable.')
         } finally {
-            setIsReviewing(false)
+            setIsCheckingDraft(false)
         }
     }
 
     const handleSubmit = async () => {
         const saved = await handleSave()
         if (saved) {
-            await handleReview(saved.id)
             navigate('/portfolio/live')
         }
     }
@@ -347,7 +355,7 @@ export default function CreatePortfolio() {
 
     return (
         <DashboardLayout
-            userName={user?.fullName || user?.firstName || 'Portfolio creator'}
+            userName={resolveDisplayName(user, 'Portfolio creator')}
             email={emailAddress || 'No email'}
             subtitle="Fill in your portfolio details"
         >
@@ -356,23 +364,30 @@ export default function CreatePortfolio() {
                     <h3 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[28px]">Create Portfolio</h3>
                     <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">Add your information, save it, and share it with a public link. View your finished portfolio from the dashboard.</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                     <button
                         type="button"
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 transition duration-200 hover:-translate-y-0.5 hover:border-[#1f6fdc] hover:text-[#1f6fdc] disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-800 transition duration-200 hover:-translate-y-0.5 hover:border-[#1f6fdc] hover:text-[#1f6fdc] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-initial"
                     >
                         <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
                     </button>
-                    <button type="button" onClick={() => { setForm(DEFAULT_FORM); setPortfolioId(null); localStorage.removeItem(DRAFT_KEY); }} className="rounded-xl border px-4 py-2.5 text-sm text-white/90 hover:bg-white/10">Clear</button>
                     <button
                         type="button"
-                        onClick={handleReview}
-                        disabled={isReviewing || !canReview}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#1f6fdc] px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] disabled:cursor-not-allowed disabled:opacity-60"
+                        onClick={() => { setForm(DEFAULT_FORM); setPortfolioId(null); localStorage.removeItem(DRAFT_KEY); }}
+                        className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
                     >
-                        <BrainCircuit size={16} /> {isReviewing ? 'Reviewing...' : 'AI review'}
+                        Clear
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleCheckDraft}
+                        disabled={isCheckingDraft || !canReview}
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f6fdc] px-4 py-2.5 text-sm font-medium text-white shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                    >
+                        <Sparkles size={16} className={isCheckingDraft ? 'animate-spin' : ''} />
+                        {isCheckingDraft ? 'Checking draft...' : 'Check draft'}
                     </button>
                 </div>
             </div>
@@ -400,7 +415,7 @@ export default function CreatePortfolio() {
                         <p className="mt-1.5 text-[11px] text-slate-400">Each template keeps its own portfolio. Save before switching templates.</p>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-2">
                         <label className={labelClass}>
                             Portfolio title
                             <input value={form.title} onChange={(e) => updateField('title', e.target.value)} placeholder="My Portfolio" className={inputClass} />
@@ -411,7 +426,7 @@ export default function CreatePortfolio() {
                         </label>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-2">
                         <label className={labelClass}>
                             Profile Picture
                             <input
@@ -449,7 +464,7 @@ export default function CreatePortfolio() {
                         </label>
                     </div>
 
-                    <div className="grid gap-4 md:grid-cols-2">
+                    <div className="grid gap-4 sm:grid-cols-2">
                         <label className={labelClass}>
                             Contact Number
                             <input value={form.contactNumber} onChange={(e) => updateField('contactNumber', e.target.value)} placeholder="+1 555 123 4567" className={inputClass} />
@@ -543,31 +558,63 @@ export default function CreatePortfolio() {
                         </p>
                     )}
 
-                    <div className="flex items-center gap-2 pt-1">
-                        <Sparkles size={18} />
-                        <h4 className="text-lg font-semibold">AI review</h4>
+                    <div className="flex items-center justify-between pt-1">
+                        <div className="flex items-center gap-2">
+                            <Sparkles size={18} />
+                            <h4 className="text-lg font-semibold">AI Draft Assistant</h4>
+                        </div>
+                        <span className="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-semibold text-white uppercase tracking-wider">
+                            Live Check
+                        </span>
                     </div>
 
-                    {review ? (
+                    {draftFeedback ? (
                         <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
                             <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs text-[#d3e5fa]">Score</span>
-                                <span className="text-2xl font-semibold">{review.score}</span>
+                                <span className="text-xs text-[#d3e5fa]">Draft Readiness</span>
+                                <span className="text-2xl font-semibold">{draftFeedback.score}%</span>
                             </div>
-                            <p className="mt-3 text-sm leading-relaxed text-[#ebf3ff]">{review.summary}</p>
-                            {Array.isArray(review.suggestions) && review.suggestions.length > 0 && (
-                                <ul className="mt-3 space-y-1.5">
-                                    {review.suggestions.slice(0, 4).map((s) => (
-                                        <li key={s} className="flex gap-1.5 text-xs leading-snug text-[#ebf3ff]">
-                                            <Lightbulb size={12} className="mt-0.5 shrink-0" /> {s}
-                                        </li>
+                            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/20">
+                                <div className="h-full rounded-full bg-emerald-400 transition-all duration-300" style={{ width: `${draftFeedback.score}%` }} />
+                            </div>
+                            <p className="mt-3 text-xs leading-relaxed text-[#ebf3ff]">{draftFeedback.summary}</p>
+
+                            {draftFeedback.tips && draftFeedback.tips.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                    <span className="block text-[11px] font-semibold text-[#d3e5fa] uppercase tracking-wider">Form Tips</span>
+                                    {draftFeedback.tips.slice(0, 3).map((tip, idx) => (
+                                        <div key={idx} className="rounded-xl bg-white/10 p-2 text-xs leading-snug text-[#ebf3ff]">
+                                            <span className="font-semibold text-amber-200">{tip.label}: </span>
+                                            {tip.tip}
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
                             )}
+
+                            <button
+                                type="button"
+                                onClick={handleCheckDraft}
+                                disabled={isCheckingDraft}
+                                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/25 active:scale-95 disabled:opacity-50"
+                            >
+                                <RefreshCw size={13} className={isCheckingDraft ? 'animate-spin' : ''} />
+                                {isCheckingDraft ? 'Checking draft...' : 'Re-check draft quality'}
+                            </button>
                         </div>
                     ) : (
-                        <div className="rounded-2xl border border-white/30 bg-white/10 p-4 text-sm leading-relaxed text-[#eaf3ff]">
-                            Add your portfolio content, then run the AI review for feedback.
+                        <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
+                            <p className="text-xs leading-relaxed text-[#eaf3ff]">
+                                Get instant tips on your bio, skills, and projects as you type to ensure high quality before publishing.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleCheckDraft}
+                                disabled={isCheckingDraft || !canReview}
+                                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/20 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <Sparkles size={14} className={isCheckingDraft ? 'animate-spin' : ''} />
+                                {isCheckingDraft ? 'Analyzing draft...' : 'Check draft quality'}
+                            </button>
                         </div>
                     )}
 
@@ -577,14 +624,22 @@ export default function CreatePortfolio() {
                         </div>
                     )}
 
-                    <button
-                        type="button"
-                        onClick={handleSubmit}
-                        disabled={isSaving || isReviewing}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1b64dc] px-4 py-3 text-sm font-medium text-white shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        Save and review <ArrowRight size={16} />
-                    </button>
+                    <div className="space-y-2">
+                        <button
+                            type="button"
+                            onClick={handleSubmit}
+                            disabled={isSaving || isCheckingDraft}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1b64dc] px-4 py-3 text-sm font-medium text-white shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {isSaving ? 'Saving...' : 'Save portfolio'} <Check size={16} />
+                        </button>
+                    </div>
+
+                    <div className="pt-1 text-center">
+                        <Link to="/review" className="inline-flex items-center gap-1 text-xs text-[#d3e5fa] transition hover:text-white hover:underline">
+                            <Sparkles size={13} /> Open full Recruiter AI Review page <ArrowRight size={13} />
+                        </Link>
+                    </div>
                 </aside>
             </section>
         </DashboardLayout>

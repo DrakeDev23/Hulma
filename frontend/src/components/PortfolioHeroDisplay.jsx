@@ -69,28 +69,28 @@ function Slide({ portfolio }) {
     const hasRight = skills.length > 0 || projects.length > 0
 
     return (
-        <div className={`flex h-full select-none flex-col gap-4 p-4 sm:p-5 ${t.panel}`}>
-            <div className="flex items-center gap-3">
-                <div className={`grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl sm:h-16 sm:w-16 ${t.avatar}`}>
+        <div className={`flex h-full select-none flex-col gap-3.5 p-3.5 sm:gap-4 sm:p-5 ${t.panel}`}>
+            <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className={`grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl sm:h-16 sm:w-16 ${t.avatar}`}>
                     {portfolio.picture || profile.profilePicture ? (
                         <img src={portfolio.picture || profile.profilePicture} alt={name} className="h-full w-full object-cover" />
                     ) : (
-                        <UserRound size={28} />
+                        <UserRound size={24} className="sm:size-7" />
                     )}
                 </div>
                 <div className="min-w-0 flex-1">
-                    <strong className="block truncate text-base font-bold leading-tight sm:text-lg">{name}</strong>
-                    <small className={`block truncate text-xs ${t.muted}`}>{portfolio.title || 'Portfolio'}</small>
+                    <strong className="block truncate text-sm font-bold leading-tight sm:text-lg">{name}</strong>
+                    <small className={`block truncate text-[11px] sm:text-xs ${t.muted}`}>{portfolio.title || 'Portfolio'}</small>
                 </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${t.badge}`}>{titleCase(templateId)}</span>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold sm:px-2.5 sm:py-1 sm:text-[11px] ${t.badge}`}>{titleCase(templateId)}</span>
             </div>
 
             {(hasLeft || hasRight) && (
-                <div className={`grid gap-4 ${hasLeft && hasRight ? 'sm:grid-cols-[0.9fr_1.1fr]' : ''}`}>
+                <div className={`grid gap-3.5 sm:gap-4 ${hasLeft && hasRight ? 'sm:grid-cols-[0.9fr_1.1fr]' : ''}`}>
                     {hasLeft && (
-                        <div className="flex min-w-0 flex-col gap-3">
+                        <div className="flex min-w-0 flex-col gap-2.5 sm:gap-3">
                             {contacts.length > 0 && (
-                                <ul className={`space-y-1.5 text-[11px] ${t.muted}`}>
+                                <ul className={`space-y-1 text-[11px] sm:space-y-1.5 ${t.muted}`}>
                                     {contacts.map(({ Icon, text }) => (
                                         <li key={text} className="flex min-w-0 items-center gap-1.5">
                                             <Icon size={12} className="shrink-0" /> <span className="truncate">{text}</span>
@@ -101,33 +101,33 @@ function Slide({ portfolio }) {
                             {about && (
                                 <div>
                                     <h6 className={`text-[11px] font-bold ${t.label}`}>About</h6>
-                                    <p className={`mt-1 line-clamp-4 text-xs leading-relaxed ${t.muted}`}>{about}</p>
+                                    <p className={`mt-0.5 line-clamp-3 text-xs leading-relaxed sm:line-clamp-4 ${t.muted}`}>{about}</p>
                                 </div>
                             )}
                         </div>
                     )}
 
                     {hasRight && (
-                        <div className="flex min-w-0 flex-col gap-3">
+                        <div className="flex min-w-0 flex-col gap-2.5 sm:gap-3">
                             {skills.length > 0 && (
                                 <div>
                                     <h6 className={`text-[11px] font-bold ${t.label}`}>Skills</h6>
-                                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                                    <div className="mt-1 flex flex-wrap gap-1 sm:mt-1.5 sm:gap-1.5">
                                         {skills.slice(0, 6).map((s) => (
-                                            <span key={s} className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${t.chip}`}>{s}</span>
+                                            <span key={s} className={`rounded-full px-2 py-0.5 text-[10px] font-medium sm:px-2.5 sm:text-[11px] ${t.chip}`}>{s}</span>
                                         ))}
-                                        {skills.length > 6 && <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${t.chip}`}>+{skills.length - 6}</span>}
+                                        {skills.length > 6 && <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium sm:px-2.5 sm:text-[11px] ${t.chip}`}>+{skills.length - 6}</span>}
                                     </div>
                                 </div>
                             )}
                             {projects.length > 0 && (
                                 <div>
                                     <h6 className={`text-[11px] font-bold ${t.label}`}>Projects</h6>
-                                    <div className="mt-1.5 space-y-1.5">
+                                    <div className="mt-1 space-y-1 sm:mt-1.5 sm:space-y-1.5">
                                         {projects.slice(0, 3).map((p, i) => (
-                                            <div key={`${p?.name}-${i}`} className={`rounded-lg px-2.5 py-1.5 ${t.card}`}>
-                                                <div className="truncate text-xs font-semibold">{p?.name || p?.title || `Project ${i + 1}`}</div>
-                                                {p?.description && <div className={`line-clamp-1 text-[11px] ${t.muted}`}>{p.description}</div>}
+                                            <div key={`${p?.name}-${i}`} className={`rounded-lg px-2 py-1 sm:px-2.5 sm:py-1.5 ${t.card}`}>
+                                                <div className="truncate text-[11px] font-semibold sm:text-xs">{p?.name || p?.title || `Project ${i + 1}`}</div>
+                                                {p?.description && <div className={`line-clamp-1 text-[10px] sm:text-[11px] ${t.muted}`}>{p.description}</div>}
                                             </div>
                                         ))}
                                     </div>
@@ -138,11 +138,11 @@ function Slide({ portfolio }) {
                 </div>
             )}
 
-            <div className={`mt-auto grid grid-cols-4 gap-1.5 border-t pt-3 ${t.line}`}>
+            <div className={`mt-auto grid grid-cols-4 gap-1 border-t pt-2.5 sm:gap-1.5 sm:pt-3 ${t.line}`}>
                 {stats.map(({ Icon, label, value }) => (
                     <div key={label} className="text-center">
-                        <strong className="block text-lg font-bold leading-tight">{value}</strong>
-                        <small className={`flex items-center justify-center gap-1 text-[10px] ${t.muted}`}><Icon size={10} /> {label}</small>
+                        <strong className="block text-base font-bold leading-tight sm:text-lg">{value}</strong>
+                        <small className={`flex items-center justify-center gap-0.5 text-[9px] sm:gap-1 sm:text-[10px] ${t.muted}`}><Icon size={10} className="shrink-0" /> <span className="truncate">{label}</span></small>
                     </div>
                 ))}
             </div>
@@ -153,7 +153,6 @@ function Slide({ portfolio }) {
 export default function PortfolioHeroDisplay({ portfolios = [], portfolio, index, onIndexChange, onOpen }) {
     const list = portfolios.length ? portfolios : portfolio ? [portfolio] : []
 
-    // Works controlled (parent passes index + onIndexChange) or on its own.
     const [localIndex, setLocalIndex] = useState(0)
     const controlled = typeof onIndexChange === 'function'
 

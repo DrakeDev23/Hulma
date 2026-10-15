@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Any, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -14,6 +14,7 @@ class User(Base):
     username: Mapped[Optional[str]] = mapped_column(String(120), unique=True, nullable=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     avatar_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    settings: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
@@ -22,17 +23,21 @@ class User(Base):
 
 class Portfolio(Base):
     __tablename__ = "portfolios"
+    __table_args__ = (
+        Index("idx_portfolios_user_updated", "user_id", "updated_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="My Portfolio")
-    summary: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
-    sections: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    projects: Mapped[dict] = mapped_column(JSON, nullable=False, default=list)
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sections: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    projects: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
     views: Mapped[int] = mapped_column(default=0, nullable=False)
     completion: Mapped[int] = mapped_column(default=0, nullable=False)
     slug: Mapped[Optional[str]] = mapped_column(String(32), unique=True, index=True, nullable=True)
-    review: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    review: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     user: Mapped[User] = relationship(back_populates="portfolios")

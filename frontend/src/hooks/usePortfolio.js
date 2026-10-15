@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@clerk/react'
+import { apiUrl } from '../utils/api'
 
 export default function usePortfolio() {
     const { getToken } = useAuth()
@@ -12,7 +13,7 @@ export default function usePortfolio() {
         setError(null)
         try {
             const token = await getToken()
-            const res = await fetch('/api/portfolio/me', {
+            const res = await fetch(apiUrl('/api/portfolio/me'), {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             })
             if (!res.ok) {

@@ -141,3 +141,11 @@ html {
     50% { transform: rotate(3deg); }
   }
 }
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

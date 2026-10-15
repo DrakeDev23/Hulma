@@ -59,7 +59,6 @@ def _generate_heuristic_review(payload: PortfolioCreate, user_settings: Optional
     score = 45
     raw_suggestions = []
 
-    # Title check
     if not title or title.lower() in {"my portfolio", "untitled", "your portfolio"}:
         raw_suggestions.append({
             "category": "content",
@@ -70,7 +69,6 @@ def _generate_heuristic_review(payload: PortfolioCreate, user_settings: Optional
     else:
         score += 10
 
-    # Summary check
     if not summary or len(summary) < 40:
         raw_suggestions.append({
             "category": "content",
@@ -83,7 +81,6 @@ def _generate_heuristic_review(payload: PortfolioCreate, user_settings: Optional
     else:
         score += 8
 
-    # Projects check
     if not projects:
         raw_suggestions.append({
             "category": "layout",
@@ -108,7 +105,6 @@ def _generate_heuristic_review(payload: PortfolioCreate, user_settings: Optional
         else:
             score += 5
 
-    # Skills check
     if not skills:
         raw_suggestions.append({
             "category": "design",
@@ -119,7 +115,6 @@ def _generate_heuristic_review(payload: PortfolioCreate, user_settings: Optional
     else:
         score += 10
 
-    # Experience / Education check
     if not experience and not education:
         raw_suggestions.append({
             "category": "layout",
@@ -130,7 +125,6 @@ def _generate_heuristic_review(payload: PortfolioCreate, user_settings: Optional
     else:
         score += 10
 
-    # Social links check
     if not social_links:
         raw_suggestions.append({
             "category": "template",
@@ -187,7 +181,6 @@ def _generate_heuristic_review(payload: PortfolioCreate, user_settings: Optional
             },
         ]
 
-    # Prioritize suggestions matching the user's focus areas
     def sort_key(sug):
         cat = sug.get("category")
         is_focus = 0 if cat in focus_areas else 1
@@ -249,7 +242,6 @@ async def review_portfolio(
     user: User = Depends(get_current_profile),
     db: Session = Depends(get_db),
 ) -> AiReviewResponse:
-    # 1. Locate the portfolio to attach this review to
     owned_portfolio: Optional[Portfolio] = None
     target_id = portfolio_id or payload.id
 
@@ -276,7 +268,6 @@ async def review_portfolio(
         if owned_portfolio is None and user_portfolios:
             owned_portfolio = user_portfolios[0]
 
-    # If user has no portfolio in database and payload has no real content, reject
     sections = payload.sections or {}
     profile = sections.get("profile") or {}
     has_payload_content = (
@@ -295,8 +286,6 @@ async def review_portfolio(
             detail="No portfolio yet. Please create and save a portfolio before requesting an AI review.",
         )
 
-    # If payload is mostly empty (e.g. called from /review page without full form),
-    # enrich payload with the saved portfolio's data
     if owned_portfolio is not None:
         if not payload.summary and owned_portfolio.summary:
             payload.summary = owned_portfolio.summary
@@ -309,7 +298,6 @@ async def review_portfolio(
         if not payload.completion and owned_portfolio.completion:
             payload.completion = owned_portfolio.completion
 
-    # Validate that we have actual portfolio content to review
     enriched_sections = payload.sections or {}
     enriched_profile = enriched_sections.get("profile") or {}
     has_any_content = (
@@ -328,16 +316,13 @@ async def review_portfolio(
             detail="No portfolio content yet. Add your projects, skills, or summary before requesting an AI review.",
         )
 
-    # 2. Extract user settings for review focus and tone
     user_settings = dict(user.settings or {}) if user else {}
     focus_areas = user_settings.get("focus") or ["template", "layout", "design", "content"]
     tone = user_settings.get("tone") or "balanced"
 
-    # Build default heuristic review as reliable baseline/fallback
     heuristic_fallback = _generate_heuristic_review(payload, user_settings)
     result = heuristic_fallback
 
-    # 3. If an AI provider key is configured, query the LLM
     provider_key = settings.groq_api_key or settings.openai_api_key
     if provider_key:
         tone_instruction = "Tone: Clear and practical."
@@ -403,7 +388,6 @@ async def review_portfolio(
                         parsed_summary = str(parsed.get("summary") or heuristic_fallback.summary)
                         parsed_score = _safe_score(parsed.get("score"), heuristic_fallback.score)
 
-                        # Extract categories
                         raw_cats = parsed.get("categories")
                         parsed_categories = []
                         if isinstance(raw_cats, list) and len(raw_cats) > 0:
@@ -420,7 +404,6 @@ async def review_portfolio(
                         if len(parsed_categories) < 4:
                             parsed_categories = heuristic_fallback.categories
 
-                        # Extract suggestions
                         raw_suggs = parsed.get("suggestions")
                         parsed_suggestions = []
                         if isinstance(raw_suggs, list):
@@ -461,7 +444,6 @@ async def review_portfolio(
         except Exception as exc:
             logger.warning("AI review request failed (%s); using heuristic fallback", exc)
 
-    # 4. Save review to portfolio if identified
     if owned_portfolio is not None:
         owned_portfolio.review = {
             **result.model_dump(),
@@ -502,14 +484,12 @@ def check_draft(
     missing_fields: list[str] = []
     score = 20
 
-    # 1. Profile / Name check
     if not full_name:
         missing_fields.append("Full Name")
         tips.append(DraftTip(field="fullName", label="Full Name", tip="Add your full name so visitors know who you are."))
     else:
         score += 10
 
-    # 2. About Me / Bio check
     word_count = len(about_me.split()) if about_me else 0
     if not about_me:
         missing_fields.append("About Me")
@@ -520,13 +500,11 @@ def check_draft(
     else:
         score += 20
 
-    # 3. Projects check
     if not projects:
         missing_fields.append("Projects")
         tips.append(DraftTip(field="projects", label="Projects", tip="Add at least 1-2 featured projects with a title and clear description of what you built."))
     else:
         score += 20
-        # Check if project descriptions contain metrics or tech stack
         has_metrics = any(
             any(char.isdigit() for char in str(p.get("description", "")))
             for p in projects
@@ -537,7 +515,6 @@ def check_draft(
         else:
             score += 10
 
-    # 4. Skills check
     if not skills:
         missing_fields.append("Skills")
         tips.append(DraftTip(field="skills", label="Skills", tip="List 4-8 core technologies, frameworks, and domain skills to make your profile searchable."))
@@ -547,14 +524,12 @@ def check_draft(
     else:
         score += 15
 
-    # 5. Work Experience & Education
     if not work_exp and not education:
         missing_fields.append("Experience / Education")
         tips.append(DraftTip(field="workExperience", label="Experience", tip="Add past roles or your education history to establish career credibility."))
     else:
         score += 15
 
-    # 6. Social links
     if not social_links:
         missing_fields.append("Social Links")
         tips.append(DraftTip(field="socialLinks", label="Social Links", tip="Add your GitHub or LinkedIn URL so recruiters can connect with you."))

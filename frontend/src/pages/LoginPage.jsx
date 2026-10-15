@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSignIn } from '@clerk/react/legacy'
 import { useUser } from '@clerk/react'
 import { FcGoogle } from 'react-icons/fc'
-import { FiEye, FiEyeOff, FiArrowLeft } from 'react-icons/fi'
+import { FiEye, FiEyeOff, FiArrowLeft, FiAlertCircle, FiCheckCircle } from 'react-icons/fi'
 import logoImg from '../assets/logo.png'
 import puppetImg from '../assets/puppet.png'
 
@@ -19,14 +19,20 @@ export default function LoginPage({ mode = 'login' }) {
   const { isLoaded, signIn, setActive } = useSignIn()
   const { isSignedIn } = useUser()
 
+  const searchParams = new URLSearchParams(location.search)
+  const initialEmail = searchParams.get('email') || location.state?.email || ''
+
   const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [needsCode, setNeedsCode] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false)
+  const [isAccountNotFound, setIsAccountNotFound] = useState(false)
+  const [infoMessage, setInfoMessage] = useState('')
   const [error, setError] = useState(location.state?.notice || '')
+
 
   useEffect(() => {
     if (isSignedIn) navigate('/dashboard', { replace: true })
@@ -41,6 +47,8 @@ export default function LoginPage({ mode = 'login' }) {
     }
 
     setError('')
+    setIsAccountNotFound(false)
+    setInfoMessage('')
     setIsGoogleSubmitting(true)
 
     try {
@@ -60,6 +68,8 @@ export default function LoginPage({ mode = 'login' }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setIsAccountNotFound(false)
+    setInfoMessage('')
 
     if (!isLoaded || !signIn) {
       setError('Authentication service is not ready yet.')
@@ -99,7 +109,19 @@ export default function LoginPage({ mode = 'login' }) {
       }
     } catch (err) {
       console.error('Login error:', err)
-      setError(errorText(err, 'Login failed. Please check your credentials and try again.'))
+      const errCode = err?.errors?.[0]?.code
+      const errMsg = err?.errors?.[0]?.message || err?.message || ''
+      const notFound =
+        errCode === 'form_identifier_not_found' ||
+        errMsg.toLowerCase().includes('find your account') ||
+        errMsg.toLowerCase().includes('not found')
+
+      if (notFound) {
+        setIsAccountNotFound(true)
+        setError("Couldn't find an account associated with this email.")
+      } else {
+        setError(errorText(err, 'Login failed. Please check your credentials and try again.'))
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -108,6 +130,7 @@ export default function LoginPage({ mode = 'login' }) {
   const handleVerify = async (e) => {
     e.preventDefault()
     setError('')
+    setInfoMessage('')
 
     if (!isLoaded || !signIn) return
     setIsSubmitting(true)
@@ -136,7 +159,7 @@ export default function LoginPage({ mode = 'login' }) {
     try {
       await signIn.prepareSecondFactor({ strategy: 'email_code' })
       setError('')
-      alert('A new verification code has been sent.')
+      setInfoMessage('A new verification code has been sent to your email.')
     } catch (err) {
       setError(errorText(err, 'Could not send verification code.'))
     }
@@ -191,8 +214,22 @@ export default function LoginPage({ mode = 'login' }) {
             <>
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-slate-900 mb-1">Verify this device</h2>
-                <p className="text-xs text-slate-500">We sent a code to {email}. Enter it below to continue.</p>
+                <p className="text-xs text-slate-500">We sent a verification code to <strong>{email}</strong>. Enter it below to continue.</p>
               </div>
+
+              {infoMessage && (
+                <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700 flex items-start gap-2">
+                  <FiCheckCircle className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                  <span>{infoMessage}</span>
+                </div>
+              )}
+
+              {error && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
+                  <FiAlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
 
               <form className="w-full" onSubmit={handleVerify}>
                 <div className="mb-6">
@@ -202,13 +239,16 @@ export default function LoginPage({ mode = 'login' }) {
                     autoComplete="one-time-code"
                     required
                     value={code}
-                    onChange={(e) => setCode(e.target.value)}
+                    onChange={(e) => {
+                      setCode(e.target.value)
+                      setError('')
+                    }}
                     placeholder="Verification code"
                     className={inputClass}
                   />
                 </div>
 
-                {error && <p className="mb-4 text-xs text-red-600">{error}</p>}
+                <div id="clerk-captcha" className="my-2" />
 
                 <button
                   type="submit"
@@ -220,7 +260,7 @@ export default function LoginPage({ mode = 'login' }) {
               </form>
 
               <div className="flex justify-between text-xs">
-                <button type="button" onClick={resendCode} className="text-blue-600 font-semibold hover:underline">
+                <button type="button" onClick={resendCode} className="text-blue-600 font-semibold hover:underline cursor-pointer">
                   Send a new code
                 </button>
                 <button
@@ -228,9 +268,10 @@ export default function LoginPage({ mode = 'login' }) {
                   onClick={() => {
                     setCode('')
                     setError('')
+                    setInfoMessage('')
                     setNeedsCode(false)
                   }}
-                  className="text-slate-500 hover:underline"
+                  className="text-slate-500 hover:underline cursor-pointer"
                 >
                   Start over
                 </button>
@@ -240,7 +281,7 @@ export default function LoginPage({ mode = 'login' }) {
             <>
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-slate-900 mb-1">Login to your account</h2>
-                <p className="text-xs text-slate-500">Welcome back! Select method to login in:</p>
+                <p className="text-xs text-slate-500">Welcome back! Select a method to log in:</p>
               </div>
 
               <button
@@ -260,13 +301,42 @@ export default function LoginPage({ mode = 'login' }) {
                 <span className="relative bg-white px-3 text-xs text-slate-400">or continue with email</span>
               </div>
 
+              {isAccountNotFound ? (
+                <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
+                  <div className="flex items-start gap-2">
+                    <FiAlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-semibold text-slate-900 mb-1">No account found</p>
+                      <p className="text-slate-600 mb-3">
+                        We couldn&apos;t find an account for <strong className="text-slate-900">{email}</strong>.
+                      </p>
+                      <Link
+                        to={`/register?email=${encodeURIComponent(email)}`}
+                        className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+                      >
+                        Create a new account &rarr;
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
+                  <FiAlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              ) : null}
+
               <form className="w-full" onSubmit={handleSubmit}>
                 <div className="mb-6">
                   <input
                     type="email"
                     required
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value)
+                      setIsAccountNotFound(false)
+                      if (error) setError('')
+                    }}
                     placeholder="Email"
                     className={inputClass}
                   />
@@ -277,7 +347,10 @@ export default function LoginPage({ mode = 'login' }) {
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      if (error) setError('')
+                    }}
                     placeholder="Password"
                     className={`${inputClass} pr-8`}
                   />
@@ -291,12 +364,7 @@ export default function LoginPage({ mode = 'login' }) {
                   </button>
                 </div>
 
-                {error && <p className="mb-4 text-xs text-red-600">{error}</p>}
-
-                <label className="flex items-center gap-2 mb-8 text-xs text-slate-600 cursor-pointer">
-                  <input type="checkbox" className="h-3.5 w-3.5 rounded border-slate-300 accent-blue-600" />
-                  Remember me
-                </label>
+                <div id="clerk-captcha" className="my-2" />
 
                 <button
                   type="submit"
@@ -308,8 +376,11 @@ export default function LoginPage({ mode = 'login' }) {
               </form>
 
               <p className="text-xs text-slate-600 text-center">
-                Don&apos;t you have an account?{' '}
-                <Link to="/register" className="text-blue-600 font-semibold hover:underline">
+                Don&apos;t have an account?{' '}
+                <Link
+                  to={email ? `/register?email=${encodeURIComponent(email)}` : '/register'}
+                  className="text-blue-600 font-semibold hover:underline"
+                >
                   Register here
                 </Link>
               </p>

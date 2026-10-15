@@ -5,8 +5,8 @@
       "destination": "/api/clerk-proxy"
     },
     {
-      "source": "/__clerk/:path*",
-      "destination": "/api/clerk-proxy?__clerk_path=:path*"
+      "source": "/__clerk/:subpath*",
+      "destination": "/api/clerk-proxy?__clerk_path=:subpath*"
     },
     {
       "source": "/(.*)",

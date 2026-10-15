@@ -11,10 +11,28 @@ from app.config import settings
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+def validate_auth_config() -> None:
+    if settings.app_env.lower() == "production":
+        missing = []
+        if not settings.clerk_issuer or not settings.clerk_issuer.strip():
+            missing.append("CLERK_ISSUER")
+        if not settings.clerk_jwks_url or not settings.clerk_jwks_url.strip():
+            missing.append("CLERK_JWKS_URL")
+        if missing:
+            raise RuntimeError(
+                f"Missing required Clerk authentication configuration when app_env == 'production': {', '.join(missing)}"
+            )
+
+
 @lru_cache(maxsize=1)
 def get_clerk_jwks() -> list[dict]:
+    if not settings.clerk_jwks_url or not settings.clerk_jwks_url.strip():
+        if settings.app_env.lower() == "production":
+            raise RuntimeError("CLERK_JWKS_URL must be configured when app_env == 'production'")
+        raise RuntimeError("CLERK_JWKS_URL is not configured")
+
     try:
-        response = httpx.get(settings.clerk_jwks_url, timeout=10)
+        response = httpx.get(settings.clerk_jwks_url.strip(), timeout=10)
         response.raise_for_status()
         return response.json().get("keys", [])
     except Exception as exc:
@@ -25,6 +43,15 @@ def get_clerk_jwks() -> list[dict]:
 
 
 def verify_clerk_jwt(token: str) -> dict:
+    if not settings.clerk_issuer or not settings.clerk_issuer.strip():
+        if settings.app_env.lower() == "production":
+            raise RuntimeError("CLERK_ISSUER must be configured when app_env == 'production'")
+        raise RuntimeError("CLERK_ISSUER is not configured")
+    if not settings.clerk_jwks_url or not settings.clerk_jwks_url.strip():
+        if settings.app_env.lower() == "production":
+            raise RuntimeError("CLERK_JWKS_URL must be configured when app_env == 'production'")
+        raise RuntimeError("CLERK_JWKS_URL is not configured")
+
     try:
         header = jwt.get_unverified_header(token)
         key_id = header.get("kid")
@@ -41,22 +68,36 @@ def verify_clerk_jwt(token: str) -> dict:
                 raise ValueError("No matching JWKS key found")
 
         public_key = construct(matching_key)
-        unverified_claims = jwt.get_unverified_claims(token)
-
         decode_kwargs = {
             "token": token,
             "key": public_key,
             "algorithms": [header.get("alg") or "RS256"],
-            "issuer": settings.clerk_issuer,
+            "issuer": settings.clerk_issuer.strip(),
         }
 
-        token_aud = unverified_claims.get("aud")
-        if settings.clerk_audience and token_aud and (token_aud == settings.clerk_audience or (isinstance(token_aud, list) and settings.clerk_audience in token_aud)):
-            decode_kwargs["audience"] = settings.clerk_audience
-        else:
-            decode_kwargs["options"] = {"verify_aud": False}
+        options: dict[str, bool] = {}
 
-        return jwt.decode(**decode_kwargs)
+        if settings.clerk_audience and settings.clerk_audience.strip():
+            expected_aud = settings.clerk_audience.strip()
+            decode_kwargs["audience"] = expected_aud
+        else:
+            options["verify_aud"] = False
+
+        decode_kwargs["options"] = options
+
+        claims = jwt.decode(**decode_kwargs)
+
+        if settings.clerk_audience and settings.clerk_audience.strip():
+            aud = claims.get("aud")
+            expected_aud = settings.clerk_audience.strip()
+            if not aud:
+                raise ValueError("Missing required audience claim in token")
+            if isinstance(aud, str) and aud != expected_aud:
+                raise ValueError("Invalid audience claim in token")
+            if isinstance(aud, (list, tuple)) and expected_aud not in aud:
+                raise ValueError("Invalid audience claim in token")
+
+        return claims
     except HTTPException:
         raise
     except (JWTError, TypeError, ValueError, KeyError, AttributeError) as exc:

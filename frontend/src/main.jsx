@@ -5,7 +5,6 @@ import './index.css'
 import App from './App.jsx'
 
 const publishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-const proxyUrl = import.meta.env.VITE_CLERK_PROXY_URL
 
 const missingKeyElement = (
   <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-slate-800">
@@ -26,7 +25,6 @@ createRoot(document.getElementById('root')).render(
     {publishableKey ? (
       <ClerkProvider
         publishableKey={publishableKey}
-        proxyUrl={proxyUrl || undefined}
         signInFallbackRedirectUrl="/dashboard"
         signUpFallbackRedirectUrl="/dashboard"
         afterSignOutUrl="/"

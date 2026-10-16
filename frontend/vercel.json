@@ -35,6 +35,5 @@
         }
       ]
     }
-  ],
-  "// clerk_production_domain_note": "When switching to pk_live keys and a custom domain (e.g. yourdomain.com): replace https://*.clerk.accounts.dev and wss://*.clerk.accounts.dev with https://clerk.yourdomain.com and wss://clerk.yourdomain.com in connect-src, script-src, and frame-src."
+  ]
 }

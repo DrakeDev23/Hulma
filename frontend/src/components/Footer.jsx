@@ -46,9 +46,9 @@ function LinkedinIcon() {
 }
 
 const socialLinks = [
-  { label: 'Facebook', href: 'https://facebook.com', Icon: FacebookIcon },
-  { label: 'Instagram', href: 'https://instagram.com', Icon: InstagramIcon },
-  { label: 'LinkedIn', href: 'https://linkedin.com', Icon: LinkedinIcon },
+  { label: 'Facebook', href: 'https://www.facebook.com/stephen.mart.98', Icon: FacebookIcon },
+  { label: 'Instagram', href: 'https://www.instagram.com/0_dr4k3/', Icon: InstagramIcon },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/in/zedrick-dwyn-manguilimotan-85540b3b2/?isSelfProfile=true', Icon: LinkedinIcon },
 ]
 
 export default function Footer() {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useSignUp } from '@clerk/react/legacy'
-import { useUser } from '@clerk/react'
+import { useUser, useClerk } from '@clerk/react'
 import { FcGoogle } from 'react-icons/fc'
 import { FiEye, FiEyeOff, FiArrowLeft, FiAlertCircle, FiCheckCircle } from 'react-icons/fi'
 import logoImg from '../assets/logo.png'
@@ -18,6 +18,7 @@ export default function RegisterPage({ mode = 'register' }) {
   const location = useLocation()
   const { isLoaded, signUp, setActive } = useSignUp()
   const { isSignedIn } = useUser()
+  const clerk = useClerk()
 
   const searchParams = new URLSearchParams(location.search)
   const initialEmail = searchParams.get('email') || location.state?.email || ''
@@ -36,12 +37,33 @@ export default function RegisterPage({ mode = 'register' }) {
   const [infoMessage, setInfoMessage] = useState('')
   const [error, setError] = useState(location.state?.notice || '')
 
+  const needsCode = pendingVerification
 
-  const needsCode = pendingVerification || (signUp?.status === 'missing_requirements' && signUp?.unverifiedFields?.includes('email_address'))
+  const handleStartOver = () => {
+    setCode('')
+    setError('')
+    setInfoMessage('')
+    setPendingVerification(false)
+    try {
+      clerk?.client?.resetSignUp?.()
+    } catch (err) {
+      console.error('Error resetting sign up:', err)
+    }
+  }
 
   useEffect(() => {
     if (isSignedIn) navigate('/dashboard', { replace: true })
   }, [isSignedIn, navigate])
+
+  useEffect(() => {
+    if (!pendingVerification && signUp?.status === 'missing_requirements') {
+      try {
+        clerk?.client?.resetSignUp?.()
+      } catch (err) {
+        console.error('Error resetting sign up:', err)
+      }
+    }
+  }, [pendingVerification, signUp?.status, clerk])
 
   const handleGoogleRegister = async () => {
     if (isGoogleSubmitting || isSubmitting) return
@@ -92,6 +114,12 @@ export default function RegisterPage({ mode = 'register' }) {
     }
 
     setIsSubmitting(true)
+
+    if (signUp?.status === 'missing_requirements') {
+      try {
+        clerk?.client?.resetSignUp?.()
+      } catch {}
+    }
 
     try {
       const result = await signUp.create({
@@ -181,6 +209,7 @@ export default function RegisterPage({ mode = 'register' }) {
           <Link
             to="/"
             aria-label="Back to home"
+            onClick={handleStartOver}
             className="group mb-6 inline-flex items-center gap-2 text-sm text-slate-500 lg:hidden transition-colors duration-200 hover:text-blue-600"
           >
             <FiArrowLeft className="h-5 w-5 transition-transform duration-200 group-hover:-translate-x-1" aria-hidden="true" />
@@ -196,7 +225,7 @@ export default function RegisterPage({ mode = 'register' }) {
             <>
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-slate-900 mb-1">Verify your email</h2>
-                <p className="text-xs text-slate-500">We sent a verification code to <strong>{email}</strong>. Enter it below to finish.</p>
+                <p className="text-xs text-slate-500">We sent a verification code to <strong>{email || signUp?.emailAddress}</strong>. Enter it below to finish.</p>
               </div>
 
               {infoMessage && (
@@ -247,12 +276,7 @@ export default function RegisterPage({ mode = 'register' }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setCode('')
-                    setError('')
-                    setInfoMessage('')
-                    setPendingVerification(false)
-                  }}
+                  onClick={handleStartOver}
                   className="text-slate-500 hover:underline cursor-pointer"
                 >
                   Start over
@@ -386,10 +410,10 @@ export default function RegisterPage({ mode = 'register' }) {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || isGoogleSubmitting}
+                  disabled={isSubmitting || isGoogleSubmitting || !isLoaded}
                   className="w-full py-3.5 mb-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow-md cursor-pointer transition-colors duration-200"
                 >
-                  {isSubmitting ? 'Creating account...' : 'Create account'}
+                  {isSubmitting ? 'Creating account...' : !isLoaded ? 'Loading...' : 'Create account'}
                 </button>
               </form>
 
@@ -411,6 +435,7 @@ export default function RegisterPage({ mode = 'register' }) {
         <Link
           to="/"
           aria-label="Back to home"
+          onClick={handleStartOver}
           className="group absolute right-6 top-6 z-10 inline-flex items-center gap-2 text-sm font-medium text-white/80 transition-colors duration-200 hover:text-white lg:right-8 lg:top-8"
         >
           <FiArrowLeft className="h-5 w-5 transition-transform duration-200 group-hover:-translate-x-1" aria-hidden="true" />

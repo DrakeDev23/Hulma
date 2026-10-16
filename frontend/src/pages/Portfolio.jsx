@@ -8,6 +8,7 @@ import puppetImg from '../assets/puppet.png'
 import PortfolioReviewCard from '../components/PortfolioReviewCard'
 import PortfolioModal from '../components/PortfolioModal'
 import PortfolioHeroDisplay from '../components/PortfolioHeroDisplay'
+import ShareLink from '../components/ShareLink'
 import {
     resolvePortfolio,
     resolvePortfolioList,
@@ -151,9 +152,14 @@ export default function Portfolio() {
                         </p>
                     </div>
                     {portfolio && (
-                        <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#dce9fb] px-3 py-1 text-xs font-medium text-[#1f6fdc]">
-                            {templateLabel} template
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-[#dce9fb] px-3 py-1 text-xs font-medium text-[#1f6fdc]">
+                                {templateLabel} template
+                            </span>
+                            {Boolean(portfolio.slug || portfolio.id) && (
+                                <ShareLink slug={portfolio.slug || portfolio.id} />
+                            )}
+                        </div>
                     )}
                 </div>
 

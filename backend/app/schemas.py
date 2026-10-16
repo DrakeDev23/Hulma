@@ -1,7 +1,8 @@
+import json
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class UserUpdate(BaseModel):
@@ -9,6 +10,19 @@ class UserUpdate(BaseModel):
     email: Optional[str] = Field(None, max_length=255)
     avatar_url: Optional[str] = Field(None, max_length=1000)
     settings: Optional[dict[str, Any]] = None
+
+    @field_validator("settings")
+    @classmethod
+    def validate_settings(cls, v):
+        if v is not None:
+            if len(v) > 50:
+                raise ValueError("Settings dictionary has too many keys (max 50).")
+            try:
+                if len(json.dumps(v)) > 20_000:
+                    raise ValueError("Settings payload exceeds maximum allowed size (20KB).")
+            except (TypeError, OverflowError):
+                raise ValueError("Settings must be JSON serializable.")
+        return v
 
 
 class UserRead(BaseModel):
@@ -31,6 +45,32 @@ class PortfolioBase(BaseModel):
     projects: Optional[list[dict[str, Any]]] = None
     views: Optional[int] = Field(0, ge=0, le=1_000_000_000)
     completion: Optional[int] = Field(0, ge=0, le=100)
+
+    @field_validator("projects")
+    @classmethod
+    def validate_projects(cls, v):
+        if v is not None:
+            if len(v) > 50:
+                raise ValueError("Maximum 50 projects allowed per portfolio.")
+            try:
+                if len(json.dumps(v)) > 100_000:
+                    raise ValueError("Projects payload exceeds maximum allowed size (100KB).")
+            except (TypeError, OverflowError):
+                raise ValueError("Projects must be JSON serializable.")
+        return v
+
+    @field_validator("sections")
+    @classmethod
+    def validate_sections(cls, v):
+        if v is not None:
+            if len(v) > 50:
+                raise ValueError("Sections dictionary has too many keys (max 50).")
+            try:
+                if len(json.dumps(v)) > 150_000:
+                    raise ValueError("Sections payload exceeds maximum allowed size (150KB).")
+            except (TypeError, OverflowError):
+                raise ValueError("Sections must be JSON serializable.")
+        return v
 
 
 class PortfolioCreate(PortfolioBase):

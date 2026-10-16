@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -10,6 +12,13 @@ from app.security import get_current_user
 from app.routers.portfolio_auth import get_or_create_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+RESERVED_USERNAMES = {
+    "admin", "administrator", "root", "api", "auth", "public", "portfolio",
+    "dashboard", "settings", "review", "templates", "login", "register",
+    "null", "undefined", "system", "support", "help", "hulma"
+}
+USERNAME_REGEX = re.compile(r"^[a-zA-Z0-9_-]{3,30}$")
 
 
 @router.get("/me", response_model=UserRead)
@@ -30,6 +39,16 @@ def update_me(
 
     if payload.username is not None and payload.username.strip():
         clean_username = payload.username.strip()
+        if clean_username.lower() in RESERVED_USERNAMES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Username '{clean_username}' is reserved and cannot be chosen.",
+            )
+        if not USERNAME_REGEX.match(clean_username):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username must be 3-30 characters long and contain only letters, numbers, hyphens, and underscores.",
+            )
         existing = db.query(User).filter(User.username == clean_username, User.id != user.id).first()
         if existing:
             raise HTTPException(
@@ -55,7 +74,13 @@ def update_me(
             )
 
     if payload.avatar_url is not None:
-        user.avatar_url = payload.avatar_url
+        avatar = payload.avatar_url.strip()
+        if avatar and not (avatar.startswith("https://") or avatar.startswith("http://")):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Avatar URL must be a valid HTTP or HTTPS URL.",
+            )
+        user.avatar_url = avatar or None
 
     if payload.settings is not None:
         current_settings = dict(user.settings or {})

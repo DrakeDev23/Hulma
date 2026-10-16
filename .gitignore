@@ -30,3 +30,7 @@ backup.sql
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Internal security tests & documents
+security-tests/
+SECURITY.md

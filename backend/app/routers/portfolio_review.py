@@ -23,9 +23,7 @@ def _strip_html(text: str) -> str:
     """Remove script/style blocks, HTML tags, and unescape entities to prevent stored XSS."""
     if not text:
         return ""
-    # Strip script and style blocks entirely along with their inner content
     cleaned = re.sub(r"<(script|style)[^>]*>[\s\S]*?</\1>", "", str(text), flags=re.IGNORECASE)
-    # Strip any remaining HTML tags
     cleaned = re.sub(r"<[^>]+>", "", cleaned)
     return html.unescape(cleaned).strip()
 
@@ -377,7 +375,6 @@ async def review_portfolio(
     focus_areas = user_settings.get("focus") or ["template", "layout", "design", "content"]
     tone = user_settings.get("tone") or "balanced"
 
-    # Enforce atomic DB-backed rate limits, daily quota, and spam penalty
     limits_info = check_and_consume_ai_review(db, user.id)
 
     heuristic_fallback = _generate_heuristic_review(payload, user_settings)

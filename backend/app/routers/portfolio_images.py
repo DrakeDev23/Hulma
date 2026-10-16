@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from datetime import datetime, timezone
@@ -15,6 +16,8 @@ from app.models import Portfolio, User
 from app.schemas import PortfolioImageDeleteResponse, PortfolioImageUploadResponse
 from app.routers.portfolio_auth import get_current_profile
 from app.routers.portfolio_core import _new_slug
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
@@ -102,12 +105,13 @@ async def upload_portfolio_image(
                 content=content,
             )
             if response.status_code >= 400:
-                detail = response.text
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Supabase upload failed: {detail}")
+                logger.error("Supabase upload returned error %s: %s", response.status_code, response.text)
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Image storage service failed to save the upload.")
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Upload failed: {exc}") from exc
+        logger.error("Image upload failed with exception: %s", exc, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to upload image. Please try again.") from exc
 
     public_url = _supabase_public_url(object_path)
 
@@ -169,7 +173,6 @@ async def delete_portfolio_image(
     if not object_path or ".." in object_path or object_path.startswith("/"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image path.")
 
-    # Restrict deletion strictly to files within the authenticated user's directory
     user_prefix = f"{user.id}/"
     if not object_path.startswith(user_prefix):
         raise HTTPException(
@@ -184,13 +187,14 @@ async def delete_portfolio_image(
                 headers={**_get_service_headers()},
             )
             if response.status_code >= 400 and response.status_code != 404:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Supabase delete failed: {response.text}")
+                logger.error("Supabase delete returned error %s: %s", response.status_code, response.text)
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Image storage service could not complete image deletion.")
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Delete failed: {exc}") from exc
+        logger.error("Image delete failed with exception: %s", exc, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to delete image. Please try again.") from exc
 
-    # Clean up profile references across any of this user's portfolios
     user_portfolios = db.query(Portfolio).filter(Portfolio.user_id == user.id).all()
     for portfolio in user_portfolios:
         if isinstance(portfolio.sections, dict):

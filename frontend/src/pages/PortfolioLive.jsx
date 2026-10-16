@@ -30,7 +30,14 @@ export default function PortfolioLive() {
                 if (res.ok) {
                     const data = await res.json()
                     const item = Array.isArray(data) ? data[0] : data
-                    if (item) setPortfolio(item)
+                    if (item) {
+                        const slug = getShareSlug(item)
+                        if (slug) {
+                            navigate(`/p/${slug}`, { replace: true })
+                            return
+                        }
+                        setPortfolio(item)
+                    }
                 }
             } catch (e) {
                 console.error('Failed to load portfolio:', e)
@@ -39,7 +46,7 @@ export default function PortfolioLive() {
             }
         }
         fetchData()
-    }, [getToken])
+    }, [getToken, navigate])
 
     if (loading) return <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-800">Loading portfolio...</div>
     if (!portfolio) {

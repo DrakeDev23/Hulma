@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import puppetImg from '../assets/landingpuppet.png'
+import puppetImg from '../assets/liveMascot.gif'
 
 const featureItems = [
   'AI Review',
@@ -100,13 +100,11 @@ export default function Hero() {
         <div data-delay="300" className="stagger-reveal relative">
           <div className="absolute inset-0 -z-10 rounded-full bg-blue-100/60 blur-3xl scale-110" />
 
-          <div className="origin-bottom motion-safe:animate-wave">
-            <img
-              src={puppetImg}
-              alt="Hulma Mascot"
-              className="relative w-full max-w-[220px] sm:max-w-xs md:max-w-sm lg:max-w-md h-auto object-contain mascot-float drop-shadow-[0_18px_30px_rgba(37,99,235,0.18)]"
-            />
-          </div>
+          <img
+            src={puppetImg}
+            alt="Hulma Mascot"
+            className="relative w-full max-w-[220px] sm:max-w-xs md:max-w-sm lg:max-w-md h-auto object-contain mascot-float drop-shadow-[0_18px_30px_rgba(37,99,235,0.18)]"
+          />
         </div>
       </div>
     </main>

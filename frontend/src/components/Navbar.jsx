@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import logoImg from '../assets/logo.png'
 
 const navItems = [
-  { label: 'Templates', href: '#' },
-  { label: 'AI Review', href: '#' },
+  { label: 'Templates', to: '/login' },
+  { label: 'AI Review', to: '/login' },
   { label: 'About', href: '#about' },
   { label: 'Help', href: '#help' },
   { label: 'FAQ', href: '#faq' },
@@ -23,15 +23,25 @@ export default function Navbar() {
           </div>
 
           <div className="hidden md:flex items-center gap-4 lg:gap-8">
-            {navItems.map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                className="text-slate-600 hover:text-blue-600 font-medium text-sm transition-colors"
-              >
-                {item.label}
-              </a>
-            ))}
+            {navItems.map((item) =>
+              item.to ? (
+                <Link
+                  key={item.label}
+                  to={item.to}
+                  className="text-slate-600 hover:text-blue-600 font-medium text-sm transition-colors"
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <a
+                  key={item.label}
+                  href={item.href}
+                  className="text-slate-600 hover:text-blue-600 font-medium text-sm transition-colors"
+                >
+                  {item.label}
+                </a>
+              )
+            )}
           </div>
 
           <div className="hidden md:flex items-center gap-2.5 lg:gap-3">
@@ -69,16 +79,27 @@ export default function Navbar() {
         {isOpen && (
           <div className="md:hidden mt-4 border border-slate-200 bg-white rounded-2xl p-3 shadow-sm">
             <div className="flex flex-col gap-2">
-              {navItems.map((item) => (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  onClick={() => setIsOpen(false)}
-                  className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600"
-                >
-                  {item.label}
-                </a>
-              ))}
+              {navItems.map((item) =>
+                item.to ? (
+                  <Link
+                    key={item.label}
+                    to={item.to}
+                    onClick={() => setIsOpen(false)}
+                    className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                  >
+                    {item.label}
+                  </Link>
+                ) : (
+                  <a
+                    key={item.label}
+                    href={item.href}
+                    onClick={() => setIsOpen(false)}
+                    className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                  >
+                    {item.label}
+                  </a>
+                )
+              )}
 
               <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-3">
                 <Link

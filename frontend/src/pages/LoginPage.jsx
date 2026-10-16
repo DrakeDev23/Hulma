@@ -29,10 +29,8 @@ export default function LoginPage({ mode = 'login' }) {
   const [needsCode, setNeedsCode] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false)
-  const [isAccountNotFound, setIsAccountNotFound] = useState(false)
   const [infoMessage, setInfoMessage] = useState('')
   const [error, setError] = useState(location.state?.notice || '')
-
 
   useEffect(() => {
     if (isSignedIn) navigate('/dashboard', { replace: true })
@@ -47,7 +45,6 @@ export default function LoginPage({ mode = 'login' }) {
     }
 
     setError('')
-    setIsAccountNotFound(false)
     setInfoMessage('')
     setIsGoogleSubmitting(true)
 
@@ -68,7 +65,6 @@ export default function LoginPage({ mode = 'login' }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    setIsAccountNotFound(false)
     setInfoMessage('')
 
     if (!isLoaded || !signIn) {
@@ -111,16 +107,20 @@ export default function LoginPage({ mode = 'login' }) {
       console.error('Login error:', err)
       const errCode = err?.errors?.[0]?.code
       const errMsg = err?.errors?.[0]?.message || err?.message || ''
-      const notFound =
+      const isAuthFailure =
         errCode === 'form_identifier_not_found' ||
+        errCode === 'form_password_incorrect' ||
+        errCode === 'form_password_pwned' ||
         errMsg.toLowerCase().includes('find your account') ||
-        errMsg.toLowerCase().includes('not found')
+        errMsg.toLowerCase().includes('not found') ||
+        errMsg.toLowerCase().includes('password is incorrect') ||
+        errMsg.toLowerCase().includes('identifier') ||
+        errMsg.toLowerCase().includes('credentials')
 
-      if (notFound) {
-        setIsAccountNotFound(true)
-        setError("Couldn't find an account associated with this email.")
+      if (isAuthFailure) {
+        setError('Email or password is incorrect.')
       } else {
-        setError(errorText(err, 'Login failed. Please check your credentials and try again.'))
+        setError(errorText(err, 'Email or password is incorrect.'))
       }
     } finally {
       setIsSubmitting(false)
@@ -301,25 +301,7 @@ export default function LoginPage({ mode = 'login' }) {
                 <span className="relative bg-white px-3 text-xs text-slate-400">or continue with email</span>
               </div>
 
-              {isAccountNotFound ? (
-                <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
-                  <div className="flex items-start gap-2">
-                    <FiAlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-semibold text-slate-900 mb-1">No account found</p>
-                      <p className="text-slate-600 mb-3">
-                        We couldn&apos;t find an account for <strong className="text-slate-900">{email}</strong>.
-                      </p>
-                      <Link
-                        to={`/register?email=${encodeURIComponent(email)}`}
-                        className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-                      >
-                        Create a new account &rarr;
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ) : error ? (
+              {error ? (
                 <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
                   <FiAlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
                   <span>{error}</span>

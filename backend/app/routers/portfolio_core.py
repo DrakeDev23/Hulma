@@ -1,8 +1,11 @@
 import secrets
+import time
 from datetime import datetime, timezone
+from threading import Lock
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
@@ -15,6 +18,26 @@ from app.routers.portfolio_auth import get_current_profile
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 DEFAULT_TEMPLATE = "simple"
+MAX_PORTFOLIOS_PER_USER = 10
+
+_recent_views: dict[str, float] = {}
+_recent_views_lock = Lock()
+
+
+def _should_increment_view(client_ip: str, portfolio_id: int) -> bool:
+    key = f"{client_ip}:{portfolio_id}"
+    now = time.time()
+    with _recent_views_lock:
+        if len(_recent_views) > 10000:
+            cutoff = now - 300
+            stale = [k for k, t in _recent_views.items() if t < cutoff]
+            for k in stale:
+                del _recent_views[k]
+        last = _recent_views.get(key)
+        if last is None or (now - last) > 60:
+            _recent_views[key] = now
+            return True
+        return False
 
 
 def _template_of(sections) -> str:
@@ -103,6 +126,13 @@ def save_portfolio(
             if _template_of(p.sections) == template_id:
                 portfolio = p
                 break
+        if portfolio is None and len(user_portfolios) == 1:
+            portfolio = user_portfolios[0]
+        if portfolio is None and len(user_portfolios) >= MAX_PORTFOLIOS_PER_USER:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Maximum portfolio limit reached ({MAX_PORTFOLIOS_PER_USER} portfolios). Please update or delete an existing portfolio.",
+            )
 
     if portfolio is not None:
         portfolio.title = payload.title
@@ -198,14 +228,39 @@ def update_portfolio(
 
 
 @router.get("/public/{slug}")
-def read_public_portfolio(slug: str, db: Session = Depends(get_db)) -> dict:
+def read_public_portfolio(slug: str, request: Request, db: Session = Depends(get_db)) -> dict:
     clean_slug = slug.strip()
-    portfolio = db.query(Portfolio).filter(Portfolio.slug == clean_slug).first()
+    portfolio = None
+
+    if clean_slug:
+        portfolio = db.query(Portfolio).filter(Portfolio.slug == clean_slug).first()
+
+    if portfolio is None and clean_slug.isdigit():
+        portfolio = db.query(Portfolio).filter(Portfolio.id == int(clean_slug)).first()
+
+    if portfolio is None and clean_slug:
+        user = db.query(User).filter(func.lower(User.username) == clean_slug.lower()).first()
+        if user:
+            portfolio = (
+                db.query(Portfolio)
+                .filter(Portfolio.user_id == user.id)
+                .order_by(Portfolio.updated_at.desc())
+                .first()
+            )
+
     if portfolio is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Portfolio not found.",
         )
+
+    if not portfolio.slug:
+        portfolio.slug = _new_slug(db)
+        try:
+            db.commit()
+            db.refresh(portfolio)
+        except Exception:
+            db.rollback()
 
     owner = portfolio.user
     if owner and isinstance(owner.settings, dict) and owner.settings.get("publicLink") is False:
@@ -214,16 +269,29 @@ def read_public_portfolio(slug: str, db: Session = Depends(get_db)) -> dict:
             detail="This portfolio is private. The owner has disabled public link sharing in settings.",
         )
 
-    db.query(Portfolio).filter(Portfolio.id == portfolio.id).update(
-        {Portfolio.views: Portfolio.views + 1},
-        synchronize_session=False,
+    client_ip = (
+        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        or request.headers.get("cf-connecting-ip")
+        or request.headers.get("x-real-ip")
+        or (request.client.host if request.client else "unknown")
     )
-    db.commit()
-    db.refresh(portfolio)
+
+    if _should_increment_view(client_ip, portfolio.id):
+        try:
+            db.query(Portfolio).filter(Portfolio.id == portfolio.id).update(
+                {Portfolio.views: Portfolio.views + 1},
+                synchronize_session=False,
+            )
+            db.commit()
+            db.refresh(portfolio)
+        except Exception:
+            db.rollback()
 
     return {
         "id": portfolio.id,
         "slug": portfolio.slug,
+        "username": owner.username if owner else None,
+        "owner_clerk_id": owner.clerk_id if owner else None,
         "title": portfolio.title,
         "summary": portfolio.summary,
         "sections": portfolio.sections or {},

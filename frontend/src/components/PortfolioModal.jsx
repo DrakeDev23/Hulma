@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Pencil, Trash2, X } from 'lucide-react'
+import { ExternalLink, Pencil, Trash2, X } from 'lucide-react'
 import PortfolioSite from './PortfolioSite'
 
 export default function PortfolioPreviewModal({ portfolio, open, onClose, onEdit, onDelete }) {
@@ -57,6 +57,16 @@ export default function PortfolioPreviewModal({ portfolio, open, onClose, onEdit
                             >
                                 <Pencil size={13} /> <span className="hidden min-[400px]:inline">Edit</span>
                             </button>
+                        )}
+                        {Boolean(portfolio?.slug || portfolio?.id) && (
+                            <a
+                                href={`/p/${portfolio.slug || portfolio.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-full border border-[#1f6fdc] bg-[#eaf1fc] px-2.5 sm:px-3.5 py-1.5 text-xs font-medium text-[#1f6fdc] transition hover:bg-[#dce9fb] active:scale-95"
+                            >
+                                <ExternalLink size={13} /> <span className="hidden min-[400px]:inline">Open Public Link</span>
+                            </a>
                         )}
                         {onDelete && (
                             <button

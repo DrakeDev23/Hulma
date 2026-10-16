@@ -294,7 +294,17 @@ export default function PortfolioReviewCard({
                     <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
                         <Clock size={12} /> Last edited {lastUpdated || 'recently'}
                     </span>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                        {Boolean(portfolio?.slug || portfolio?.id) && (
+                            <a
+                                href={`/p/${portfolio.slug || portfolio.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-full border border-[#1f6fdc] bg-[#eaf1fc] px-3.5 py-1.5 text-xs font-medium text-[#1f6fdc] transition hover:-translate-y-0.5 hover:bg-[#dce9fb] active:scale-95"
+                            >
+                                Public link <ExternalLink size={12} />
+                            </a>
+                        )}
                         <button
                             onClick={onEdit}
                             className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-800 transition hover:-translate-y-0.5 hover:border-[#1f6fdc] hover:text-[#1f6fdc] active:scale-95"

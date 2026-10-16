@@ -66,7 +66,6 @@ def get_or_create_user(db: Session, clerk_claims: dict) -> User:
     )
     email = provided_email if (provided_email and "@" in str(provided_email) and not str(provided_email).endswith("@clerk.local")) else f"{clerk_id}@clerk.local"
 
-    # If the email is already in use by a different account, do NOT hijack that account.
     existing_by_email = db.query(User).filter(User.email == email).first()
     if existing_by_email and existing_by_email.clerk_id != clerk_id:
         email = f"{clerk_id}@clerk.local"

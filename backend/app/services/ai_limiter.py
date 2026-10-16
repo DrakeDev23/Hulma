@@ -68,7 +68,6 @@ def _get_or_create_usage(db: Session, user_id: int, now: datetime) -> AiReviewUs
         )
         db.execute(stmt)
     else:
-        # Generic fallback
         existing = db.query(AiReviewUsage).filter(AiReviewUsage.user_id == user_id).first()
         if existing is None:
             usage = AiReviewUsage(

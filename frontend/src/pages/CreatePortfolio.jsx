@@ -347,7 +347,12 @@ export default function CreatePortfolio() {
     const handleSubmit = async () => {
         const saved = await handleSave()
         if (saved) {
-            navigate('/portfolio/live')
+            const shareSlug = getShareSlug(saved) || slug
+            if (shareSlug) {
+                navigate(`/p/${shareSlug}`)
+            } else {
+                navigate('/portfolio/live')
+            }
         }
     }
 

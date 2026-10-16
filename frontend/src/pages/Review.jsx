@@ -156,6 +156,64 @@ export default function Review() {
     const [hasPortfolio, setHasPortfolio] = useState(false)
     const [reviewError, setReviewError] = useState('')
     const [done, setDone] = useState({})
+    const [reviewLimits, setReviewLimits] = useState({
+        remaining: 3,
+        maxPerWindow: 3,
+        dailyRemaining: 10,
+        maxPerDay: 10,
+        isPenaltyActive: false,
+    })
+    const [countdown, setCountdown] = useState(0)
+
+    function formatCountdown(totalSecs) {
+        if (!totalSecs || totalSecs <= 0) return '0:00'
+        const m = Math.floor(totalSecs / 60)
+        const s = totalSecs % 60
+        return `${m}:${s < 10 ? '0' : ''}${s}`
+    }
+
+    const fetchReviewStatus = async () => {
+        try {
+            const token = await getToken()
+            if (!token) return
+            const res = await fetch(apiUrl('/api/ai-review/status'), {
+                headers: { Authorization: `Bearer ${token}` },
+            })
+            if (!res.ok) return
+            const data = await res.json()
+            setReviewLimits({
+                remaining: data.remaining,
+                maxPerWindow: data.max_reviews_per_window,
+                dailyRemaining: data.daily_remaining,
+                maxPerDay: data.max_reviews_per_day,
+                isPenaltyActive: !!data.is_penalty_active,
+            })
+            if (data.retry_after_seconds > 0) {
+                setCountdown(data.retry_after_seconds)
+                if (data.is_penalty_active) {
+                    setReviewError('Too many attempts. AI review is paused for 10 minutes.')
+                }
+            } else {
+                setCountdown(0)
+            }
+        } catch {
+            // Silently ignore network failures on background status query
+        }
+    }
+
+    useEffect(() => {
+        if (countdown <= 0) return
+        const timer = setInterval(() => {
+            setCountdown((prev) => {
+                if (prev <= 1) {
+                    fetchReviewStatus()
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+        return () => clearInterval(timer)
+    }, [countdown])
 
     useEffect(() => {
         let cancelled = false
@@ -195,6 +253,7 @@ export default function Review() {
             }
         }
         loadExisting()
+        fetchReviewStatus()
         return () => {
             cancelled = true
         }
@@ -204,6 +263,15 @@ export default function Review() {
         if (!hasPortfolio || !activePortfolio) {
             setStatus('no_portfolio')
             setReviewError('No portfolio found to review. Please create a portfolio first.')
+            return
+        }
+
+        if (countdown > 0 || reviewLimits.remaining <= 0) {
+            setReviewError(
+                reviewLimits.isPenaltyActive
+                    ? 'Too many attempts. AI review is paused for 10 minutes.'
+                    : `Cooldown active. Try again in ${formatCountdown(countdown)}.`
+            )
             return
         }
 
@@ -240,21 +308,49 @@ export default function Review() {
                 },
                 body: JSON.stringify(bodyPayload),
             })
+            if (res.status === 429) {
+                const errData = await res.json().catch(() => null)
+                const retrySecs = errData?.retry_after_seconds ?? parseInt(res.headers.get('Retry-After') || '300', 10)
+                setCountdown(retrySecs)
+                setReviewLimits((prev) => ({
+                    ...prev,
+                    remaining: 0,
+                    isPenaltyActive: !!errData?.is_penalty_active,
+                }))
+                if (errData?.is_penalty_active) {
+                    setReviewError('Too many attempts. AI review is paused for 10 minutes.')
+                } else {
+                    setReviewError(
+                        errData?.message || `You've used all 3 AI reviews. Try again in ${formatCountdown(retrySecs)}.`
+                    )
+                }
+                setStatus(result ? 'done' : 'idle')
+                return
+            }
             if (!res.ok) {
                 const errData = await res.json().catch(() => null)
                 throw new Error(errData?.detail || 'AI review request failed.')
             }
             const data = await res.json()
+            if (data.remaining !== undefined) {
+                setReviewLimits((prev) => ({
+                    ...prev,
+                    remaining: data.remaining,
+                    dailyRemaining: data.daily_remaining ?? prev.dailyRemaining,
+                }))
+            }
             setResult(normalizeReview(data))
             setStatus('done')
         } catch (err) {
             setReviewError(err?.message || 'Review service encountered an error. Please try again.')
-            setStatus('error')
+            setStatus(result ? 'done' : 'error')
         }
     }
 
     const toggleDone = (id) => setDone((d) => ({ ...d, [id]: !d[id] }))
     const doneCount = result ? result.suggestions.filter((s) => done[s.id]).length : 0
+    const isCooldown = countdown > 0
+    const isLimitReached = isCooldown || reviewLimits.remaining <= 0
 
     return (
         <DashboardLayout
@@ -284,9 +380,19 @@ export default function Review() {
                         </Link>
                     </div>
                 </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#1f6fdc] bg-white px-3 py-1.5 text-xs font-medium text-[#1f6fdc] transition duration-200 hover:bg-[#1f6fdc] hover:text-white">
-                    <Clock size={13} /> {status === 'done' ? 'Reviewed' : status === 'no_portfolio' ? 'No portfolio yet' : 'Not reviewed yet'}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#1f6fdc]">
+                        <Sparkles size={13} /> {reviewLimits.remaining} of {reviewLimits.maxPerWindow} AI reviews left
+                    </span>
+                    {isCooldown && (
+                        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800">
+                            <Clock size={13} /> {reviewLimits.isPenaltyActive ? 'Penalty: ' : 'Cooldown: '}{formatCountdown(countdown)}
+                        </span>
+                    )}
+                    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#1f6fdc] bg-white px-3 py-1.5 text-xs font-medium text-[#1f6fdc] transition duration-200 hover:bg-[#1f6fdc] hover:text-white">
+                        <Clock size={13} /> {status === 'done' ? 'Reviewed' : status === 'no_portfolio' ? 'No portfolio yet' : 'Not reviewed yet'}
+                    </span>
+                </div>
             </div>
 
             <section className="mt-4 grid gap-5 rounded-2xl bg-linear-to-br from-[#3e90e2] via-[#2272c4] to-[#1b5c9a] p-4 text-white shadow-md sm:p-5 lg:grid-cols-[1.12fr_1fr] lg:gap-6">
@@ -320,12 +426,20 @@ export default function Review() {
                         ) : (
                             <button
                                 onClick={runReview}
-                                disabled={status === 'reviewing' || !hasPortfolio}
+                                disabled={status === 'reviewing' || !hasPortfolio || isLimitReached}
                                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 min-[440px]:w-auto sm:px-5 sm:py-3"
                             >
                                 {status === 'reviewing' ? (
                                     <>
                                         <RefreshCw size={17} className="animate-spin" /> Reviewing...
+                                    </>
+                                ) : isCooldown ? (
+                                    <>
+                                        <Clock size={17} /> Try again in {formatCountdown(countdown)}
+                                    </>
+                                ) : reviewLimits.remaining <= 0 ? (
+                                    <>
+                                        <Clock size={17} /> Limit reached
                                     </>
                                 ) : status === 'done' ? (
                                     <>
@@ -388,7 +502,7 @@ export default function Review() {
                         <AlertCircle size={18} className="shrink-0" />
                         <span>{reviewError}</span>
                     </div>
-                    {hasPortfolio && (
+                    {hasPortfolio && !isLimitReached && (
                         <button
                             onClick={runReview}
                             className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"
@@ -441,9 +555,26 @@ export default function Review() {
                         </div>
                         <button
                             onClick={runReview}
-                            className="inline-flex items-center gap-2 rounded-xl bg-[#1f6fdc] px-5 py-3 text-sm font-medium text-white shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95"
+                            disabled={status === 'reviewing' || !hasPortfolio || isLimitReached}
+                            className="inline-flex items-center gap-2 rounded-xl bg-[#1f6fdc] px-5 py-3 text-sm font-medium text-white shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-70"
                         >
-                            <Sparkles size={16} /> Run AI review
+                            {status === 'reviewing' ? (
+                                <>
+                                    <RefreshCw size={16} className="animate-spin" /> Reviewing...
+                                </>
+                            ) : isCooldown ? (
+                                <>
+                                    <Clock size={16} /> Try again in {formatCountdown(countdown)}
+                                </>
+                            ) : reviewLimits.remaining <= 0 ? (
+                                <>
+                                    <Clock size={16} /> Limit reached
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles size={16} /> Run AI review
+                                </>
+                            )}
                         </button>
                     </div>
                 </div>

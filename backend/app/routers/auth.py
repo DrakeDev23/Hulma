@@ -40,13 +40,19 @@ def update_me(
 
     if payload.email is not None and payload.email.strip():
         clean_email = payload.email.strip().lower()
-        existing = db.query(User).filter(User.email == clean_email, User.id != user.id).first()
-        if existing:
+        if user.email.endswith("@clerk.local"):
+            existing = db.query(User).filter(User.email == clean_email, User.id != user.id).first()
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email address is already in use by another account.",
+                )
+            user.email = clean_email
+        elif user.email != clean_email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email address is already in use by another account.",
+                detail="Primary email cannot be changed directly. Update your email through your authentication provider.",
             )
-        user.email = clean_email
 
     if payload.avatar_url is not None:
         user.avatar_url = payload.avatar_url

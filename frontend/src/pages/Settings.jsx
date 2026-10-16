@@ -140,8 +140,6 @@ export default function Settings() {
                 const headers = {
                     Authorization: `Bearer ${token}`,
                 }
-                if (clerkEmail) headers['X-User-Email'] = clerkEmail
-                if (clerkUsername) headers['X-User-Username'] = clerkUsername
 
                 const res = await fetch(apiUrl('/api/auth/me'), { headers })
                 if (!res.ok) return
@@ -256,8 +254,6 @@ export default function Settings() {
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                    'X-User-Email': form.email.trim(),
-                    'X-User-Username': form.username.trim(),
                 },
                 body: JSON.stringify({
                     username: form.username.trim(),

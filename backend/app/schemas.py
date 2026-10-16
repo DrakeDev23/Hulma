@@ -1,13 +1,13 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserUpdate(BaseModel):
-    username: Optional[str] = None
-    email: Optional[str] = None
-    avatar_url: Optional[str] = None
+    username: Optional[str] = Field(None, max_length=100)
+    email: Optional[str] = Field(None, max_length=255)
+    avatar_url: Optional[str] = Field(None, max_length=1000)
     settings: Optional[dict[str, Any]] = None
 
 
@@ -25,12 +25,12 @@ class UserRead(BaseModel):
 
 
 class PortfolioBase(BaseModel):
-    title: str = "My Portfolio"
-    summary: Optional[str] = None
+    title: str = Field("My Portfolio", max_length=200)
+    summary: Optional[str] = Field(None, max_length=2000)
     sections: Optional[dict[str, Any]] = None
     projects: Optional[list[dict[str, Any]]] = None
-    views: Optional[int] = 0
-    completion: Optional[int] = 0
+    views: Optional[int] = Field(0, ge=0, le=1_000_000_000)
+    completion: Optional[int] = Field(0, ge=0, le=100)
 
 
 class PortfolioCreate(PortfolioBase):
@@ -38,12 +38,12 @@ class PortfolioCreate(PortfolioBase):
 
 
 class PortfolioUpdate(BaseModel):
-    title: Optional[str] = None
-    summary: Optional[str] = None
+    title: Optional[str] = Field(None, max_length=200)
+    summary: Optional[str] = Field(None, max_length=2000)
     sections: Optional[dict[str, Any]] = None
     projects: Optional[list[dict[str, Any]]] = None
-    completion: Optional[int] = None
-    views: Optional[int] = None
+    completion: Optional[int] = Field(None, ge=0, le=100)
+    views: Optional[int] = Field(None, ge=0, le=1_000_000_000)
 
 
 class PortfolioRead(BaseModel):
@@ -83,6 +83,17 @@ class AiReviewResponse(BaseModel):
     score: int
     categories: list[ReviewCategory] = []
     suggestions: list[Any] = []
+    remaining: Optional[int] = None
+    daily_remaining: Optional[int] = None
+
+
+class AiReviewStatusResponse(BaseModel):
+    remaining: int
+    retry_after_seconds: int
+    daily_remaining: int
+    is_penalty_active: bool
+    max_per_window: int = 3
+    max_daily: int = 10
 
 
 class DraftTip(BaseModel):

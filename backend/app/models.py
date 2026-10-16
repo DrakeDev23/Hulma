@@ -41,3 +41,18 @@ class Portfolio(Base):
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     user: Mapped[User] = relationship(back_populates="portfolios")
+
+
+class AiReviewUsage(Base):
+    __tablename__ = "ai_review_usage"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    window_start: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
+    count: Mapped[int] = mapped_column(default=0, nullable=False)
+    blocked_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    penalty_until: Mapped[Optional[DateTime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    daily_count: Mapped[int] = mapped_column(default=0, nullable=False)
+    daily_window_start: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    user: Mapped[User] = relationship()

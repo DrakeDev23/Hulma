@@ -4,8 +4,28 @@ import { useSignUp } from '@clerk/react/legacy'
 import { useUser, useClerk } from '@clerk/react'
 import { FcGoogle } from 'react-icons/fc'
 import { FiEye, FiEyeOff, FiArrowLeft, FiAlertCircle, FiCheckCircle } from 'react-icons/fi'
+import zxcvbn from 'zxcvbn'
 import logoImg from '../assets/logo.png'
 import puppetImg from '../assets/puppet.png'
+
+const WORD_LIST = [
+  'falcon', 'harbor', 'galaxy', 'timber', 'breeze', 'summit', 'shadow', 'beacon',
+  'cosmic', 'anchor', 'spark', 'vector', 'valley', 'orbit', 'matrix', 'shield',
+  'crystal', 'fusion', 'dynamo', 'phoenix', 'stride', 'zenith', 'pulse', 'aurora'
+]
+
+const generateStrongPassword = () => {
+  const array = new Uint32Array(4)
+  crypto.getRandomValues(array)
+  const words = [
+    WORD_LIST[array[0] % WORD_LIST.length],
+    WORD_LIST[array[1] % WORD_LIST.length],
+    WORD_LIST[array[2] % WORD_LIST.length],
+    WORD_LIST[array[3] % WORD_LIST.length],
+  ]
+  const num = Math.floor(10 + Math.random() * 90)
+  return `${words.join('-')}-${num}`
+}
 
 const errorText = (err, fallback) =>
   err?.errors?.[0]?.longMessage ||
@@ -14,56 +34,69 @@ const errorText = (err, fallback) =>
   fallback
 
 const evaluatePasswordStrength = (pass) => {
-  if (!pass) {
+  if (!pass) return null
+
+  // Minimum 8 characters required; treat length as main factor
+  if (pass.length < 8) {
+    const diff = 8 - pass.length
     return {
-      score: 0,
-      label: 'Too short',
-      barColor: 'bg-slate-200',
-      textColor: 'text-slate-400',
-      checks: [
-        { id: 'length', label: '8+ characters', met: false },
-        { id: 'upper', label: 'Uppercase letter (A-Z)', met: false },
-        { id: 'lower', label: 'Lowercase letter (a-z)', met: false },
-        { id: 'number', label: 'Number (0-9)', met: false },
-        { id: 'symbol', label: 'Special symbol (!@#$...)', met: false },
-      ],
+      score: 1,
+      label: 'Weak',
+      barColor: 'bg-red-500',
+      textColor: 'text-red-600',
+      tip: `Add ${diff} more character${diff === 1 ? '' : 's'} (minimum 8 required)`,
     }
   }
 
-  const checks = [
-    { id: 'length', label: '8+ characters', met: pass.length >= 8 },
-    { id: 'upper', label: 'Uppercase letter (A-Z)', met: /[A-Z]/.test(pass) },
-    { id: 'lower', label: 'Lowercase letter (a-z)', met: /[a-z]/.test(pass) },
-    { id: 'number', label: 'Number (0-9)', met: /[0-9]/.test(pass) },
-    { id: 'symbol', label: 'Special symbol (!@#$...)', met: /[^A-Za-z0-9]/.test(pass) },
-  ]
-
-  const passedCount = checks.filter((c) => c.met).length
+  const result = zxcvbn(pass)
 
   let score = 1
-  if (pass.length < 8) {
+  let label = 'Weak'
+  let barColor = 'bg-red-500'
+  let textColor = 'text-red-600'
+
+  if (result.score <= 1) {
     score = 1
-  } else if (passedCount <= 2) {
-    score = 1
-  } else if (passedCount === 3) {
+    label = 'Weak'
+    barColor = 'bg-red-500'
+    textColor = 'text-red-600'
+  } else if (result.score === 2) {
     score = 2
-  } else if (passedCount === 4) {
+    label = 'Fair'
+    barColor = 'bg-amber-500'
+    textColor = 'text-amber-600'
+  } else if (result.score === 3) {
     score = 3
+    label = 'Good'
+    barColor = 'bg-blue-600'
+    textColor = 'text-blue-600'
   } else {
     score = 4
+    label = 'Strong'
+    barColor = 'bg-emerald-600'
+    textColor = 'text-emerald-600'
   }
 
-  const configs = {
-    1: { label: 'Weak', barColor: 'bg-red-500', textColor: 'text-red-600' },
-    2: { label: 'Fair', barColor: 'bg-amber-500', textColor: 'text-amber-600' },
-    3: { label: 'Good', barColor: 'bg-blue-600', textColor: 'text-blue-600' },
-    4: { label: 'Strong', barColor: 'bg-emerald-600', textColor: 'text-emerald-600' },
+  // Derive exactly ONE line of helper text showing the single most useful tip
+  let tip = ''
+  if (result.feedback?.warning) {
+    tip = result.feedback.warning
+  } else if (result.feedback?.suggestions?.length > 0) {
+    tip = result.feedback.suggestions[0]
+  } else if (score === 4) {
+    tip = 'Great, this is hard to guess'
+  } else if (score === 3) {
+    tip = 'Good password! Add a bit more length to make it even stronger'
+  } else {
+    tip = 'Avoid common words, names, or predictable patterns'
   }
 
   return {
     score,
-    ...configs[score],
-    checks,
+    label,
+    barColor,
+    textColor,
+    tip,
   }
 }
 
@@ -83,22 +116,43 @@ export default function RegisterPage({ mode = 'register' }) {
   const [email, setEmail] = useState(initialEmail)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [confirmTouched, setConfirmTouched] = useState(false)
   const [code, setCode] = useState('')
-  const [pendingVerification, setPendingVerification] = useState(false)
+  const [needsCode, setNeedsCode] = useState(false)
+  const [error, setError] = useState(location.state?.notice || '')
+  const [infoMessage, setInfoMessage] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false)
-  const [infoMessage, setInfoMessage] = useState('')
-  const [error, setError] = useState(location.state?.notice || '')
 
-  const passwordStrength = evaluatePasswordStrength(password)
+  const strength = evaluatePasswordStrength(password)
 
-  const needsCode = pendingVerification
+  useEffect(() => {
+    if (initialEmail && initialEmail !== email) {
+      setEmail(initialEmail)
+    }
+  }, [initialEmail])
+
+  useEffect(() => {
+    if (isSignedIn) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [isSignedIn, navigate])
+
+  const handleSuggestPassword = () => {
+    const suggested = generateStrongPassword()
+    setPassword(suggested)
+    setConfirmPassword(suggested)
+    setConfirmTouched(true)
+    setShowPassword(true)
+    setShowConfirmPassword(true)
+    if (error) setError('')
+  }
 
   const handleStartOver = () => {
     setCode('')
     setError('')
     setInfoMessage('')
-    setPendingVerification(false)
+    setNeedsCode(false)
     try {
       clerk?.client?.resetSignUp?.()
     } catch (err) {
@@ -106,25 +160,11 @@ export default function RegisterPage({ mode = 'register' }) {
     }
   }
 
-  useEffect(() => {
-    if (isSignedIn) navigate('/dashboard', { replace: true })
-  }, [isSignedIn, navigate])
-
-  useEffect(() => {
-    if (!pendingVerification && signUp?.status === 'missing_requirements') {
-      try {
-        clerk?.client?.resetSignUp?.()
-      } catch (err) {
-        console.error('Error resetting sign up:', err)
-      }
-    }
-  }, [pendingVerification, signUp?.status, clerk])
-
   const handleGoogleRegister = async () => {
     if (isGoogleSubmitting || isSubmitting) return
 
     if (!isLoaded || !signUp) {
-      setError('Registration service is still initializing. Please wait a moment and try again.')
+      setError('Authentication service is still initializing. Please wait a moment and try again.')
       return
     }
 
@@ -137,22 +177,30 @@ export default function RegisterPage({ mode = 'register' }) {
         strategy: 'oauth_google',
         redirectUrl: '/sso-callback',
         redirectUrlComplete: '/dashboard',
-        continueSignIn: true,
+        continueSignUp: true,
       })
     } catch (err) {
       console.error('Google register error:', err)
-      setError(errorText(err, 'Google registration failed.'))
+      const msg = errorText(err, 'Unable to sign up with Google.')
+      if (
+        msg.toLowerCase().includes('already signed in') ||
+        msg.toLowerCase().includes('session already exists')
+      ) {
+        navigate('/dashboard')
+        return
+      }
+      setError('Unable to sign up with Google. Please try again or use email.')
       setIsGoogleSubmitting(false)
     }
   }
 
-  const handleSubmit = async (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault()
-    setError('')
-    setInfoMessage('')
+    if (!isLoaded || isSubmitting) return
 
-    if (!isLoaded || !signUp) {
-      setError('Registration service is not ready yet.')
+    setConfirmTouched(true)
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
       return
     }
 
@@ -161,12 +209,9 @@ export default function RegisterPage({ mode = 'register' }) {
       return
     }
 
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long.')
-      return
-    }
-
     setIsSubmitting(true)
+    setError('')
+    setInfoMessage('')
 
     if (signUp?.status === 'missing_requirements') {
       try {
@@ -175,26 +220,27 @@ export default function RegisterPage({ mode = 'register' }) {
     }
 
     try {
-      const result = await signUp.create({
-        emailAddress: email.trim(),
+      const trimmedEmail = email.trim()
+      const trimmedUsername = username.trim()
+
+      const created = await signUp.create({
+        emailAddress: trimmedEmail,
         password,
-        firstName: username.trim() || undefined,
-        unsafeMetadata: { username: username.trim() },
+        firstName: trimmedUsername || undefined,
+        unsafeMetadata: { username: trimmedUsername },
       })
 
-      if (result.status === 'complete') {
-        await setActive({ session: result.createdSessionId })
+      if (created.status === 'complete') {
+        await setActive({ session: created.createdSessionId })
         navigate('/dashboard')
         return
       }
 
-      await signUp.prepareEmailAddressVerification({
-        strategy: 'email_code',
-      })
-
-      setPendingVerification(true)
+      await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
+      setNeedsCode(true)
+      setInfoMessage(`We've sent a 6-digit code to ${trimmedEmail}.`)
     } catch (err) {
-      console.error('Sign up error:', err)
+      console.error('Registration error:', err)
       const errCode = err?.errors?.[0]?.code
       const errMsg = err?.errors?.[0]?.message || err?.message || ''
       const isTaken =
@@ -277,7 +323,9 @@ export default function RegisterPage({ mode = 'register' }) {
             <>
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-slate-900 mb-1">Verify your email</h2>
-                <p className="text-xs text-slate-500">We sent a verification code to <strong>{email || signUp?.emailAddress}</strong>. Enter it below to finish.</p>
+                <p className="text-xs text-slate-500">
+                  We sent a verification code to <strong>{email || signUp?.emailAddress}</strong>. Enter it below to finish.
+                </p>
               </div>
 
               {infoMessage && (
@@ -323,7 +371,11 @@ export default function RegisterPage({ mode = 'register' }) {
               </form>
 
               <div className="flex justify-between text-xs">
-                <button type="button" onClick={resendCode} className="text-blue-600 font-semibold hover:underline cursor-pointer">
+                <button
+                  type="button"
+                  onClick={resendCode}
+                  className="text-blue-600 font-semibold hover:underline cursor-pointer"
+                >
                   Send a new code
                 </button>
                 <button
@@ -339,13 +391,22 @@ export default function RegisterPage({ mode = 'register' }) {
             <>
               <div className="mb-6">
                 <h2 className="text-2xl font-bold text-slate-900 mb-1">Register your account</h2>
-                <p className="text-xs text-slate-500">Create your account. Select a method to get started:</p>
+                <p className="text-xs text-slate-500">
+                  Create your account. Select a method to get started:
+                </p>
               </div>
+
+              {error ? (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
+                  <FiAlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              ) : null}
 
               <button
                 type="button"
                 onClick={handleGoogleRegister}
-                disabled={isGoogleSubmitting || isSubmitting}
+                disabled={isSubmitting || isGoogleSubmitting}
                 className="w-full flex items-center justify-center gap-3 py-3 px-4 mb-6 border border-slate-300 rounded-xl bg-white text-sm font-medium text-slate-700 shadow-sm cursor-pointer transition-colors duration-200 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <FcGoogle className="h-5 w-5" aria-hidden="true" />
@@ -359,14 +420,7 @@ export default function RegisterPage({ mode = 'register' }) {
                 <span className="relative bg-white px-3 text-xs text-slate-400">or continue with email</span>
               </div>
 
-              {error ? (
-                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
-                  <FiAlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              ) : null}
-
-              <form className="w-full" onSubmit={handleSubmit}>
+              <form className="w-full" onSubmit={handleRegister}>
                 <div className="mb-6">
                   <input
                     type="text"
@@ -395,77 +449,77 @@ export default function RegisterPage({ mode = 'register' }) {
                   />
                 </div>
 
-                <div className="relative mb-2">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value)
-                      if (error) setError('')
-                    }}
-                    placeholder="Password"
-                    className={`${inputClass} pr-8`}
-                  />
-                  <button
-                    type="button"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute right-0 top-3 text-slate-500 cursor-pointer transition-colors hover:text-slate-700"
-                  >
-                    {showPassword ? <FiEyeOff className="h-4 w-4" /> : <FiEye className="h-4 w-4" />}
-                  </button>
+                {/* Password field with suggest button and slim strength bar */}
+                <div className="relative mb-4">
+                  <div className="flex justify-end mb-1">
+                    <button
+                      type="button"
+                      onClick={handleSuggestPassword}
+                      className="text-xs text-blue-600 hover:text-blue-700 hover:underline cursor-pointer focus:outline-none"
+                    >
+                      Suggest a strong password
+                    </button>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value)
+                        if (error) setError('')
+                      }}
+                      placeholder="Password"
+                      className={`${inputClass} pr-8`}
+                    />
+                    <button
+                      type="button"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-0 top-3 text-slate-500 cursor-pointer transition-colors hover:text-slate-700"
+                    >
+                      {showPassword ? <FiEyeOff className="h-4 w-4" /> : <FiEye className="h-4 w-4" />}
+                    </button>
+                  </div>
+
+                  {/* Slim 4-segment strength bar, hidden until user types */}
+                  {strength && (
+                    <div className="mt-2.5 space-y-1.5">
+                      <div className="flex items-center gap-3">
+                        <div className="grid grid-cols-4 gap-1.5 flex-1" aria-hidden="true">
+                          {[1, 2, 3, 4].map((step) => (
+                            <div
+                              key={step}
+                              className={`h-1 rounded-full transition-all duration-200 ${
+                                strength.score >= step ? strength.barColor : 'bg-slate-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className={`text-xs font-semibold shrink-0 ${strength.textColor}`}>
+                          {strength.label}
+                        </span>
+                      </div>
+
+                      {/* ONE line of helper text showing next useful tip */}
+                      <p
+                        aria-live="polite"
+                        className="text-[11px] text-slate-500 leading-snug"
+                      >
+                        {strength.tip}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
-                {password ? (
-                  <div className="mb-5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                    <div className="flex items-center justify-between text-xs mb-1.5">
-                      <span className="text-slate-500 font-medium">Password strength</span>
-                      <span className={`font-semibold ${passwordStrength.textColor}`}>
-                        {passwordStrength.label}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-1.5 mb-2.5">
-                      {[1, 2, 3, 4].map((step) => (
-                        <div
-                          key={step}
-                          className={`h-1.5 rounded-full transition-all duration-200 ${
-                            passwordStrength.score >= step ? passwordStrength.barColor : 'bg-slate-200'
-                          }`}
-                        />
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px]">
-                      {passwordStrength.checks.map((c) => (
-                        <div
-                          key={c.id}
-                          className={`flex items-center gap-1.5 transition-colors ${
-                            c.met ? 'text-emerald-700 font-medium' : 'text-slate-400'
-                          }`}
-                        >
-                          {c.met ? (
-                            <FiCheckCircle className="h-3 w-3 shrink-0 text-emerald-600" />
-                          ) : (
-                            <span className="h-1.5 w-1.5 rounded-full bg-slate-300 ml-1 mr-0.5 shrink-0" />
-                          )}
-                          <span>{c.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mb-4 text-[11px] text-slate-400">
-                    Must be at least 8 characters long.
-                  </div>
-                )}
-
+                {/* Confirm Password field */}
                 <div className="relative mb-2">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
                     value={confirmPassword}
+                    onBlur={() => setConfirmTouched(true)}
                     onChange={(e) => {
                       setConfirmPassword(e.target.value)
                       if (error) setError('')
@@ -483,14 +537,15 @@ export default function RegisterPage({ mode = 'register' }) {
                   </button>
                 </div>
 
-                {confirmPassword ? (
-                  <div className="mb-6 text-xs flex items-center gap-1.5">
+                {/* Match status shown ONLY after user leaves the field */}
+                {confirmTouched && confirmPassword ? (
+                  <div className="mb-6 text-xs flex items-center gap-1.5" aria-live="polite">
                     {password === confirmPassword ? (
-                      <span className="text-emerald-600 flex items-center gap-1 font-medium">
+                      <span className="text-emerald-600 flex items-center gap-1.5 font-medium">
                         <FiCheckCircle className="h-3.5 w-3.5" /> Passwords match
                       </span>
                     ) : (
-                      <span className="text-red-500 flex items-center gap-1 font-medium">
+                      <span className="text-red-500 flex items-center gap-1.5 font-medium">
                         <FiAlertCircle className="h-3.5 w-3.5" /> Passwords do not match
                       </span>
                     )}

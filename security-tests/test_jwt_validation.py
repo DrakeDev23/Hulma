@@ -11,6 +11,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from app.config import settings
 from app.security import verify_clerk_jwt
+
+
 import app.security as sec_module
 
 # Generate test RSA key
@@ -53,7 +55,7 @@ class JwtAzpValidationTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             verify_clerk_jwt(token)
         self.assertEqual(ctx.exception.status_code, 401)
-        self.assertIn("azp", ctx.exception.detail.lower())
+        self.assertEqual(ctx.exception.detail, "Invalid or expired token")
 
     def test_wrong_azp_origin_rejected(self):
         token = _mint_test_token({
@@ -65,7 +67,7 @@ class JwtAzpValidationTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             verify_clerk_jwt(token)
         self.assertEqual(ctx.exception.status_code, 401)
-        self.assertIn("not authorized", ctx.exception.detail.lower())
+        self.assertEqual(ctx.exception.detail, "Invalid or expired token")
 
     def test_wrong_issuer_rejected(self):
         token = _mint_test_token({
@@ -77,6 +79,7 @@ class JwtAzpValidationTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             verify_clerk_jwt(token)
         self.assertEqual(ctx.exception.status_code, 401)
+        self.assertEqual(ctx.exception.detail, "Invalid or expired token")
 
     def test_expired_token_rejected(self):
         token = _mint_test_token({
@@ -88,6 +91,21 @@ class JwtAzpValidationTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             verify_clerk_jwt(token)
         self.assertEqual(ctx.exception.status_code, 401)
+        self.assertEqual(ctx.exception.detail, "Invalid or expired token")
+
+    def test_clock_skew_leeway_accepted(self):
+        import time
+        now = int(time.time())
+        token = _mint_test_token({
+            "sub": "user_valid_123",
+            "iss": "https://clerk.test.example",
+            "azp": "http://localhost:5173",
+            "exp": now + 3600,
+            "iat": now + 5,  # 5 seconds in future (clock skew)
+            "nbf": now + 5,
+        })
+        claims = verify_clerk_jwt(token)
+        self.assertEqual(claims["sub"], "user_valid_123")
 
     def test_legitimate_preview_url_accepted(self):
         token = _mint_test_token({
@@ -109,7 +127,7 @@ class JwtAzpValidationTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             verify_clerk_jwt(token)
         self.assertEqual(ctx.exception.status_code, 401)
-        self.assertIn("not authorized", ctx.exception.detail.lower())
+        self.assertEqual(ctx.exception.detail, "Invalid or expired token")
 
     def test_evil_prefix_bypass_rejected(self):
         token = _mint_test_token({
@@ -121,7 +139,7 @@ class JwtAzpValidationTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as ctx:
             verify_clerk_jwt(token)
         self.assertEqual(ctx.exception.status_code, 401)
-        self.assertIn("not authorized", ctx.exception.detail.lower())
+        self.assertEqual(ctx.exception.detail, "Invalid or expired token")
 
 
 if __name__ == "__main__":

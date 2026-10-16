@@ -1,4 +1,5 @@
 from functools import lru_cache
+import logging
 import re
 import httpx
 import jwt
@@ -7,6 +8,8 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -36,9 +39,10 @@ def get_clerk_jwks() -> list[dict]:
         response.raise_for_status()
         return response.json().get("keys", [])
     except Exception as exc:
+        logger.error("JWKS fetch failed from URL '%s': %s", settings.clerk_jwks_url.strip(), exc)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Could not connect to authentication authority: {exc}",
+            detail="Authentication service temporarily unavailable",
         ) from exc
 
 
@@ -54,67 +58,158 @@ def verify_clerk_jwt(token: str) -> dict:
 
     try:
         header = jwt.get_unverified_header(token)
-        key_id = header.get("kid")
-        if not key_id:
-            raise ValueError("Missing required kid in token header")
+    except Exception as exc:
+        logger.warning("Clerk JWT validation failed: header extraction error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
 
+    key_id = header.get("kid")
+    if not key_id:
+        logger.warning("Clerk JWT validation failed: missing required kid in header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    keys = get_clerk_jwks()
+    matching_key = next((key for key in keys if key.get("kid") == key_id), None)
+    if matching_key is None:
+        get_clerk_jwks.cache_clear()
         keys = get_clerk_jwks()
         matching_key = next((key for key in keys if key.get("kid") == key_id), None)
         if matching_key is None:
-            get_clerk_jwks.cache_clear()
-            keys = get_clerk_jwks()
-            matching_key = next((key for key in keys if key.get("kid") == key_id), None)
-            if matching_key is None:
-                raise ValueError("No matching JWKS key found")
+            logger.warning("Clerk JWT validation failed: no matching JWKS key found for kid='%s'", key_id)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-        alg = header.get("alg")
-        if alg != "RS256":
-            raise ValueError("Unsupported JWT algorithm: only RS256 is accepted")
-
-        matching_jwk = PyJWK.from_dict(matching_key)
-        public_key = matching_jwk.key
-
-        decode_kwargs = {
-            "jwt": token,
-            "key": public_key,
-            "algorithms": ["RS256"],
-            "issuer": settings.clerk_issuer.strip(),
-        }
-
-        options = {"verify_signature": True, "verify_exp": True, "verify_iss": True}
-
-        if settings.clerk_audience and settings.clerk_audience.strip():
-            decode_kwargs["audience"] = settings.clerk_audience.strip()
-            options["verify_aud"] = True
-        else:
-            options["verify_aud"] = False
-
-        decode_kwargs["options"] = options
-
-        claims = jwt.decode(**decode_kwargs)
-
-        azp = claims.get("azp")
-        if not azp:
-            raise ValueError("Missing required azp (authorized party) claim in token")
-
-        allowed_origins = [o.strip().rstrip("/") for o in settings.allowed_origins.split(",") if o.strip()]
-        clean_azp = str(azp).strip().rstrip("/")
-        azp_allowed = clean_azp in allowed_origins
-        if not azp_allowed and settings.cors_origin_regex:
-            if re.fullmatch(settings.cors_origin_regex.strip(), clean_azp):
-                azp_allowed = True
-
-        if not azp_allowed:
-            raise ValueError(f"Invalid azp claim: origin '{azp}' is not authorized")
-
-        return claims
-    except HTTPException:
-        raise
-    except (PyJWTError, TypeError, ValueError, KeyError, AttributeError) as exc:
+    alg = header.get("alg")
+    if alg != "RS256":
+        logger.warning("Clerk JWT validation failed: unsupported algorithm '%s' (only RS256 accepted)", alg)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid or expired Clerk token: {exc}",
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    matching_jwk = PyJWK.from_dict(matching_key)
+    public_key = matching_jwk.key
+
+    base_issuer = settings.clerk_issuer.strip().rstrip("/")
+    allowed_issuers = [base_issuer, f"{base_issuer}/"]
+
+    decode_kwargs = {
+        "jwt": token,
+        "key": public_key,
+        "algorithms": ["RS256"],
+        "issuer": allowed_issuers,
+        "leeway": 10,
+    }
+
+    options = {"verify_signature": True, "verify_exp": True, "verify_iss": True}
+
+    if settings.clerk_audience and settings.clerk_audience.strip():
+        decode_kwargs["audience"] = settings.clerk_audience.strip()
+        options["verify_aud"] = True
+    else:
+        options["verify_aud"] = False
+
+    decode_kwargs["options"] = options
+
+    try:
+        claims = jwt.decode(**decode_kwargs)
+    except jwt.ExpiredSignatureError:
+        logger.warning("Clerk JWT validation failed: token has expired (exp)")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except (jwt.ImmatureSignatureError, jwt.InvalidIssuedAtError) as exc:
+        logger.warning("Clerk JWT validation failed: clock skew error (iat/nbf): %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+    except jwt.InvalidSignatureError:
+        logger.warning("Clerk JWT validation failed: signature verification failed")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.InvalidIssuerError:
+        token_iss = None
+        try:
+            unverified_claims = jwt.decode(
+                token,
+                options={"verify_signature": False, "verify_exp": False, "verify_iss": False, "verify_aud": False},
+            )
+            token_iss = unverified_claims.get("iss")
+        except Exception:
+            pass
+        logger.warning(
+            "Clerk JWT validation failed: invalid issuer. Token iss='%s', expected='%s'",
+            token_iss,
+            settings.clerk_issuer.strip(),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.InvalidAudienceError:
+        logger.warning("Clerk JWT validation failed: invalid audience (aud). Expected='%s'", settings.clerk_audience.strip())
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except PyJWTError as exc:
+        logger.warning("Clerk JWT validation failed: PyJWT decode error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    azp = claims.get("azp")
+    if not azp:
+        logger.warning("Clerk JWT validation failed: missing required azp claim")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    allowed_origins = [o.strip().rstrip("/") for o in settings.allowed_origins.split(",") if o.strip()]
+    clean_azp = str(azp).strip().rstrip("/")
+    azp_allowed = clean_azp in allowed_origins
+    if not azp_allowed and settings.cors_origin_regex:
+        if re.fullmatch(settings.cors_origin_regex.strip(), clean_azp):
+            azp_allowed = True
+
+    if not azp_allowed:
+        logger.warning(
+            "Clerk JWT validation failed: unauthorized azp='%s'. Allowed origins=%s, regex='%s'",
+            clean_azp,
+            allowed_origins,
+            settings.cors_origin_regex,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return claims
 
 
 def get_current_user(
@@ -130,8 +225,10 @@ def get_current_user(
 
     claims = verify_clerk_jwt(creds.credentials)
     if not isinstance(claims, dict) or not claims.get("sub"):
+        logger.warning("Clerk JWT validation failed: missing subject identifier ('sub')")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token claims: missing subject identifier",
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return claims

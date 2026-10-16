@@ -13,6 +13,60 @@ const errorText = (err, fallback) =>
   err?.message ||
   fallback
 
+const evaluatePasswordStrength = (pass) => {
+  if (!pass) {
+    return {
+      score: 0,
+      label: 'Too short',
+      barColor: 'bg-slate-200',
+      textColor: 'text-slate-400',
+      checks: [
+        { id: 'length', label: '8+ characters', met: false },
+        { id: 'upper', label: 'Uppercase letter (A-Z)', met: false },
+        { id: 'lower', label: 'Lowercase letter (a-z)', met: false },
+        { id: 'number', label: 'Number (0-9)', met: false },
+        { id: 'symbol', label: 'Special symbol (!@#$...)', met: false },
+      ],
+    }
+  }
+
+  const checks = [
+    { id: 'length', label: '8+ characters', met: pass.length >= 8 },
+    { id: 'upper', label: 'Uppercase letter (A-Z)', met: /[A-Z]/.test(pass) },
+    { id: 'lower', label: 'Lowercase letter (a-z)', met: /[a-z]/.test(pass) },
+    { id: 'number', label: 'Number (0-9)', met: /[0-9]/.test(pass) },
+    { id: 'symbol', label: 'Special symbol (!@#$...)', met: /[^A-Za-z0-9]/.test(pass) },
+  ]
+
+  const passedCount = checks.filter((c) => c.met).length
+
+  let score = 1
+  if (pass.length < 8) {
+    score = 1
+  } else if (passedCount <= 2) {
+    score = 1
+  } else if (passedCount === 3) {
+    score = 2
+  } else if (passedCount === 4) {
+    score = 3
+  } else {
+    score = 4
+  }
+
+  const configs = {
+    1: { label: 'Weak', barColor: 'bg-red-500', textColor: 'text-red-600' },
+    2: { label: 'Fair', barColor: 'bg-amber-500', textColor: 'text-amber-600' },
+    3: { label: 'Good', barColor: 'bg-blue-600', textColor: 'text-blue-600' },
+    4: { label: 'Strong', barColor: 'bg-emerald-600', textColor: 'text-emerald-600' },
+  }
+
+  return {
+    score,
+    ...configs[score],
+    checks,
+  }
+}
+
 export default function RegisterPage({ mode = 'register' }) {
   const navigate = useNavigate()
   const location = useLocation()
@@ -33,9 +87,10 @@ export default function RegisterPage({ mode = 'register' }) {
   const [pendingVerification, setPendingVerification] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false)
-  const [isEmailTaken, setIsEmailTaken] = useState(false)
   const [infoMessage, setInfoMessage] = useState('')
   const [error, setError] = useState(location.state?.notice || '')
+
+  const passwordStrength = evaluatePasswordStrength(password)
 
   const needsCode = pendingVerification
 
@@ -74,7 +129,6 @@ export default function RegisterPage({ mode = 'register' }) {
     }
 
     setError('')
-    setIsEmailTaken(false)
     setInfoMessage('')
     setIsGoogleSubmitting(true)
 
@@ -95,7 +149,6 @@ export default function RegisterPage({ mode = 'register' }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    setIsEmailTaken(false)
     setInfoMessage('')
 
     if (!isLoaded || !signUp) {
@@ -151,10 +204,9 @@ export default function RegisterPage({ mode = 'register' }) {
         errMsg.toLowerCase().includes('already exists')
 
       if (isTaken) {
-        setIsEmailTaken(true)
-        setError('An account with this email address already exists.')
+        setError('Unable to complete registration. Please check your details or try signing in.')
       } else {
-        setError(errorText(err, 'Registration failed. Please check your information.'))
+        setError(errorText(err, 'Unable to create account. Please check your information and try again.'))
       }
     } finally {
       setIsSubmitting(false)
@@ -307,25 +359,7 @@ export default function RegisterPage({ mode = 'register' }) {
                 <span className="relative bg-white px-3 text-xs text-slate-400">or continue with email</span>
               </div>
 
-              {isEmailTaken ? (
-                <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900">
-                  <div className="flex items-start gap-2">
-                    <FiAlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-semibold text-slate-900 mb-1">Account already exists</p>
-                      <p className="text-slate-600 mb-3">
-                        An account is already registered with <strong className="text-slate-900">{email}</strong>.
-                      </p>
-                      <Link
-                        to={`/login?email=${encodeURIComponent(email)}`}
-                        className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-                      >
-                        Sign in to your account &rarr;
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ) : error ? (
+              {error ? (
                 <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 flex items-start gap-2">
                   <FiAlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
                   <span>{error}</span>
@@ -354,7 +388,6 @@ export default function RegisterPage({ mode = 'register' }) {
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value)
-                      setIsEmailTaken(false)
                       if (error) setError('')
                     }}
                     placeholder="Email"
@@ -362,7 +395,7 @@ export default function RegisterPage({ mode = 'register' }) {
                   />
                 </div>
 
-                <div className="relative mb-6">
+                <div className="relative mb-2">
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
@@ -384,7 +417,51 @@ export default function RegisterPage({ mode = 'register' }) {
                   </button>
                 </div>
 
-                <div className="relative mb-8">
+                {password ? (
+                  <div className="mb-5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                    <div className="flex items-center justify-between text-xs mb-1.5">
+                      <span className="text-slate-500 font-medium">Password strength</span>
+                      <span className={`font-semibold ${passwordStrength.textColor}`}>
+                        {passwordStrength.label}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-1.5 mb-2.5">
+                      {[1, 2, 3, 4].map((step) => (
+                        <div
+                          key={step}
+                          className={`h-1.5 rounded-full transition-all duration-200 ${
+                            passwordStrength.score >= step ? passwordStrength.barColor : 'bg-slate-200'
+                          }`}
+                        />
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-[11px]">
+                      {passwordStrength.checks.map((c) => (
+                        <div
+                          key={c.id}
+                          className={`flex items-center gap-1.5 transition-colors ${
+                            c.met ? 'text-emerald-700 font-medium' : 'text-slate-400'
+                          }`}
+                        >
+                          {c.met ? (
+                            <FiCheckCircle className="h-3 w-3 shrink-0 text-emerald-600" />
+                          ) : (
+                            <span className="h-1.5 w-1.5 rounded-full bg-slate-300 ml-1 mr-0.5 shrink-0" />
+                          )}
+                          <span>{c.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mb-4 text-[11px] text-slate-400">
+                    Must be at least 8 characters long.
+                  </div>
+                )}
+
+                <div className="relative mb-2">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     required
@@ -405,6 +482,22 @@ export default function RegisterPage({ mode = 'register' }) {
                     {showConfirmPassword ? <FiEyeOff className="h-4 w-4" /> : <FiEye className="h-4 w-4" />}
                   </button>
                 </div>
+
+                {confirmPassword ? (
+                  <div className="mb-6 text-xs flex items-center gap-1.5">
+                    {password === confirmPassword ? (
+                      <span className="text-emerald-600 flex items-center gap-1 font-medium">
+                        <FiCheckCircle className="h-3.5 w-3.5" /> Passwords match
+                      </span>
+                    ) : (
+                      <span className="text-red-500 flex items-center gap-1 font-medium">
+                        <FiAlertCircle className="h-3.5 w-3.5" /> Passwords do not match
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mb-6" />
+                )}
 
                 <div id="clerk-captcha" className="my-2" />
 

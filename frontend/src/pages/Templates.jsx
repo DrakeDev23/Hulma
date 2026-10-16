@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/react'
-import { Check, ArrowRight, FileText, LayoutGrid, Palette, Clock } from 'lucide-react'
+import { Check, ArrowRight, FileText, LayoutGrid, Palette, Clock, Eye, X } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import PortfolioSite from '../components/PortfolioSite'
 import { resolveDisplayName } from '../utils/portfolioUtils'
 
 const STORAGE_KEY = 'hulma-template'
@@ -126,10 +127,94 @@ export default function Templates() {
     const navigate = useNavigate()
     const { user } = useUser()
     const [selected, setSelected] = useState(readSaved)
+    const [previewOpen, setPreviewOpen] = useState(false)
+    const [previewTemplate, setPreviewTemplate] = useState('simple')
+
     const current = TEMPLATES.find((t) => t.id === selected)
+    const previewTemplateConfig = TEMPLATES.find((t) => t.id === previewTemplate) || TEMPLATES[0]
 
     const displayName = resolveDisplayName(user, '')
     const emailAddress = user?.primaryEmailAddress?.emailAddress || ''
+
+    const samplePortfolio = useMemo(() => {
+        let draft = null
+        try {
+            const raw = localStorage.getItem('hulmaPortfolio')
+            if (raw) draft = JSON.parse(raw)
+        } catch {}
+
+        const name = draft?.fullName || displayName || 'Alex Rivera'
+        const email = draft?.email || emailAddress || 'alex.rivera@example.com'
+
+        return {
+            title: draft?.title || `${name}'s Portfolio`,
+            summary: draft?.aboutMe || 'Full Stack Developer crafting performant web apps and intuitive digital experiences.',
+            sections: {
+                profile: {
+                    fullName: name,
+                    email: email,
+                    contactNumber: draft?.contactNumber || '+1 (555) 234-5678',
+                    address: draft?.address || 'San Francisco, CA',
+                    aboutMe: draft?.aboutMe || 'Passionate Full Stack Developer with 4+ years of experience designing scalable web applications and engaging digital experiences. I specialize in modern JavaScript/TypeScript, React, Python, and cloud architectures, turning complex requirements into clean, user-friendly solutions.',
+                },
+                skills: draft?.skills
+                    ? (Array.isArray(draft.skills) ? draft.skills : draft.skills.split(/\n|,/)).map((s) => s.trim()).filter(Boolean)
+                    : ['React', 'TypeScript', 'Node.js', 'Python', 'Tailwind CSS', 'FastAPI', 'PostgreSQL', 'UI/UX Design', 'Docker', 'GraphQL'],
+                education: draft?.education
+                    ? (Array.isArray(draft.education) ? draft.education : draft.education.split(/\n+/)).map((s) => s.trim()).filter(Boolean)
+                    : [
+                        'B.S. in Computer Science — University of California, Berkeley (2018 - 2022)',
+                        'Full Stack Web Development Certification — Meta (2023)'
+                    ],
+                workExperience: draft?.workExperience
+                    ? (Array.isArray(draft.workExperience) ? draft.workExperience : draft.workExperience.split(/\n+/)).map((s) => s.trim()).filter(Boolean)
+                    : [
+                        'Senior Frontend Engineer at CloudScale Tech (2023 - Present) — Spearheaded the frontend architecture for cloud analytics dashboard serving 100k+ active users.',
+                        'Full Stack Developer at StudioNova (2021 - 2023) — Built responsive client portals and interactive portfolio platforms with modern web standards.'
+                    ],
+                socialLinks: {
+                    GitHub: 'https://github.com',
+                    LinkedIn: 'https://linkedin.com',
+                    Twitter: 'https://twitter.com',
+                    Portfolio: 'https://hulma.app'
+                }
+            },
+            projects: [
+                {
+                    name: 'DevFlow Workflow Tool',
+                    description: 'AI-assisted developer productivity dashboard with real-time analytics and task tracking.',
+                    link: 'https://github.com',
+                    tech: ['React', 'FastAPI', 'Tailwind']
+                },
+                {
+                    name: 'Nova Design System',
+                    description: 'Comprehensive component library and design token system built for cross-platform apps.',
+                    link: 'https://github.com',
+                    tech: ['TypeScript', 'Storybook', 'Figma']
+                },
+                {
+                    name: 'Pulse Health Metrics',
+                    description: 'Interactive telemetry and wellness monitoring platform featuring live charts and data insights.',
+                    link: 'https://github.com',
+                    tech: ['Node.js', 'PostgreSQL', 'Charts']
+                }
+            ]
+        }
+    }, [displayName, emailAddress])
+
+    useEffect(() => {
+        if (!previewOpen) return undefined
+        const onKey = (e) => {
+            if (e.key === 'Escape') setPreviewOpen(false)
+        }
+        document.addEventListener('keydown', onKey)
+        const prevOverflow = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+        return () => {
+            document.removeEventListener('keydown', onKey)
+            document.body.style.overflow = prevOverflow
+        }
+    }, [previewOpen])
 
     const choose = (id) => {
         setSelected(id)
@@ -138,6 +223,11 @@ export default function Templates() {
         } catch {
             return
         }
+    }
+
+    const openPreview = (id) => {
+        setPreviewTemplate(id)
+        setPreviewOpen(true)
     }
 
     const continueToCreate = () => {
@@ -189,6 +279,16 @@ export default function Templates() {
                                 >
                                     <Check size={16} strokeWidth={3} />
                                 </span>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        openPreview(id)
+                                    }}
+                                    className="absolute bottom-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg bg-slate-900/75 px-2.5 py-1 text-[11px] font-medium text-white shadow-sm backdrop-blur-xs transition hover:bg-slate-900 active:scale-95"
+                                >
+                                    <Eye size={12} /> Live preview
+                                </button>
                             </div>
 
                             <div className="mt-4 flex items-center gap-2.5">
@@ -211,25 +311,38 @@ export default function Templates() {
                                 ))}
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    choose(id)
-                                }}
-                                className={`mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium transition duration-200 active:scale-95 ${isSelected
-                                        ? 'bg-[#1f6fdc] text-white hover:bg-[#1558c4]'
-                                        : 'border border-slate-200 bg-white text-slate-800 hover:-translate-y-0.5 hover:border-[#1f6fdc] hover:text-[#1f6fdc]'
-                                    }`}
-                            >
-                                {isSelected ? (
-                                    <>
-                                        <Check size={16} /> {name} selected
-                                    </>
-                                ) : (
-                                    'Choose template'
-                                )}
-                            </button>
+                            <div className="mt-4 flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        choose(id)
+                                    }}
+                                    className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-medium transition duration-200 active:scale-95 ${isSelected
+                                            ? 'bg-[#1f6fdc] text-white hover:bg-[#1558c4]'
+                                            : 'border border-slate-200 bg-white text-slate-800 hover:-translate-y-0.5 hover:border-[#1f6fdc] hover:text-[#1f6fdc]'
+                                        }`}
+                                >
+                                    {isSelected ? (
+                                        <>
+                                            <Check size={16} /> Selected
+                                        </>
+                                    ) : (
+                                        'Select'
+                                    )}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        openPreview(id)
+                                    }}
+                                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs sm:text-sm font-medium text-slate-700 transition hover:bg-blue-50 hover:border-blue-200 hover:text-[#1f6fdc] active:scale-95"
+                                    title={`Preview ${name} template`}
+                                >
+                                    <Eye size={15} /> Preview
+                                </button>
+                            </div>
                         </article>
                     )
                 })}
@@ -244,15 +357,112 @@ export default function Templates() {
                         {current ? current.text : 'Pick one of the three templates above to continue.'}
                     </p>
                 </div>
-                <button
-                    type="button"
-                    disabled={!current}
-                    onClick={continueToCreate}
-                    className="inline-flex w-full sm:w-auto justify-center shrink-0 items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-5 py-3 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
-                >
-                    Continue <ArrowRight size={18} />
-                </button>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                    <button
+                        type="button"
+                        onClick={() => openPreview(selected || 'simple')}
+                        className="inline-flex w-full sm:w-auto justify-center shrink-0 items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-medium text-white transition duration-200 hover:bg-white/20 active:scale-95"
+                    >
+                        <Eye size={16} /> Preview looks
+                    </button>
+                    <button
+                        type="button"
+                        disabled={!current}
+                        onClick={continueToCreate}
+                        className="inline-flex w-full sm:w-auto justify-center shrink-0 items-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-5 py-3 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                    >
+                        Continue <ArrowRight size={18} />
+                    </button>
+                </div>
             </div>
+
+            {/* Template Live Preview Modal */}
+            {previewOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-2 sm:p-6 backdrop-blur-xs"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Template live preview"
+                    onClick={() => setPreviewOpen(false)}
+                >
+                    <div
+                        className="flex h-full max-h-[96vh] sm:max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Modal Header */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+                            <div className="flex items-center gap-3">
+                                <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-[#1f6fdc]">
+                                    <Eye size={18} />
+                                </span>
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="text-base font-semibold text-slate-900">
+                                            {previewTemplateConfig?.name} Template
+                                        </h4>
+                                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
+                                            {previewTemplateConfig?.num}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-500">
+                                        Live preview of portfolio looks and layout
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Template Switcher Tabs */}
+                            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
+                                {TEMPLATES.map((t) => (
+                                    <button
+                                        key={t.id}
+                                        type="button"
+                                        onClick={() => setPreviewTemplate(t.id)}
+                                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                                            previewTemplate === t.id
+                                                ? 'bg-white text-slate-900 shadow-xs'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        {t.name}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        choose(previewTemplate)
+                                        setPreviewOpen(false)
+                                        navigate(`/portfolio/create?template=${previewTemplate}`)
+                                    }}
+                                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#1f6fdc] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#1558c4] active:scale-95"
+                                >
+                                    <Check size={14} /> Use this template
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPreviewOpen(false)}
+                                    aria-label="Close preview"
+                                    className="grid h-8 w-8 place-items-center rounded-full bg-slate-100 text-slate-600 transition hover:bg-slate-200 active:scale-95"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Body: Scrollable PortfolioSite */}
+                        <div className="min-h-0 flex-1 overflow-y-auto">
+                            <PortfolioSite
+                                portfolio={samplePortfolio}
+                                template={previewTemplate}
+                                idPrefix="tpl-preview"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
         </DashboardLayout>
     )
 }

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Route, Routes, Navigate } from 'react-router-dom'
-import { AuthenticateWithRedirectCallback, useUser, useAuth } from '@clerk/react'
+import { useUser, useAuth } from '@clerk/react'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import About from './components/About'
@@ -17,6 +17,7 @@ import Review from './pages/Review'
 import Settings from './pages/Settings'
 import PortfolioLive from './pages/PortfolioLive'
 import PortfolioPublic from './pages/PortfolioPublic'
+import SSOCallback from './pages/SSOCallback'
 import { apiUrl } from './utils/api'
 
 function HomePage() {
@@ -130,15 +131,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage mode="login" />} />
         <Route path="/register" element={<RegisterPage mode="register" />} />
-        <Route
-          path="/sso-callback"
-          element={
-            <AuthenticateWithRedirectCallback
-              signInForceRedirectUrl="/dashboard"
-              signUpForceRedirectUrl="/dashboard"
-            />
-          }
-        />
+        <Route path="/sso-callback" element={<SSOCallback />} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/portfolio" element={<ProtectedRoute><Portfolio /></ProtectedRoute>} />
         <Route path="/portfolio/create" element={<ProtectedRoute><CreatePortfolio /></ProtectedRoute>} />

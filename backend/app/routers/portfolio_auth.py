@@ -64,29 +64,12 @@ def get_or_create_user(db: Session, clerk_claims: dict) -> User:
         or clerk_claims.get("email_address")
         or clerk_claims.get("primary_email_address")
     )
-    email = provided_email if (provided_email and not provided_email.endswith("@clerk.local")) else f"{clerk_id}@clerk.local"
+    email = provided_email if (provided_email and "@" in str(provided_email) and not str(provided_email).endswith("@clerk.local")) else f"{clerk_id}@clerk.local"
 
+    # If the email is already in use by a different account, do NOT hijack that account.
     existing_by_email = db.query(User).filter(User.email == email).first()
-    if existing_by_email:
-        if not existing_by_email.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is deactivated",
-            )
-        existing_by_email.clerk_id = clerk_id
-        try:
-            db.commit()
-            db.refresh(existing_by_email)
-            return existing_by_email
-        except IntegrityError:
-            db.rollback()
-            user = db.query(User).filter(User.clerk_id == clerk_id).first()
-            if user is not None:
-                return user
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Account collision. Please try signing in again.",
-            )
+    if existing_by_email and existing_by_email.clerk_id != clerk_id:
+        email = f"{clerk_id}@clerk.local"
 
     provided_username = clerk_claims.get("username") or clerk_claims.get("preferred_username")
     if provided_username and not provided_username.startswith("user_"):

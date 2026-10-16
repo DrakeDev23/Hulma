@@ -96,7 +96,7 @@ export default function Hero() {
         </div>
       </section>
 
-      <div className="flex justify-center lg:justify-end mt-4 lg:mt-0">
+      <div className="hidden lg:flex justify-end">
         <div data-delay="300" className="stagger-reveal relative">
           <div className="absolute inset-0 -z-10 rounded-full bg-blue-100/60 blur-3xl scale-110" />
 

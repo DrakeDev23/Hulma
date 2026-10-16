@@ -1,10 +1,10 @@
 from functools import lru_cache
-
+import re
 import httpx
+import jwt
+from jwt import PyJWK, PyJWTError
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
-from jose.jwk import construct
 
 from app.config import settings
 
@@ -67,19 +67,25 @@ def verify_clerk_jwt(token: str) -> dict:
             if matching_key is None:
                 raise ValueError("No matching JWKS key found")
 
-        public_key = construct(matching_key)
+        alg = header.get("alg")
+        if alg != "RS256":
+            raise ValueError("Unsupported JWT algorithm: only RS256 is accepted")
+
+        matching_jwk = PyJWK.from_dict(matching_key)
+        public_key = matching_jwk.key
+
         decode_kwargs = {
-            "token": token,
+            "jwt": token,
             "key": public_key,
-            "algorithms": [header.get("alg") or "RS256"],
+            "algorithms": ["RS256"],
             "issuer": settings.clerk_issuer.strip(),
         }
 
-        options: dict[str, bool] = {}
+        options = {"verify_signature": True, "verify_exp": True, "verify_iss": True}
 
         if settings.clerk_audience and settings.clerk_audience.strip():
-            expected_aud = settings.clerk_audience.strip()
-            decode_kwargs["audience"] = expected_aud
+            decode_kwargs["audience"] = settings.clerk_audience.strip()
+            options["verify_aud"] = True
         else:
             options["verify_aud"] = False
 
@@ -87,23 +93,27 @@ def verify_clerk_jwt(token: str) -> dict:
 
         claims = jwt.decode(**decode_kwargs)
 
-        if settings.clerk_audience and settings.clerk_audience.strip():
-            aud = claims.get("aud")
-            expected_aud = settings.clerk_audience.strip()
-            if not aud:
-                raise ValueError("Missing required audience claim in token")
-            if isinstance(aud, str) and aud != expected_aud:
-                raise ValueError("Invalid audience claim in token")
-            if isinstance(aud, (list, tuple)) and expected_aud not in aud:
-                raise ValueError("Invalid audience claim in token")
+        azp = claims.get("azp")
+        if not azp:
+            raise ValueError("Missing required azp (authorized party) claim in token")
+
+        allowed_origins = [o.strip().rstrip("/") for o in settings.allowed_origins.split(",") if o.strip()]
+        clean_azp = str(azp).strip().rstrip("/")
+        azp_allowed = clean_azp in allowed_origins
+        if not azp_allowed and settings.cors_origin_regex:
+            if re.fullmatch(settings.cors_origin_regex.strip(), clean_azp):
+                azp_allowed = True
+
+        if not azp_allowed:
+            raise ValueError(f"Invalid azp claim: origin '{azp}' is not authorized")
 
         return claims
     except HTTPException:
         raise
-    except (JWTError, TypeError, ValueError, KeyError, AttributeError) as exc:
+    except (PyJWTError, TypeError, ValueError, KeyError, AttributeError) as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired Clerk token",
+            detail=f"Invalid or expired Clerk token: {exc}",
         ) from exc
 
 
@@ -119,13 +129,9 @@ def get_current_user(
         )
 
     claims = verify_clerk_jwt(creds.credentials)
-    if isinstance(claims, dict):
-        if not claims.get("email") and request:
-            hdr_email = request.headers.get("x-user-email")
-            if hdr_email and "@" in hdr_email and not hdr_email.strip().lower().endswith("@clerk.local"):
-                claims["email"] = hdr_email.strip().lower()
-        if not claims.get("username") and request:
-            hdr_username = request.headers.get("x-user-username")
-            if hdr_username and not hdr_username.strip().startswith("user_"):
-                claims["username"] = hdr_username.strip()
+    if not isinstance(claims, dict) or not claims.get("sub"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token claims: missing subject identifier",
+        )
     return claims

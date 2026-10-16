@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import logoImg from '../assets/logo.png'
 
 const footerLinks = {
@@ -85,9 +86,9 @@ export default function Footer() {
           <ul className="space-y-2.5 text-xs sm:text-sm text-slate-600">
             {footerLinks.create.map((link) => (
               <li key={link}>
-                <a href="#" className="hover:text-blue-600 transition-colors">
+                <Link to="/login" className="hover:text-blue-600 transition-colors">
                   {link}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>

@@ -79,8 +79,6 @@ function UserSync() {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
-          'X-User-Email': email,
-          'X-User-Username': username,
         },
         body: JSON.stringify({
           email,

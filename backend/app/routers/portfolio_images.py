@@ -22,6 +22,25 @@ ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_BYTES = settings.max_image_size_mb * 1024 * 1024
 
 
+def _validate_image_magic_bytes(content: bytes) -> str:
+    """Validate file content against image magic bytes and return canonical mime type."""
+    if len(content) < 12:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File is too small to be a valid image.",
+        )
+    if content.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
+        return "image/webp"
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="Invalid image format. Only authentic JPEG, PNG, or WebP files are allowed.",
+    )
+
+
 def _supabase_public_url(object_path: str) -> str:
     base_url = settings.supabase_url.rstrip("/")
     bucket = settings.supabase_bucket.strip("/")
@@ -64,10 +83,11 @@ async def upload_portfolio_image(
     content = await file.read()
     if len(content) > MAX_IMAGE_BYTES:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"Image is too large. Maximum size is {settings.max_image_size_mb} MB.")
+    canonical_mime = _validate_image_magic_bytes(content)
 
-    original_name = str(file.filename or "portfolio-image").replace('\\', '/')
-    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "_", os.path.basename(original_name)) or "portfolio-image"
-    object_path = f"{user.id}/{uuid4().hex}_{safe_name}"
+    ext_map = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+    ext = ext_map.get(canonical_mime, ".jpg")
+    object_path = f"{user.id}/{uuid4().hex}{ext}"
     storage_url = f"{settings.supabase_url.rstrip('/')}/storage/v1/object/{settings.supabase_bucket}/{object_path}"
 
     try:
@@ -76,7 +96,7 @@ async def upload_portfolio_image(
                 storage_url,
                 headers={
                     **_get_service_headers(),
-                    "Content-Type": file.content_type or "application/octet-stream",
+                    "Content-Type": canonical_mime,
                     "x-upsert": "true",
                 },
                 content=content,
@@ -146,20 +166,16 @@ async def delete_portfolio_image(
     db: Session = Depends(get_db),
 ) -> PortfolioImageDeleteResponse:
     object_path = _normalize_object_path(image_path)
-    if not object_path:
+    if not object_path or ".." in object_path or object_path.startswith("/"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image path.")
 
-    portfolios = db.query(Portfolio).filter(Portfolio.user_id == user.id).order_by(Portfolio.updated_at.desc()).all()
-    portfolio = portfolios[0] if portfolios else None
-    if portfolio is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No portfolio found for this user.")
-
-    profile = portfolio.sections.get("profile", {}) if isinstance(portfolio.sections, dict) else {}
-    stored_url = profile.get("profilePicture")
-    stored_path = _normalize_object_path(stored_url or "")
-    owns_image = object_path == stored_path
-    if not owns_image:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only delete your own portfolio image.")
+    # Restrict deletion strictly to files within the authenticated user's directory
+    user_prefix = f"{user.id}/"
+    if not object_path.startswith(user_prefix):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own portfolio images.",
+        )
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -167,21 +183,26 @@ async def delete_portfolio_image(
                 f"{settings.supabase_url.rstrip('/')}/storage/v1/object/{settings.supabase_bucket}/{object_path}",
                 headers={**_get_service_headers()},
             )
-            if response.status_code >= 400:
+            if response.status_code >= 400 and response.status_code != 404:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Supabase delete failed: {response.text}")
     except HTTPException:
         raise
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Delete failed: {exc}") from exc
 
-    if stored_path == object_path:
-        sections = dict(portfolio.sections or {})
-        prof = dict(sections.get("profile") or {})
-        prof["profilePicture"] = ""
-        sections["profile"] = prof
-        portfolio.sections = sections
-        flag_modified(portfolio, "sections")
-        portfolio.updated_at = datetime.now(timezone.utc)
-        db.commit()
+    # Clean up profile references across any of this user's portfolios
+    user_portfolios = db.query(Portfolio).filter(Portfolio.user_id == user.id).all()
+    for portfolio in user_portfolios:
+        if isinstance(portfolio.sections, dict):
+            profile = portfolio.sections.get("profile", {})
+            if isinstance(profile, dict) and _normalize_object_path(profile.get("profilePicture") or "") == object_path:
+                sections = dict(portfolio.sections)
+                prof = dict(profile)
+                prof["profilePicture"] = ""
+                sections["profile"] = prof
+                portfolio.sections = sections
+                flag_modified(portfolio, "sections")
+                portfolio.updated_at = datetime.now(timezone.utc)
+    db.commit()
 
     return PortfolioImageDeleteResponse(deleted=True, path=object_path)

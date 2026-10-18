@@ -76,7 +76,6 @@ const evaluatePasswordStrength = (pass) => {
     textColor = 'text-emerald-600'
   }
 
-  // Derive exactly ONE line of helper text showing the single most useful tip
   let tip = ''
   if (result.feedback?.warning) {
     tip = result.feedback.warning

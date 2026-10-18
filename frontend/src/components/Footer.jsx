@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import logoImg from '../assets/logo.png'
 
 const footerLinks = {
-  create: ['AI Portfolio Generator', 'Portfolio Templates', 'AI Review', 'Customize Portfolio'],
+  create: ['Portfolio Generator', 'Portfolio Templates', 'AI Review', 'Customize Portfolio'],
   resources: [
     { label: 'About', href: '#about' },
     { label: 'Help', href: '#help' },

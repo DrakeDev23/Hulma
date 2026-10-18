@@ -36,7 +36,6 @@ const errorText = (err, fallback) =>
 const evaluatePasswordStrength = (pass) => {
   if (!pass) return null
 
-  // Minimum 8 characters required; treat length as main factor
   if (pass.length < 8) {
     const diff = 8 - pass.length
     return {

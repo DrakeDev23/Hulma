@@ -112,6 +112,8 @@ export default function PortfolioPublic() {
                 template={templateId}
                 idPrefix="public"
                 stickyNav={!isOwner}
+                onBack={isOwner ? () => navigate(createUrl) : undefined}
+                backLabel="Back to create portfolio"
             />
         </div>
     )

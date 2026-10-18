@@ -1,20 +1,63 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/react'
 import { ArrowLeft } from 'lucide-react'
 import PortfolioSite from '../components/PortfolioSite'
 import ShareLink from '../components/ShareLink'
 import { apiUrl } from '../utils/api'
 
+// Allowlist of safe internal routes to prevent open redirect vulnerabilities
+const ALLOWED_INTERNAL_ROUTES = [
+    '/portfolio/create',
+    '/portfolio/live',
+    '/dashboard',
+    '/settings',
+    '/review',
+]
+
+function getSafeBackUrl(searchParams, defaultUrl) {
+    const rawTarget =
+        searchParams.get('returnUrl') ||
+        searchParams.get('redirect') ||
+        searchParams.get('back') ||
+        searchParams.get('from')
+
+    if (!rawTarget) return defaultUrl
+
+    // Security check: Must start with a single '/' and not '//' or '/\' to avoid open redirect vulnerabilities
+    if (!rawTarget.startsWith('/') || rawTarget.startsWith('//') || rawTarget.startsWith('/\\')) {
+        return defaultUrl
+    }
+
+    try {
+        const parsed = new URL(rawTarget, 'https://hulma.local')
+        const pathname = parsed.pathname
+        const isAllowed = ALLOWED_INTERNAL_ROUTES.some(
+            (route) => pathname === route || pathname.startsWith(route + '/')
+        )
+        if (isAllowed) {
+            return `${parsed.pathname}${parsed.search}${parsed.hash}`
+        }
+    } catch {
+        return defaultUrl
+    }
+
+    return defaultUrl
+}
+
 export default function PortfolioPublic() {
     const { slug } = useParams()
     const navigate = useNavigate()
-    const { user, isSignedIn, isLoaded } = useUser()
+    const [searchParams] = useSearchParams()
+    const { isSignedIn, isLoaded } = useUser()
     const { getToken } = useAuth()
     const [portfolio, setPortfolio] = useState(null)
     const [status, setStatus] = useState('loading')
 
     useEffect(() => {
+        // Wait for Clerk to finish loading so auth state and JWT are available
+        if (!isLoaded) return
+
         let cancelled = false
 
         const load = async () => {
@@ -47,14 +90,28 @@ export default function PortfolioPublic() {
         return () => {
             cancelled = true
         }
-    }, [slug, isSignedIn, getToken])
+    }, [slug, isSignedIn, getToken, isLoaded])
 
     useEffect(() => {
         if (portfolio?.title) document.title = portfolio.title
     }, [portfolio])
 
+    // Temporary console log to verify auth state and server-verified ownership (remove after confirming)
+    useEffect(() => {
+        console.log('[PortfolioPublic Auth Debug]', {
+            isLoaded,
+            isSignedIn,
+            is_owner: portfolio?.is_owner ?? false,
+        })
+    }, [isLoaded, isSignedIn, portfolio?.is_owner])
+
+    // Wait for Clerk's isLoaded before rendering so the button doesn't flicker
     if (status === 'loading' || !isLoaded) {
-        return <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-600">Loading portfolio...</div>
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-600">
+                Loading portfolio...
+            </div>
+        )
     }
 
     if (status !== 'ready') {
@@ -78,42 +135,44 @@ export default function PortfolioPublic() {
         )
     }
 
-    const isOwner = Boolean(
-        isSignedIn &&
-        user?.id &&
-        portfolio?.owner_clerk_id &&
-        user.id === portfolio.owner_clerk_id
-    )
+    // Server-computed ownership: only true if verified server-side JWT subject matches portfolio owner
+    const isOwner = Boolean(portfolio?.is_owner)
 
     const activeSlug = portfolio?.slug || slug
     const templateId = portfolio?.sections?.meta?.templateId || 'simple'
-    const createUrl = templateId ? `/portfolio/create?template=${encodeURIComponent(templateId)}` : '/portfolio/create'
+    const defaultCreateUrl = templateId
+        ? `/portfolio/create?template=${encodeURIComponent(templateId)}`
+        : '/portfolio/create'
+    const backUrl = getSafeBackUrl(searchParams, defaultCreateUrl)
 
     return (
-        <div className="min-h-screen">
+        <div className="relative min-h-screen">
+            {/* Spot 1: Fixed at top-left of page (ONLY visible to portfolio owner) */}
             {isOwner && (
-                <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-200 bg-white/95 px-3 sm:px-4 py-2.5 backdrop-blur">
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => navigate(createUrl)}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-[#eaf1fc] px-3.5 py-1.5 text-xs font-medium text-[#1f6fdc] transition hover:bg-[#dce9fb] active:scale-95"
-                            title="Back to create portfolio page"
-                        >
-                            <ArrowLeft size={14} /> <span className="hidden min-[380px]:inline">Back to create portfolio</span><span className="min-[380px]:hidden">Back</span>
-                        </button>
-                    </div>
-                    <div className="w-full sm:w-auto min-w-0 sm:flex-1 sm:max-w-xl sm:ml-auto">
+                <div className="fixed top-3 left-3 z-50 flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => navigate(backUrl)}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 shadow-md backdrop-blur border border-slate-200 transition hover:bg-white hover:text-blue-600 hover:shadow-lg active:scale-95"
+                        title="Back to create portfolio"
+                    >
+                        <ArrowLeft size={14} />
+                        <span>← Back to create portfolio</span>
+                    </button>
+                    <div className="hidden md:block">
                         <ShareLink slug={activeSlug} />
                     </div>
                 </div>
             )}
+
+            {/* Spot 2: Inside portfolio template navbar next to "Contact" (ONLY visible to portfolio owner) */}
             <PortfolioSite
                 portfolio={portfolio}
                 template={templateId}
                 idPrefix="public"
-                stickyNav={!isOwner}
-                onBack={isOwner ? () => navigate(createUrl) : undefined}
-                backLabel="Back to create portfolio"
+                stickyNav={true}
+                onBack={isOwner ? () => navigate(backUrl) : undefined}
+                backLabel="← Back to create portfolio"
             />
         </div>
     )

@@ -109,11 +109,14 @@ def save_portfolio(
     portfolio: Optional[Portfolio] = None
 
     if target_id is not None:
-        portfolio = (
-            db.query(Portfolio)
-            .filter(Portfolio.id == target_id, Portfolio.user_id == user.id)
-            .first()
-        )
+        existing = db.query(Portfolio).filter(Portfolio.id == target_id).first()
+        if existing is not None:
+            if existing.user_id != user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Forbidden: You do not own this portfolio.",
+                )
+            portfolio = existing
 
     if portfolio is None:
         user_portfolios = (
@@ -185,16 +188,18 @@ def update_portfolio(
     user: User = Depends(get_current_profile),
     db: Session = Depends(get_db),
 ) -> Portfolio:
-    portfolio = (
-        db.query(Portfolio)
-        .filter(Portfolio.id == portfolio_id, Portfolio.user_id == user.id)
-        .first()
-    )
-    if portfolio is None:
+    existing = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if existing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Portfolio not found.",
         )
+    if existing.user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You do not own this portfolio.",
+        )
+    portfolio = existing
 
     if payload.title is not None:
         portfolio.title = payload.title
@@ -263,18 +268,19 @@ def read_public_portfolio(slug: str, request: Request, db: Session = Depends(get
             db.rollback()
 
     owner = portfolio.user
+    auth_header = request.headers.get("authorization", "")
+    is_owner = False
+    if auth_header.lower().startswith("bearer "):
+        token = auth_header[7:].strip()
+        try:
+            from app.security import verify_clerk_jwt
+            claims = verify_clerk_jwt(token)
+            if isinstance(claims, dict) and owner and claims.get("sub") == owner.clerk_id:
+                is_owner = True
+        except Exception:
+            is_owner = False
+
     if owner and isinstance(owner.settings, dict) and owner.settings.get("publicLink") is False:
-        auth_header = request.headers.get("authorization", "")
-        is_owner = False
-        if auth_header.lower().startswith("bearer "):
-            token = auth_header[7:].strip()
-            try:
-                from app.security import verify_clerk_jwt
-                claims = verify_clerk_jwt(token)
-                if isinstance(claims, dict) and claims.get("sub") == owner.clerk_id:
-                    is_owner = True
-            except Exception:
-                pass
         if not is_owner:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -288,7 +294,7 @@ def read_public_portfolio(slug: str, request: Request, db: Session = Depends(get
         or (request.client.host if request.client else "unknown")
     )
 
-    if _should_increment_view(client_ip, portfolio.id):
+    if not is_owner and _should_increment_view(client_ip, portfolio.id):
         try:
             db.query(Portfolio).filter(Portfolio.id == portfolio.id).update(
                 {Portfolio.views: Portfolio.views + 1},
@@ -303,7 +309,7 @@ def read_public_portfolio(slug: str, request: Request, db: Session = Depends(get
         "id": portfolio.id,
         "slug": portfolio.slug,
         "username": owner.username if owner else None,
-        "owner_clerk_id": owner.clerk_id if owner else None,
+        "is_owner": is_owner,
         "title": portfolio.title,
         "summary": portfolio.summary,
         "sections": portfolio.sections or {},
@@ -321,16 +327,17 @@ def delete_portfolio(
     user: User = Depends(get_current_profile),
     db: Session = Depends(get_db),
 ) -> dict:
-    portfolio = (
-        db.query(Portfolio)
-        .filter(Portfolio.id == portfolio_id, Portfolio.user_id == user.id)
-        .first()
-    )
-    if portfolio is None:
+    existing = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if existing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Portfolio not found.",
         )
-    db.delete(portfolio)
+    if existing.user_id != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: You do not own this portfolio.",
+        )
+    db.delete(existing)
     db.commit()
     return {"deleted": True, "id": portfolio_id}

@@ -114,18 +114,24 @@ export default function PortfolioSite({ portfolio, template = 'simple', idPrefix
         <div className={`min-h-full ${t.page}`}>
             <nav className={`${stickyNav ? 'sticky top-0' : ''} z-10 border-b backdrop-blur ${t.nav}`}>
                 <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3.5 sm:px-6 py-2.5 sm:py-3">
-                    {onBack && (
-                        <button type="button" onClick={onBack} className="inline-flex shrink-0 items-center gap-1.5 text-xs sm:text-sm font-bold tracking-tight hover:underline">
-                            <ArrowLeft size={14} /> <span className="hidden sm:inline">{backLabel}</span><span className="sm:hidden">Back</span>
-                        </button>
-                    )}
                     <span className="truncate max-w-[120px] sm:max-w-xs text-xs sm:text-sm font-bold tracking-tight">{name}</span>
-                    <div className="flex gap-1 overflow-x-auto text-xs font-medium sm:text-sm no-scrollbar">
+                    <div className="flex items-center gap-1 overflow-x-auto text-xs font-medium sm:text-sm no-scrollbar">
                         {nav.map((s) => (
                             <a key={s.id} href={`#${idPrefix}-${s.id}`} onClick={go(s.id)} className="shrink-0 rounded-full px-2.5 sm:px-3 py-1 sm:py-1.5 transition hover:bg-black/5 hover:underline">
                                 {s.label}
                             </a>
                         ))}
+                        {onBack && (
+                            <button
+                                type="button"
+                                onClick={onBack}
+                                className="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-[#1f6fdc]/10 px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold text-[#1f6fdc] transition hover:bg-[#1f6fdc]/20 hover:underline active:scale-95"
+                                title="Back to create portfolio"
+                            >
+                                {!backLabel?.startsWith('←') && <ArrowLeft size={13} />}
+                                <span>{backLabel || 'Back to create portfolio'}</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             </nav>

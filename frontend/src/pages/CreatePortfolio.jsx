@@ -372,7 +372,7 @@ export default function CreatePortfolio() {
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                     <button
                         type="button"
-                        onClick={handleSave}
+                        onClick={handleSubmit}
                         disabled={isSaving}
                         className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-800 transition duration-200 hover:-translate-y-0.5 hover:border-[#1f6fdc] hover:text-[#1f6fdc] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-initial"
                     >

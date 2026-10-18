@@ -264,10 +264,22 @@ def read_public_portfolio(slug: str, request: Request, db: Session = Depends(get
 
     owner = portfolio.user
     if owner and isinstance(owner.settings, dict) and owner.settings.get("publicLink") is False:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This portfolio is private. The owner has disabled public link sharing in settings.",
-        )
+        auth_header = request.headers.get("authorization", "")
+        is_owner = False
+        if auth_header.lower().startswith("bearer "):
+            token = auth_header[7:].strip()
+            try:
+                from app.security import verify_clerk_jwt
+                claims = verify_clerk_jwt(token)
+                if isinstance(claims, dict) and claims.get("sub") == owner.clerk_id:
+                    is_owner = True
+            except Exception:
+                pass
+        if not is_owner:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This portfolio is private. The owner has disabled public link sharing in settings.",
+            )
 
     client_ip = (
         request.headers.get("x-forwarded-for", "").split(",")[0].strip()

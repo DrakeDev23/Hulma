@@ -1,70 +1,36 @@
-import { useEffect, useState } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { useUser, useAuth } from '@clerk/react'
-import { ArrowLeft } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { useAuth } from '@clerk/react'
+import OwnerEditButton from '../components/OwnerEditButton'
 import PortfolioSite from '../components/PortfolioSite'
-import ShareLink from '../components/ShareLink'
+import { getShareSlug } from '../components/ShareLink'
 import { apiUrl } from '../utils/api'
-
-// Allowlist of safe internal routes to prevent open redirect vulnerabilities
-const ALLOWED_INTERNAL_ROUTES = [
-    '/portfolio/create',
-    '/portfolio/live',
-    '/dashboard',
-    '/settings',
-    '/review',
-]
-
-function getSafeBackUrl(searchParams, defaultUrl) {
-    const rawTarget =
-        searchParams.get('returnUrl') ||
-        searchParams.get('redirect') ||
-        searchParams.get('back') ||
-        searchParams.get('from')
-
-    if (!rawTarget) return defaultUrl
-
-    // Security check: Must start with a single '/' and not '//' or '/\' to avoid open redirect vulnerabilities
-    if (!rawTarget.startsWith('/') || rawTarget.startsWith('//') || rawTarget.startsWith('/\\')) {
-        return defaultUrl
-    }
-
-    try {
-        const parsed = new URL(rawTarget, 'https://hulma.local')
-        const pathname = parsed.pathname
-        const isAllowed = ALLOWED_INTERNAL_ROUTES.some(
-            (route) => pathname === route || pathname.startsWith(route + '/')
-        )
-        if (isAllowed) {
-            return `${parsed.pathname}${parsed.search}${parsed.hash}`
-        }
-    } catch {
-        return defaultUrl
-    }
-
-    return defaultUrl
-}
 
 export default function PortfolioPublic() {
     const { slug } = useParams()
-    const navigate = useNavigate()
-    const [searchParams] = useSearchParams()
-    const { isSignedIn, isLoaded } = useUser()
-    const { getToken } = useAuth()
+    const { isLoaded, isSignedIn, getToken } = useAuth()
     const [portfolio, setPortfolio] = useState(null)
     const [status, setStatus] = useState('loading')
+    const [isOwner, setIsOwner] = useState(false)
+
+    const hasLoadedRef = useRef(false)
+    const prevSlugRef = useRef(slug)
 
     useEffect(() => {
-        // Wait for Clerk to finish loading so auth state and JWT are available
-        if (!isLoaded) return
-
         let cancelled = false
 
+        if (prevSlugRef.current !== slug) {
+            prevSlugRef.current = slug
+            hasLoadedRef.current = false
+        }
+
         const load = async () => {
-            setStatus('loading')
+            if (!hasLoadedRef.current) {
+                setStatus('loading')
+            }
             try {
                 const headers = {}
-                if (isSignedIn) {
+                if (isLoaded && isSignedIn) {
                     try {
                         const token = await getToken()
                         if (token) headers.Authorization = `Bearer ${token}`
@@ -79,10 +45,16 @@ export default function PortfolioPublic() {
                     return
                 }
                 const data = await res.json()
+                if (cancelled) return
+                hasLoadedRef.current = true
                 setPortfolio(data)
                 setStatus('ready')
             } catch {
-                if (!cancelled) setStatus('error')
+                if (!cancelled) {
+                    if (!hasLoadedRef.current) {
+                        setStatus('error')
+                    }
+                }
             }
         }
 
@@ -90,23 +62,73 @@ export default function PortfolioPublic() {
         return () => {
             cancelled = true
         }
-    }, [slug, isSignedIn, getToken, isLoaded])
+    }, [slug, isLoaded, isSignedIn, getToken])
 
     useEffect(() => {
         if (portfolio?.title) document.title = portfolio.title
     }, [portfolio])
 
-    // Temporary console log to verify auth state and server-verified ownership (remove after confirming)
     useEffect(() => {
-        console.log('[PortfolioPublic Auth Debug]', {
-            isLoaded,
-            isSignedIn,
-            is_owner: portfolio?.is_owner ?? false,
-        })
-    }, [isLoaded, isSignedIn, portfolio?.is_owner])
+        let cancelled = false
 
-    // Wait for Clerk's isLoaded before rendering so the button doesn't flicker
-    if (status === 'loading' || !isLoaded) {
+        const checkOwnership = async () => {
+            if (!isLoaded || !isSignedIn || !portfolio) {
+                setIsOwner(false)
+                return
+            }
+
+            try {
+                const token = await getToken()
+                if (!token || cancelled) return
+
+                const res = await fetch(apiUrl('/api/portfolio/me'), {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                })
+
+                if (!res.ok || cancelled) {
+                    if (!cancelled) setIsOwner(false)
+                    return
+                }
+
+                const data = await res.json()
+                if (cancelled) return
+
+                const list = (Array.isArray(data) ? data : [data]).filter(Boolean)
+
+                const displayedId = portfolio.id
+                const displayedSlug = portfolio.slug || slug
+
+                const matches = list.some((p) => {
+                    if (displayedId != null && p.id != null && String(p.id) === String(displayedId)) {
+                        return true
+                    }
+                    if (displayedSlug) {
+                        if (p.slug && p.slug === displayedSlug) return true
+                        if (getShareSlug(p) === displayedSlug) return true
+                    }
+                    return false
+                })
+
+                if (!cancelled) {
+                    setIsOwner(matches)
+                }
+            } catch {
+                if (!cancelled) {
+                    setIsOwner(false)
+                }
+            }
+        }
+
+        checkOwnership()
+
+        return () => {
+            cancelled = true
+        }
+    }, [isLoaded, isSignedIn, getToken, portfolio, slug])
+
+    if (status === 'loading') {
         return (
             <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-600">
                 Loading portfolio...
@@ -135,44 +157,17 @@ export default function PortfolioPublic() {
         )
     }
 
-    // Server-computed ownership: only true if verified server-side JWT subject matches portfolio owner
-    const isOwner = Boolean(portfolio?.is_owner)
-
-    const activeSlug = portfolio?.slug || slug
     const templateId = portfolio?.sections?.meta?.templateId || 'simple'
-    const defaultCreateUrl = templateId
-        ? `/portfolio/create?template=${encodeURIComponent(templateId)}`
-        : '/portfolio/create'
-    const backUrl = getSafeBackUrl(searchParams, defaultCreateUrl)
 
     return (
         <div className="relative min-h-screen">
-            {/* Spot 1: Fixed at top-left of page (ONLY visible to portfolio owner) */}
-            {isOwner && (
-                <div className="fixed top-3 left-3 z-50 flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={() => navigate(backUrl)}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 shadow-md backdrop-blur border border-slate-200 transition hover:bg-white hover:text-blue-600 hover:shadow-lg active:scale-95"
-                        title="Back to create portfolio"
-                    >
-                        <ArrowLeft size={14} />
-                        <span>← Back to create portfolio</span>
-                    </button>
-                    <div className="hidden md:block">
-                        <ShareLink slug={activeSlug} />
-                    </div>
-                </div>
-            )}
+            {isOwner && <OwnerEditButton templateId={templateId} />}
 
-            {/* Spot 2: Inside portfolio template navbar next to "Contact" (ONLY visible to portfolio owner) */}
             <PortfolioSite
                 portfolio={portfolio}
                 template={templateId}
                 idPrefix="public"
                 stickyNav={true}
-                onBack={isOwner ? () => navigate(backUrl) : undefined}
-                backLabel="← Back to create portfolio"
             />
         </div>
     )

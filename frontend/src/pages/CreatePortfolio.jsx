@@ -9,7 +9,6 @@ import { apiUrl } from '../utils/api'
 
 const MAX_IMAGE_BYTES = 7 * 1024 * 1024
 const TEMPLATES = ['simple', 'modern', 'creative']
-const DRAFT_KEY = 'hulmaPortfolio'
 
 const DEFAULT_FORM = {
     title: '',
@@ -34,6 +33,38 @@ const safeGet = (key) => {
     }
 }
 
+const getDraftKey = (uid) => `hulma-draft:${uid}`
+
+const getDraft = (uid) => {
+    if (!uid) return null
+    try {
+        const raw = window.localStorage.getItem(getDraftKey(uid))
+        return raw ? JSON.parse(raw) : null
+    } catch (err) {
+        console.error('Failed to read draft from localStorage:', err)
+        return null
+    }
+}
+
+const saveDraft = (uid, data) => {
+    if (!uid) return
+    try {
+        window.localStorage.setItem(getDraftKey(uid), JSON.stringify(data))
+    } catch (err) {
+        console.error('Failed to save draft to localStorage:', err)
+    }
+}
+
+const removeDraft = (uid) => {
+    if (!uid) return
+    try {
+        window.localStorage.removeItem(getDraftKey(uid))
+    } catch (err) {
+        console.error('Failed to remove draft from localStorage:', err)
+    }
+}
+
+const getImageNameFromUrl = (url) => (url ? url.split(/[\\/]/).pop() || '' : '')
 
 const parseList = (value) =>
     value
@@ -62,6 +93,34 @@ const parseLinks = (value) =>
         if (url) acc[key] = url
         return acc
     }, {})
+
+function portfolioToForm(portfolioData, currentUser, currentEmail) {
+    const profile = portfolioData?.sections?.profile || {}
+    return {
+        title: portfolioData?.title || '',
+        fullName: profile.fullName || resolveDisplayName(currentUser, ''),
+        profilePicture: profile.profilePicture || '',
+        email: profile.email || currentEmail || '',
+        contactNumber: profile.contactNumber || '',
+        address: profile.address || '',
+        aboutMe: profile.aboutMe || '',
+        education: Array.isArray(portfolioData?.sections?.education)
+            ? portfolioData.sections.education.join('\n')
+            : '',
+        skills: Array.isArray(portfolioData?.sections?.skills)
+            ? portfolioData.sections.skills.join(', ')
+            : '',
+        projects: Array.isArray(portfolioData?.projects)
+            ? portfolioData.projects.map((project) => `${project.name}: ${project.description}`).join('\n\n')
+            : '',
+        workExperience: Array.isArray(portfolioData?.sections?.workExperience)
+            ? portfolioData.sections.workExperience.join('\n')
+            : '',
+        socialLinks: portfolioData?.sections?.socialLinks
+            ? Object.entries(portfolioData.sections.socialLinks).map(([key, value]) => `${key}: ${value}`).join('\n')
+            : '',
+    }
+}
 
 function buildPortfolioPayload(form, user, emailAddress, templateId) {
     const fullName = form.fullName || resolveDisplayName(user, '')
@@ -99,6 +158,11 @@ const labelClass = 'flex flex-col gap-1.5 text-sm font-medium text-slate-700'
 
 export default function CreatePortfolio() {
     const navigate = useNavigate()
+    const navigateRef = useRef(navigate)
+    useEffect(() => {
+        navigateRef.current = navigate
+    }, [navigate])
+
     const [searchParams] = useSearchParams()
     const urlTemplate = searchParams.get('template')
     const { getToken } = useAuth()
@@ -111,31 +175,102 @@ export default function CreatePortfolio() {
         userRef.current = { user, emailAddress }
     }, [user, emailAddress])
 
-    const [form, setForm] = useState(DEFAULT_FORM)
+    const urlTemplateRef = useRef(urlTemplate)
+    useEffect(() => {
+        urlTemplateRef.current = urlTemplate
+    }, [urlTemplate])
+
+    const [savedDraft] = useState(() => {
+        const rawDraft = userId ? getDraft(userId) : null
+        return rawDraft && rawDraft.version === 1 ? rawDraft : null
+    })
+    const savedDraftRef = useRef(savedDraft)
+    useEffect(() => {
+        savedDraftRef.current = savedDraft
+    }, [savedDraft])
+
+    const [form, setForm] = useState(() => {
+        if (savedDraft?.form && savedDraft.version === 1) {
+            return { ...DEFAULT_FORM, ...savedDraft.form }
+        }
+        return DEFAULT_FORM
+    })
+    const [selectedImageName, setSelectedImageName] = useState(() => {
+        if (savedDraft?.selectedImageName !== undefined) {
+            return savedDraft.selectedImageName
+        }
+        if (savedDraft?.form?.profilePicture) {
+            return getImageNameFromUrl(savedDraft.form.profilePicture)
+        }
+        return ''
+    })
+    const [isDirty, setIsDirty] = useState(() => Boolean(savedDraft?.form && savedDraft.version === 1))
+    const isDirtyRef = useRef(isDirty)
+    useEffect(() => {
+        isDirtyRef.current = isDirty
+    }, [isDirty])
+
     const [draftFeedback, setDraftFeedback] = useState(null)
     const [portfolioId, setPortfolioId] = useState(null)
+    const [userPortfolios, setUserPortfolios] = useState([])
+    const userPortfoliosRef = useRef([])
+    useEffect(() => {
+        userPortfoliosRef.current = userPortfolios
+    }, [userPortfolios])
+
     const [savedTemplates, setSavedTemplates] = useState([])
     const [isSaving, setIsSaving] = useState(false)
     const [isCheckingDraft, setIsCheckingDraft] = useState(false)
-    const [notice, setNotice] = useState('')
-    const [selectedImageName, setSelectedImageName] = useState('')
+    const [notice, setNotice] = useState(() => (savedDraft?.form && savedDraft.version === 1 ? 'Draft restored.' : ''))
     const [loadedTemplate, setLoadedTemplate] = useState('')
     const [slug, setSlug] = useState('')
 
-    const templateId = urlTemplate || loadedTemplate || safeGet('hulma-template') || (() => {
-        try {
-            const parsed = JSON.parse(safeGet('hulma-settings') || '{}')
-            return parsed.defaultTemplate || 'simple'
-        } catch {
-            return 'simple'
-        }
-    })()
+    const initialLoadDoneRef = useRef(false)
+
+    const templateId =
+        urlTemplate ||
+        (savedDraft?.template && TEMPLATES.includes(savedDraft.template) ? savedDraft.template : null) ||
+        loadedTemplate ||
+        safeGet('hulma-template') ||
+        (() => {
+            try {
+                const parsed = JSON.parse(safeGet('hulma-settings') || '{}')
+                return parsed.defaultTemplate || 'simple'
+            } catch {
+                return 'simple'
+            }
+        })()
+
+    const prevTemplateRef = useRef(templateId)
+    const templateIdRef = useRef(templateId)
+    useEffect(() => {
+        templateIdRef.current = templateId
+    }, [templateId])
 
     useEffect(() => {
         if (!userId) return
         let cancelled = false
 
         const loadCurrentPortfolio = async () => {
+            const raw = savedDraftRef.current || getDraft(userId)
+            const draft = raw && raw.version === 1 ? raw : null
+            const hasDraft = Boolean(draft && draft.form)
+
+            if (hasDraft) {
+                setForm({ ...DEFAULT_FORM, ...draft.form })
+                if (draft.selectedImageName !== undefined) {
+                    setSelectedImageName(draft.selectedImageName)
+                } else if (draft.form?.profilePicture) {
+                    setSelectedImageName(getImageNameFromUrl(draft.form.profilePicture))
+                }
+                setIsDirty(true)
+                isDirtyRef.current = true
+                setNotice('Draft restored.')
+                if (!urlTemplateRef.current && draft.template && TEMPLATES.includes(draft.template)) {
+                    navigateRef.current(`/portfolio/create?template=${draft.template}`, { replace: true })
+                }
+            }
+
             try {
                 const token = await getToken()
                 const res = await fetch(apiUrl('/api/portfolio/me'), {
@@ -146,41 +281,71 @@ export default function CreatePortfolio() {
                 const data = await res.json()
                 if (!data || cancelled) return
                 const list = (Array.isArray(data) ? data : [data]).filter(Boolean)
+                setUserPortfolios(list)
+                userPortfoliosRef.current = list
                 setSavedTemplates(list.map((p) => p.sections?.meta?.templateId || 'simple'))
-                const portfolioData = urlTemplate
-                    ? list.find((p) => (p.sections?.meta?.templateId || 'simple') === urlTemplate)
-                    : list[0]
+
+                const activeTemplate =
+                    urlTemplateRef.current || (hasDraft && draft.template) || list[0]?.sections?.meta?.templateId || 'simple'
+                const matchedPortfolio = list.find((p) => (p.sections?.meta?.templateId || 'simple') === activeTemplate)
+
+                if (matchedPortfolio) {
+                    setPortfolioId(matchedPortfolio.id ?? null)
+                    setSlug(getShareSlug(matchedPortfolio))
+                    setLoadedTemplate(matchedPortfolio.sections?.meta?.templateId || '')
+                } else {
+                    setPortfolioId(null)
+                    setSlug('')
+                }
+
+                if (hasDraft) {
+                    return
+                }
 
                 const { user: currentUser, emailAddress: currentEmail } = userRef.current
-                if (!portfolioData) {
-                    setForm({ ...DEFAULT_FORM, fullName: resolveDisplayName(currentUser, ''), email: currentEmail || '' })
-                    setSelectedImageName('')
+                if (matchedPortfolio) {
+                    if (!isDirtyRef.current) {
+                        setForm(portfolioToForm(matchedPortfolio, currentUser, currentEmail))
+                        setSelectedImageName(
+                            matchedPortfolio.sections?.profile?.profilePicture
+                                ? getImageNameFromUrl(matchedPortfolio.sections.profile.profilePicture)
+                                : ''
+                        )
+                    }
+                    setLoadedTemplate(matchedPortfolio.sections?.meta?.templateId || '')
+                } else if (!urlTemplateRef.current && list[0]) {
+                    const firstP = list[0]
+                    setPortfolioId(firstP.id ?? null)
+                    setSlug(getShareSlug(firstP))
+                    if (!isDirtyRef.current) {
+                        setForm(portfolioToForm(firstP, currentUser, currentEmail))
+                        setSelectedImageName(
+                            firstP.sections?.profile?.profilePicture
+                                ? getImageNameFromUrl(firstP.sections.profile.profilePicture)
+                                : ''
+                        )
+                    }
+                    setLoadedTemplate(firstP.sections?.meta?.templateId || '')
+                } else {
+                    if (!isDirtyRef.current) {
+                        setForm({
+                            ...DEFAULT_FORM,
+                            fullName: resolveDisplayName(currentUser, ''),
+                            email: currentEmail || '',
+                        })
+                        setSelectedImageName('')
+                    }
                     setLoadedTemplate('')
                     setSlug('')
                     setPortfolioId(null)
-                    return
                 }
-                const profile = portfolioData.sections?.profile || {}
-                setForm({
-                    title: portfolioData.title || '',
-                    fullName: profile.fullName || resolveDisplayName(currentUser, ''),
-                    profilePicture: profile.profilePicture || '',
-                    email: profile.email || currentEmail || '',
-                    contactNumber: profile.contactNumber || '',
-                    address: profile.address || '',
-                    aboutMe: profile.aboutMe || '',
-                    education: Array.isArray(portfolioData.sections?.education) ? portfolioData.sections.education.join('\n') : '',
-                    skills: Array.isArray(portfolioData.sections?.skills) ? portfolioData.sections.skills.join(', ') : '',
-                    projects: Array.isArray(portfolioData.projects) ? portfolioData.projects.map((project) => `${project.name}: ${project.description}`).join('\n\n') : '',
-                    workExperience: Array.isArray(portfolioData.sections?.workExperience) ? portfolioData.sections.workExperience.join('\n') : '',
-                    socialLinks: portfolioData.sections?.socialLinks ? Object.entries(portfolioData.sections.socialLinks).map(([key, value]) => `${key}: ${value}`).join('\n') : '',
-                })
-                setSelectedImageName(profile.profilePicture ? profile.profilePicture.split('/').pop() || '' : '')
-                setLoadedTemplate(portfolioData.sections?.meta?.templateId || '')
-                setSlug(getShareSlug(portfolioData))
-                setPortfolioId(portfolioData.id ?? null)
             } catch (error) {
                 console.error('Failed to load portfolio:', error)
+            } finally {
+                if (!cancelled) {
+                    initialLoadDoneRef.current = true
+                    prevTemplateRef.current = templateIdRef.current
+                }
             }
         }
 
@@ -188,7 +353,92 @@ export default function CreatePortfolio() {
         return () => {
             cancelled = true
         }
-    }, [userId, getToken, urlTemplate])
+    }, [userId, getToken])
+
+    useEffect(() => {
+        if (!initialLoadDoneRef.current) {
+            prevTemplateRef.current = templateId
+            return
+        }
+
+        if (prevTemplateRef.current === templateId) return
+        prevTemplateRef.current = templateId
+
+        const targetPortfolio = userPortfoliosRef.current.find(
+            (p) => (p.sections?.meta?.templateId || 'simple') === templateId
+        )
+
+        if (targetPortfolio) {
+            setPortfolioId(targetPortfolio.id ?? null)
+            setSlug(getShareSlug(targetPortfolio))
+        } else {
+            setPortfolioId(null)
+            setSlug('')
+        }
+
+        if (!isDirtyRef.current) {
+            if (targetPortfolio) {
+                const { user: currentUser, emailAddress: currentEmail } = userRef.current
+                setForm(portfolioToForm(targetPortfolio, currentUser, currentEmail))
+                setSelectedImageName(
+                    targetPortfolio.sections?.profile?.profilePicture
+                        ? getImageNameFromUrl(targetPortfolio.sections.profile.profilePicture)
+                        : ''
+                )
+            }
+        }
+    }, [templateId])
+
+    useEffect(() => {
+        if (!isDirty || !userId) return
+
+        const timer = setTimeout(() => {
+            saveDraft(userId, {
+                version: 1,
+                updatedAt: Date.now(),
+                form,
+                selectedImageName,
+                template: templateId,
+            })
+        }, 400)
+
+        return () => {
+            clearTimeout(timer)
+        }
+    }, [form, selectedImageName, templateId, isDirty, userId])
+
+    const draftDataRef = useRef({ form, selectedImageName, templateId })
+    useEffect(() => {
+        draftDataRef.current = { form, selectedImageName, templateId }
+    }, [form, selectedImageName, templateId])
+
+    useEffect(() => {
+        return () => {
+            if (isDirtyRef.current && userId) {
+                saveDraft(userId, {
+                    version: 1,
+                    updatedAt: Date.now(),
+                    form: draftDataRef.current.form,
+                    selectedImageName: draftDataRef.current.selectedImageName,
+                    template: draftDataRef.current.templateId,
+                })
+            }
+        }
+    }, [userId])
+
+    useEffect(() => {
+        if (!isDirty) return
+
+        const handleBeforeUnload = (event) => {
+            event.preventDefault()
+            event.returnValue = ''
+        }
+
+        window.addEventListener('beforeunload', handleBeforeUnload)
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload)
+        }
+    }, [isDirty])
 
     const uploadProfilePicture = async (file) => {
         if (!file) return ''
@@ -238,7 +488,11 @@ export default function CreatePortfolio() {
         return payload.url
     }
 
-    const updateField = (field, value) => setForm((current) => ({ ...current, [field]: value }))
+    const updateField = (field, value) => {
+        isDirtyRef.current = true
+        setIsDirty(true)
+        setForm((current) => ({ ...current, [field]: value }))
+    }
 
     const previewPortfolio = useMemo(
         () => buildPortfolioPayload(form, user, emailAddress, templateId),
@@ -281,8 +535,18 @@ export default function CreatePortfolio() {
             }
 
             const saved = await response.json()
-            localStorage.removeItem(DRAFT_KEY)
+            removeDraft(userId)
+            isDirtyRef.current = false
+            setIsDirty(false)
             setPortfolioId(saved.id ?? null)
+            setUserPortfolios((prev) => {
+                const filtered = prev.filter(
+                    (p) => p.id !== saved.id && (p.sections?.meta?.templateId || 'simple') !== templateId
+                )
+                const updated = [...filtered, saved]
+                userPortfoliosRef.current = updated
+                return updated
+            })
             setSavedTemplates((current) => (current.includes(templateId) ? current : [...current, templateId]))
             const rawSettings = localStorage.getItem('hulma-settings')
             let userSettings = {}
@@ -309,6 +573,18 @@ export default function CreatePortfolio() {
             return null
         } finally {
             setIsSaving(false)
+        }
+    }
+
+    const handleClear = () => {
+        if (window.confirm('Are you sure you want to clear your portfolio inputs?')) {
+            setForm(DEFAULT_FORM)
+            setSelectedImageName('')
+            setPortfolioId(null)
+            setSlug('')
+            isDirtyRef.current = false
+            setIsDirty(false)
+            removeDraft(userId)
         }
     }
 
@@ -380,7 +656,7 @@ export default function CreatePortfolio() {
                     </button>
                     <button
                         type="button"
-                        onClick={() => { setForm(DEFAULT_FORM); setPortfolioId(null); localStorage.removeItem(DRAFT_KEY); }}
+                        onClick={handleClear}
                         className="rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
                     >
                         Clear
@@ -407,7 +683,11 @@ export default function CreatePortfolio() {
                                     key={id}
                                     type="button"
                                     aria-pressed={id === templateId}
-                                    onClick={() => navigate(`/portfolio/create?template=${id}`)}
+                                    onClick={() => {
+                                        if (id !== templateId) {
+                                            navigate(`/portfolio/create?template=${id}`)
+                                        }
+                                    }}
                                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition active:scale-95 ${
                                         id === templateId ? 'bg-[#1f6fdc] text-white shadow' : 'bg-[#f3f6fb] text-slate-600 hover:bg-[#e8effa]'
                                     }`}
@@ -417,7 +697,7 @@ export default function CreatePortfolio() {
                                 </button>
                             ))}
                         </div>
-                        <p className="mt-1.5 text-[11px] text-slate-400">Each template keeps its own portfolio. Save before switching templates.</p>
+                        <p className="mt-1.5 text-[11px] text-slate-400">Your information is kept when you switch templates. Save to publish each template.</p>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -448,6 +728,8 @@ export default function CreatePortfolio() {
 
                                     try {
                                         const uploadedUrl = await uploadProfilePicture(file)
+                                        isDirtyRef.current = true
+                                        setIsDirty(true)
                                         updateField('profilePicture', uploadedUrl)
                                         setNotice('Profile picture uploaded successfully.')
                                     } catch (error) {

@@ -79,7 +79,14 @@ export default function PortfolioLive() {
                     <ShareLink slug={slug} />
                 </div>
             </div>
-            <PortfolioSite portfolio={portfolio} template={template} idPrefix="live" stickyNav={false} />
+            <PortfolioSite
+                portfolio={portfolio}
+                template={template}
+                idPrefix="live"
+                stickyNav={false}
+                onBack={() => navigate(createUrl)}
+                backLabel="Back to create portfolio"
+            />
         </div>
     )
 }

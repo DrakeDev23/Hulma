@@ -115,8 +115,21 @@ def verify_clerk_jwt(token: str) -> dict:
     options = {"verify_signature": True, "verify_exp": True, "verify_iss": True}
 
     if settings.clerk_audience and settings.clerk_audience.strip():
-        decode_kwargs["audience"] = settings.clerk_audience.strip()
-        options["verify_aud"] = True
+        token_aud = None
+        try:
+            unverified_claims = jwt.decode(
+                token,
+                options={"verify_signature": False, "verify_exp": False, "verify_iss": False, "verify_aud": False},
+            )
+            token_aud = unverified_claims.get("aud")
+        except Exception:
+            pass
+
+        if token_aud is not None:
+            decode_kwargs["audience"] = settings.clerk_audience.strip()
+            options["verify_aud"] = True
+        else:
+            options["verify_aud"] = False
     else:
         options["verify_aud"] = False
 
@@ -190,10 +203,15 @@ def verify_clerk_jwt(token: str) -> dict:
         )
 
     allowed_origins = [o.strip().rstrip("/") for o in settings.allowed_origins.split(",") if o.strip()]
+    cors_origins = [o.strip().rstrip("/") for o in settings.cors_origins.split(",") if o.strip() and o.strip() != "*"]
     clean_azp = str(azp).strip().rstrip("/")
-    azp_allowed = clean_azp in allowed_origins
+    azp_allowed = clean_azp in allowed_origins or clean_azp in cors_origins
     if not azp_allowed and settings.cors_origin_regex:
         if re.fullmatch(settings.cors_origin_regex.strip(), clean_azp):
+            azp_allowed = True
+
+    if not azp_allowed and (settings.app_env.lower() != "production" or settings.debug):
+        if re.match(r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$", clean_azp):
             azp_allowed = True
 
     if not azp_allowed:

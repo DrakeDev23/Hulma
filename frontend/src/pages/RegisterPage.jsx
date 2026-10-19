@@ -7,6 +7,7 @@ import { FiEye, FiEyeOff, FiArrowLeft, FiAlertCircle, FiCheckCircle } from 'reac
 import zxcvbn from 'zxcvbn'
 import logoImg from '../assets/logo.png'
 import puppetImg from '../assets/puppet.png'
+import { clearAuthSession } from '../utils/session'
 
 const WORD_LIST = [
   'falcon', 'harbor', 'galaxy', 'timber', 'breeze', 'summit', 'shadow', 'beacon',
@@ -49,10 +50,10 @@ const evaluatePasswordStrength = (pass) => {
 
   const result = zxcvbn(pass)
 
-  let score = 1
-  let label = 'Weak'
-  let barColor = 'bg-red-500'
-  let textColor = 'text-red-600'
+  let score
+  let label
+  let barColor
+  let textColor
 
   if (result.score <= 1) {
     score = 1
@@ -76,7 +77,7 @@ const evaluatePasswordStrength = (pass) => {
     textColor = 'text-emerald-600'
   }
 
-  let tip = ''
+  let tip
   if (result.feedback?.warning) {
     tip = result.feedback.warning
   } else if (result.feedback?.suggestions?.length > 0) {
@@ -169,6 +170,7 @@ export default function RegisterPage({ mode = 'register' }) {
     setError('')
     setInfoMessage('')
     setIsGoogleSubmitting(true)
+    clearAuthSession()
 
     try {
       await signUp.authenticateWithRedirect({
@@ -229,6 +231,7 @@ export default function RegisterPage({ mode = 'register' }) {
       })
 
       if (created.status === 'complete') {
+        clearAuthSession()
         await setActive({ session: created.createdSessionId })
         navigate('/dashboard')
         return
@@ -271,6 +274,7 @@ export default function RegisterPage({ mode = 'register' }) {
       })
 
       if (completeSignUp.status === 'complete') {
+        clearAuthSession()
         await setActive({ session: completeSignUp.createdSessionId })
         navigate('/dashboard')
       } else {

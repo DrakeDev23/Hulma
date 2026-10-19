@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useUser } from '@clerk/react'
 import { Check, Copy, ExternalLink, Link2, Share2 } from 'lucide-react'
 
 export const getShareSlug = (p) => p?.slug || p?.public_id || p?.share_id || p?.id || p?._id || ''
@@ -7,12 +8,14 @@ export const buildShareUrl = (slug) =>
     slug && typeof window !== 'undefined' ? `${window.location.origin}/p/${slug}` : ''
 
 export default function ShareLink({ slug, dark = false }) {
+    const { user } = useUser()
     const [copied, setCopied] = useState(false)
     const url = buildShareUrl(slug)
 
     const isPublicDisabled = (() => {
         try {
-            const raw = localStorage.getItem('hulma-settings')
+            if (!user?.id) return false
+            const raw = localStorage.getItem(`hulma-settings:${user.id}`)
             if (raw) {
                 const parsed = JSON.parse(raw)
                 return parsed.publicLink === false

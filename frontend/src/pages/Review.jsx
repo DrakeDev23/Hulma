@@ -50,11 +50,15 @@ const bluePill =
 
 const TEMPLATE_NAMES = { simple: 'Simple', modern: 'Modern', creative: 'Creative' }
 
-function readTemplate() {
+function readTemplate(userId) {
     try {
-        return localStorage.getItem(TEMPLATE_KEY)
+        if (userId) {
+            const userTemplate = localStorage.getItem(`hulma-template:${userId}`)
+            if (userTemplate) return userTemplate
+        }
+        return 'simple'
     } catch {
-        return null
+        return 'simple'
     }
 }
 
@@ -130,20 +134,22 @@ export default function Review() {
     const navigate = useNavigate()
     const { getToken } = useAuth()
     const { user } = useUser()
-    const template = readTemplate()
+    const template = readTemplate(user?.id)
     const templateName = TEMPLATE_NAMES[template]
 
     const userName = resolveDisplayName(user, '')
     const email = user?.primaryEmailAddress?.emailAddress || ''
 
+    const userId = user?.id
     const userSettings = useMemo(() => {
+        if (!userId) return {}
         try {
-            const raw = localStorage.getItem('hulma-settings')
+            const raw = localStorage.getItem(`hulma-settings:${userId}`)
             return raw ? JSON.parse(raw) : {}
         } catch {
             return {}
         }
-    }, [])
+    }, [userId])
 
     const activeTone = userSettings.tone || 'balanced'
     const activeFocus = Array.isArray(userSettings.focus) && userSettings.focus.length > 0

@@ -4,6 +4,7 @@ import { useClerk, useUser } from '@clerk/react'
 import { Home, Briefcase, Sparkles, Settings, X, Menu, LogOut, LayoutTemplate, PlusSquare } from 'lucide-react'
 import logoImg from '../assets/logo.png'
 import { resolveDisplayName } from '../utils/portfolioUtils'
+import { clearAuthSession } from '../utils/session'
 
 const NAV = [
     { label: 'Dashboard', Icon: Home, path: '/dashboard' },
@@ -50,13 +51,14 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
         }
     }, [open])
 
+    const clerkEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || ''
+    const cleanClerkEmail = clerkEmail && !clerkEmail.includes('@clerk.local') ? clerkEmail.trim() : ''
     const cleanPropEmail = propEmail && !propEmail.includes('@clerk.local') ? propEmail.trim() : ''
-    const rawEmail = cleanPropEmail || user?.primaryEmailAddress?.emailAddress || ''
-    const email = rawEmail.includes('@clerk.local') ? '' : rawEmail
+    const email = cleanClerkEmail || cleanPropEmail || ''
 
+    const clerkName = resolveDisplayName(user, '')
     const cleanPropUser = propUserName && !propUserName.startsWith('user_') && propUserName !== 'User' ? propUserName.trim() : ''
-    const rawName = cleanPropUser || resolveDisplayName(user, '') || (email ? email.split('@')[0] : '') || ''
-    const displayName = (rawName && !rawName.startsWith('user_')) ? rawName : (user?.firstName || 'User')
+    const displayName = clerkName || cleanPropUser || (email ? email.split('@')[0] : '') || user?.firstName || 'User'
     const avatarUrl = user?.imageUrl || ''
     const initials = displayName
         ? displayName
@@ -79,9 +81,11 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
 
     const handleLogout = async () => {
         try {
+            clearAuthSession()
             await signOut({ redirectUrl: '/login' })
         } catch (error) {
             console.error('Logout failed:', error)
+            clearAuthSession()
             navigate('/login')
         }
     }

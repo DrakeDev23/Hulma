@@ -38,9 +38,10 @@ const safeStorageGet = (key) => {
     }
 }
 
-const readLocalPortfolio = () => {
+const readLocalPortfolio = (uid) => {
+    if (!uid) return null
     try {
-        const raw = safeStorageGet('hulmaPortfolio')
+        const raw = safeStorageGet(`hulmaPortfolio:${uid}`)
         return raw ? JSON.parse(raw) : null
     } catch {
         return null
@@ -208,7 +209,9 @@ export default function Dashboard() {
     const [localDraft, setLocalDraft] = useState(null)
     const [heroIndex, setHeroIndex] = useState(0)
 
-    useEffect(() => { setLocalDraft(readLocalPortfolio()) }, [rawPortfolio])
+    useEffect(() => {
+        setLocalDraft(user?.id ? readLocalPortfolio(user.id) : null)
+    }, [rawPortfolio, user?.id])
 
     const { portfolio: basePortfolio, source } = useMemo(() => {
         const fromBackend = normalizePortfolio(rawPortfolio)

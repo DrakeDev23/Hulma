@@ -40,8 +40,8 @@ export default function Portfolio() {
     const userName = resolveDisplayName(user, 'User')
     const email = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || 'No email'
 
-    const { portfolio: basePortfolio, source } = useMemo(() => resolvePortfolio(raw), [raw])
-    const heroList = useMemo(() => resolvePortfolioList(raw), [raw])
+    const { portfolio: basePortfolio, source } = useMemo(() => resolvePortfolio(raw, user?.id), [raw, user?.id])
+    const heroList = useMemo(() => resolvePortfolioList(raw, user?.id), [raw, user?.id])
 
     const activeIndex = Math.min(heroIndex, Math.max(heroList.length - 1, 0))
     const portfolio = heroList[activeIndex] || basePortfolio

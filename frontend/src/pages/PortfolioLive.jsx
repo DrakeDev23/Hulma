@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@clerk/react'
+import { useAuth, useUser } from '@clerk/react'
 import { ArrowLeft } from 'lucide-react'
 import PortfolioSite from '../components/PortfolioSite'
 import ShareLink, { getShareSlug } from '../components/ShareLink'
 import { apiUrl } from '../utils/api'
 
-function getStoredTemplate() {
+function getStoredTemplate(userId) {
     try {
-        return localStorage.getItem('hulma-template') || 'simple'
+        if (userId) {
+            const t = localStorage.getItem(`hulma-template:${userId}`)
+            if (t) return t
+        }
+        return 'simple'
     } catch {
         return 'simple'
     }
@@ -17,6 +21,7 @@ function getStoredTemplate() {
 export default function PortfolioLive() {
     const navigate = useNavigate()
     const { getToken } = useAuth()
+    const { user } = useUser()
     const [portfolio, setPortfolio] = useState(null)
     const [loading, setLoading] = useState(true)
 
@@ -58,7 +63,7 @@ export default function PortfolioLive() {
         )
     }
 
-    const template = portfolio.sections?.meta?.templateId || getStoredTemplate()
+    const template = portfolio.sections?.meta?.templateId || getStoredTemplate(user?.id)
     const slug = getShareSlug(portfolio)
 
     const createUrl = template ? `/portfolio/create?template=${encodeURIComponent(template)}` : '/portfolio/create'

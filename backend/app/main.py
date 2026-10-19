@@ -69,6 +69,19 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
         if request.url.scheme == "https" or settings.app_env.lower() == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+        # User-specific / API caching controls (CRITICAL FOR USER DATA ISOLATION)
+        # Prevent any caching on user endpoints or authenticated responses
+        if request.url.path.startswith("/api/"):
+            is_unauthenticated_public = (
+                request.url.path.startswith("/api/portfolio/public/")
+                and not request.headers.get("authorization")
+            )
+            if not is_unauthenticated_public:
+                response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+
         return response
 
 

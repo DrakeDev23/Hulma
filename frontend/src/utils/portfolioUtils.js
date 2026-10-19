@@ -75,21 +75,24 @@ export const hasContent = (p) =>
 export const countSections = (p) =>
     Object.entries(p?.sections || {}).filter(([k, v]) => k !== 'meta' && isFilled(v)).length
 
-export function resolvePortfolio(raw) {
+export function resolvePortfolio(raw, userId = null) {
     const fromBackend = normalizePortfolio(raw)
     if (hasContent(fromBackend)) return { portfolio: fromBackend, source: 'backend' }
-    const fromLocal = normalizePortfolio(readLocalJSON(DRAFT_KEY))
-    if (hasContent(fromLocal)) return { portfolio: fromLocal, source: 'local' }
+    if (userId) {
+        const localKey = `${DRAFT_KEY}:${userId}`
+        const fromLocal = normalizePortfolio(readLocalJSON(localKey))
+        if (hasContent(fromLocal)) return { portfolio: fromLocal, source: 'local' }
+    }
     return { portfolio: null, source: 'none' }
 }
 
-export function resolvePortfolioList(raw) {
+export function resolvePortfolioList(raw, userId = null) {
     const list = Array.isArray(raw) ? raw : Array.isArray(raw?.portfolios) ? raw.portfolios : null
     if (list) {
         const items = list.map(normalizePortfolio).filter(hasContent)
         if (items.length) return items
     }
-    const { portfolio } = resolvePortfolio(raw)
+    const { portfolio } = resolvePortfolio(raw, userId)
     return portfolio ? [portfolio] : []
 }
 
@@ -105,22 +108,11 @@ export const reviewInfo = (review) => {
 }
 
 export function getStoredUsername() {
-    try {
-        if (typeof window === 'undefined') return ''
-        const raw = window.localStorage.getItem('hulma-settings')
-        if (!raw) return ''
-        const parsed = JSON.parse(raw)
-        const u = parsed?.username
-        if (u && typeof u === 'string' && !u.startsWith('user_') && u.toLowerCase() !== 'user') {
-            return u.trim()
-        }
-        return ''
-    } catch {
-        return ''
-    }
+    return ''
 }
 
 export function resolveDisplayName(user, fallback = 'User') {
+    if (!user) return fallback
     const metaUsername = user?.unsafeMetadata?.username
     if (metaUsername && typeof metaUsername === 'string' && !metaUsername.startsWith('user_')) {
         return metaUsername.trim()
@@ -128,10 +120,6 @@ export function resolveDisplayName(user, fallback = 'User') {
     const username = user?.username
     if (username && typeof username === 'string' && !username.startsWith('user_')) {
         return username.trim()
-    }
-    const stored = getStoredUsername()
-    if (stored) {
-        return stored
     }
     const fullName = user?.fullName
     if (fullName && typeof fullName === 'string' && !fullName.startsWith('user_')) {

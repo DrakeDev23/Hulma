@@ -231,10 +231,11 @@ export default function CreatePortfolio() {
         urlTemplate ||
         (savedDraft?.template && TEMPLATES.includes(savedDraft.template) ? savedDraft.template : null) ||
         loadedTemplate ||
-        safeGet('hulma-template') ||
+        (user?.id ? safeGet(`hulma-template:${user.id}`) : null) ||
         (() => {
             try {
-                const parsed = JSON.parse(safeGet('hulma-settings') || '{}')
+                if (!user?.id) return 'simple'
+                const parsed = JSON.parse(safeGet(`hulma-settings:${user.id}`) || '{}')
                 return parsed.defaultTemplate || 'simple'
             } catch {
                 return 'simple'
@@ -548,7 +549,7 @@ export default function CreatePortfolio() {
                 return updated
             })
             setSavedTemplates((current) => (current.includes(templateId) ? current : [...current, templateId]))
-            const rawSettings = localStorage.getItem('hulma-settings')
+            const rawSettings = user?.id ? localStorage.getItem(`hulma-settings:${user.id}`) : null
             let userSettings = {}
             try {
                 if (rawSettings) userSettings = JSON.parse(rawSettings)

@@ -5,8 +5,7 @@ import DashboardLayout from '../components/DashboardLayout'
 import { resolveDisplayName } from '../utils/portfolioUtils'
 import { apiUrl } from '../utils/api'
 
-const SETTINGS_KEY = 'hulma-settings'
-const TEMPLATE_KEY = 'hulma-template'
+import { clearAuthSession } from '../utils/session'
 
 const FOCUS_AREAS = [
     { id: 'template', label: 'Template fit' },
@@ -46,14 +45,20 @@ const isPlaceholderUsername = (uname) => {
     )
 }
 
-function loadLocal() {
+function loadLocal(userId) {
+    if (!userId) return DEFAULTS
     try {
-        const raw = localStorage.getItem(SETTINGS_KEY)
+        const raw = localStorage.getItem(`hulma-settings:${userId}`)
         if (!raw) return DEFAULTS
         const parsed = JSON.parse(raw)
-        if (isPlaceholderEmail(parsed.email)) parsed.email = ''
-        if (isPlaceholderUsername(parsed.username)) parsed.username = ''
-        return { ...DEFAULTS, ...parsed }
+        return {
+            ...DEFAULTS,
+            defaultTemplate: parsed.defaultTemplate ?? DEFAULTS.defaultTemplate,
+            publicLink: parsed.publicLink ?? DEFAULTS.publicLink,
+            autoReview: parsed.autoReview ?? DEFAULTS.autoReview,
+            focus: Array.isArray(parsed.focus) && parsed.focus.length ? parsed.focus : DEFAULTS.focus,
+            tone: parsed.tone ?? DEFAULTS.tone,
+        }
     } catch {
         return DEFAULTS
     }
@@ -104,7 +109,14 @@ export default function Settings() {
     const { getToken } = useAuth()
     const { signOut } = useClerk()
 
-    const [form, setForm] = useState(loadLocal)
+    const clerkEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || ''
+    const clerkUsername = resolveDisplayName(user, '')
+
+    const [form, setForm] = useState(() => ({
+        ...loadLocal(user?.id),
+        username: clerkUsername || '',
+        email: clerkEmail || '',
+    }))
     const [saved, setSaved] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
@@ -113,20 +125,13 @@ export default function Settings() {
     const [pwMsg, setPwMsg] = useState(null)
     const [isUpdatingPw, setIsUpdatingPw] = useState(false)
 
-    const clerkEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || ''
-    const clerkUsername = resolveDisplayName(user, '')
-
     useEffect(() => {
         if (!user) return
-        setForm((f) => {
-            const cleanUser = isPlaceholderUsername(f.username) ? '' : f.username
-            const cleanEmail = isPlaceholderEmail(f.email) ? '' : f.email
-            return {
-                ...f,
-                username: cleanUser || clerkUsername || '',
-                email: cleanEmail || clerkEmail || '',
-            }
-        })
+        setForm((f) => ({
+            ...f,
+            username: f.username || clerkUsername || '',
+            email: f.email || clerkEmail || '',
+        }))
     }, [user, clerkUsername, clerkEmail])
 
     useEffect(() => {
@@ -151,46 +156,33 @@ export default function Settings() {
                         const serverUser = !isPlaceholderUsername(data.username) ? data.username : ''
                         const serverMail = !isPlaceholderEmail(data.email) ? data.email : ''
 
-                        const finalUser = prev.username && !isPlaceholderUsername(prev.username)
-                            ? prev.username
-                            : (clerkUsername || serverUser || '')
-                        const finalEmail = prev.email && !isPlaceholderEmail(prev.email)
-                            ? prev.email
-                            : (clerkEmail || serverMail || '')
+                        const authoritativeUser = clerkUsername || serverUser || prev.username || ''
+                        const authoritativeMail = clerkEmail || serverMail || prev.email || ''
 
                         const merged = {
                             ...prev,
-                            username: finalUser,
-                            email: finalEmail,
+                            username: authoritativeUser,
+                            email: authoritativeMail,
                             defaultTemplate: serverSettings.defaultTemplate ?? prev.defaultTemplate ?? 'simple',
                             publicLink: serverSettings.publicLink ?? prev.publicLink ?? true,
                             autoReview: serverSettings.autoReview ?? prev.autoReview ?? false,
                             focus: Array.isArray(serverSettings.focus) && serverSettings.focus.length > 0 ? serverSettings.focus : prev.focus,
                             tone: serverSettings.tone ?? prev.tone ?? 'balanced',
                         }
-                        try {
-                            localStorage.setItem(SETTINGS_KEY, JSON.stringify(merged))
-                            if (merged.defaultTemplate) {
-                                localStorage.setItem(TEMPLATE_KEY, merged.defaultTemplate)
-                            }
-                        } catch {}
-
-                        if ((isPlaceholderEmail(data.email) && finalEmail) || (isPlaceholderUsername(data.username) && finalUser)) {
-                            fetch(apiUrl('/api/auth/me'), {
-                                method: 'PUT',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    Authorization: `Bearer ${token}`,
-                                },
-                                body: JSON.stringify({
-                                    username: finalUser,
-                                    email: finalEmail,
-                                    avatar_url: user?.imageUrl,
-                                    settings: serverSettings,
-                                }),
-                            }).catch(() => {})
+                        if (user?.id) {
+                            try {
+                                localStorage.setItem(`hulma-settings:${user.id}`, JSON.stringify({
+                                    defaultTemplate: merged.defaultTemplate,
+                                    publicLink: merged.publicLink,
+                                    autoReview: merged.autoReview,
+                                    focus: merged.focus,
+                                    tone: merged.tone,
+                                }))
+                                if (merged.defaultTemplate) {
+                                    localStorage.setItem(`hulma-template:${user.id}`, merged.defaultTemplate)
+                                }
+                            } catch {}
                         }
-
                         return merged
                     })
                 }
@@ -199,14 +191,14 @@ export default function Settings() {
             }
         }
 
-        if (isLoaded) {
+        if (isLoaded && user?.id) {
             fetchServerSettings()
         }
 
         return () => {
             isMounted = false
         }
-    }, [isLoaded, getToken, user, clerkEmail, clerkUsername])
+    }, [isLoaded, getToken, user?.id, clerkEmail, clerkUsername])
 
     const set = (key, value) => {
         setForm((f) => ({ ...f, [key]: value }))
@@ -273,8 +265,18 @@ export default function Settings() {
                 throw new Error(errData?.detail || 'Could not save settings on the server.')
             }
 
-            localStorage.setItem(SETTINGS_KEY, JSON.stringify(form))
-            localStorage.setItem(TEMPLATE_KEY, form.defaultTemplate)
+            if (user?.id) {
+                try {
+                    localStorage.setItem(`hulma-settings:${user.id}`, JSON.stringify({
+                        defaultTemplate: form.defaultTemplate,
+                        publicLink: form.publicLink,
+                        autoReview: form.autoReview,
+                        focus: form.focus,
+                        tone: form.tone,
+                    }))
+                    localStorage.setItem(`hulma-template:${user.id}`, form.defaultTemplate)
+                } catch {}
+            }
             setSaved(true)
         } catch (err) {
             setError(err?.message || 'Could not save settings.')
@@ -340,11 +342,7 @@ export default function Settings() {
                 }
             }
 
-            try {
-                localStorage.removeItem(SETTINGS_KEY)
-                localStorage.removeItem(TEMPLATE_KEY)
-                localStorage.removeItem('hulma-draft')
-            } catch {}
+            clearAuthSession()
 
             if (user && typeof user.delete === 'function') {
                 try {
@@ -365,8 +363,8 @@ export default function Settings() {
         }
     }
 
-    const currentDisplay = (!isPlaceholderUsername(form.username) ? form.username : '') || clerkUsername || 'User'
-    const currentEmail = (!isPlaceholderEmail(form.email) ? form.email : '') || clerkEmail || ''
+    const currentDisplay = clerkUsername || (!isPlaceholderUsername(form.username) ? form.username : '') || 'User'
+    const currentEmail = clerkEmail || (!isPlaceholderEmail(form.email) ? form.email : '') || ''
 
     return (
         <DashboardLayout

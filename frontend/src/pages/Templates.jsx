@@ -112,12 +112,15 @@ const TEMPLATES = [
     },
 ]
 
-function readSaved() {
+function readSaved(userId) {
     try {
-        const direct = localStorage.getItem(STORAGE_KEY)
-        if (direct) return direct
-        const settings = JSON.parse(localStorage.getItem('hulma-settings') || '{}')
-        return settings.defaultTemplate || 'simple'
+        if (userId) {
+            const userDirect = localStorage.getItem(`hulma-template:${userId}`)
+            if (userDirect) return userDirect
+            const userSettings = JSON.parse(localStorage.getItem(`hulma-settings:${userId}`) || '{}')
+            if (userSettings.defaultTemplate) return userSettings.defaultTemplate
+        }
+        return 'simple'
     } catch {
         return 'simple'
     }
@@ -126,9 +129,15 @@ function readSaved() {
 export default function Templates() {
     const navigate = useNavigate()
     const { user } = useUser()
-    const [selected, setSelected] = useState(readSaved)
+    const [selected, setSelected] = useState(() => readSaved(user?.id))
     const [previewOpen, setPreviewOpen] = useState(false)
     const [previewTemplate, setPreviewTemplate] = useState('simple')
+
+    useEffect(() => {
+        if (user?.id) {
+            setSelected(readSaved(user.id))
+        }
+    }, [user?.id])
 
     const current = TEMPLATES.find((t) => t.id === selected)
     const previewTemplateConfig = TEMPLATES.find((t) => t.id === previewTemplate) || TEMPLATES[0]
@@ -138,10 +147,12 @@ export default function Templates() {
 
     const samplePortfolio = useMemo(() => {
         let draft = null
-        try {
-            const raw = localStorage.getItem('hulmaPortfolio')
-            if (raw) draft = JSON.parse(raw)
-        } catch {}
+        if (user?.id) {
+            try {
+                const raw = localStorage.getItem(`hulmaPortfolio:${user.id}`)
+                if (raw) draft = JSON.parse(raw)
+            } catch {}
+        }
 
         const name = draft?.fullName || displayName || 'Alex Rivera'
         const email = draft?.email || emailAddress || 'alex.rivera@example.com'
@@ -218,10 +229,10 @@ export default function Templates() {
 
     const choose = (id) => {
         setSelected(id)
-        try {
-            localStorage.setItem(STORAGE_KEY, id)
-        } catch {
-            return
+        if (user?.id) {
+            try {
+                localStorage.setItem(`hulma-template:${user.id}`, id)
+            } catch {}
         }
     }
 
@@ -232,7 +243,11 @@ export default function Templates() {
 
     const continueToCreate = () => {
         if (!current) return
-        localStorage.setItem(STORAGE_KEY, current.id)
+        if (user?.id) {
+            try {
+                localStorage.setItem(`hulma-template:${user.id}`, current.id)
+            } catch {}
+        }
         navigate(`/portfolio/create?template=${current.id}`)
     }
 

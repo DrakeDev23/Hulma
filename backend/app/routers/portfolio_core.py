@@ -110,13 +110,17 @@ def save_portfolio(
 
     if target_id is not None:
         existing = db.query(Portfolio).filter(Portfolio.id == target_id).first()
-        if existing is not None:
-            if existing.user_id != user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Forbidden: You do not own this portfolio.",
-                )
-            portfolio = existing
+        if existing is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Portfolio not found.",
+            )
+        if existing.user_id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: You do not own this portfolio.",
+            )
+        portfolio = existing
 
     if portfolio is None:
         user_portfolios = (

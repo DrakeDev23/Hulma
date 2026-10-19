@@ -59,6 +59,19 @@ def update_me(
 
     if payload.email is not None and payload.email.strip():
         clean_email = payload.email.strip().lower()
+        # Verify against Clerk claims so no client can spoof another user's email
+        verified_clerk_email = (
+            clerk_claims.get("email")
+            or clerk_claims.get("email_address")
+            or clerk_claims.get("primary_email_address")
+        )
+        if verified_clerk_email and not str(verified_clerk_email).endswith("@clerk.local"):
+            expected_email = str(verified_clerk_email).strip().lower()
+            if clean_email != expected_email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email must match your verified identity from your authentication provider.",
+                )
         if user.email.endswith("@clerk.local"):
             existing = db.query(User).filter(User.email == clean_email, User.id != user.id).first()
             if existing:

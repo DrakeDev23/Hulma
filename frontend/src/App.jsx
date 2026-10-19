@@ -58,6 +58,27 @@ function HomePage() {
   )
 }
 
+import { clearAuthSession } from './utils/session'
+
+function AuthWatcher() {
+  const { user, isLoaded, isSignedIn } = useUser()
+
+  useEffect(() => {
+    if (!isLoaded) return
+    const storedUserId = sessionStorage.getItem('hulma_active_user_id')
+    if (isSignedIn && user?.id) {
+      if (storedUserId && storedUserId !== user.id) {
+        clearAuthSession()
+      }
+      sessionStorage.setItem('hulma_active_user_id', user.id)
+    } else if (!isSignedIn && storedUserId) {
+      clearAuthSession()
+    }
+  }, [isLoaded, isSignedIn, user?.id])
+
+  return null
+}
+
 function UserSync() {
   const { user, isLoaded, isSignedIn } = useUser()
   const { getToken } = useAuth()
@@ -95,13 +116,14 @@ function UserSync() {
           return null
         })
         .then((data) => {
-          if (data && data.settings) {
+          if (data && data.settings && user?.id) {
             try {
-              const current = JSON.parse(localStorage.getItem('hulma-settings') || '{}')
-              const merged = { ...data.settings, ...current }
-              localStorage.setItem('hulma-settings', JSON.stringify(merged))
-              if (data.settings.defaultTemplate && !localStorage.getItem('hulma-template')) {
-                localStorage.setItem('hulma-template', data.settings.defaultTemplate)
+              const userKey = `hulma-settings:${user.id}`
+              const current = JSON.parse(localStorage.getItem(userKey) || '{}')
+              const merged = { ...current, ...data.settings }
+              localStorage.setItem(userKey, JSON.stringify(merged))
+              if (data.settings.defaultTemplate) {
+                localStorage.setItem(`hulma-template:${user.id}`, data.settings.defaultTemplate)
               }
             } catch {}
           }
@@ -126,6 +148,7 @@ function ProtectedRoute({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <AuthWatcher />
       <UserSync />
       <Routes>
         <Route path="/" element={<HomePage />} />

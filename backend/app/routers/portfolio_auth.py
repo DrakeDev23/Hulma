@@ -66,6 +66,7 @@ def get_or_create_user(db: Session, clerk_claims: dict) -> User:
     )
     email = provided_email if (provided_email and "@" in str(provided_email) and not str(provided_email).endswith("@clerk.local")) else f"{clerk_id}@clerk.local"
 
+
     existing_by_email = db.query(User).filter(User.email == email).first()
     if existing_by_email and existing_by_email.clerk_id != clerk_id:
         email = f"{clerk_id}@clerk.local"
@@ -105,12 +106,28 @@ def get_or_create_user(db: Session, clerk_claims: dict) -> User:
         db.rollback()
         user = db.query(User).filter(User.clerk_id == clerk_id).first()
         if user is None:
-            user = db.query(User).filter(User.email == email).first()
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Could not provision user profile",
+            # Username or email collided. Provision with guaranteed unique values for this clerk_id
+            fallback_username = f"user_{secrets.token_hex(6)}"
+            fallback_email = f"{clerk_id}@clerk.local"
+            user = User(
+                clerk_id=clerk_id,
+                email=fallback_email,
+                username=fallback_username,
+                avatar_url=clerk_claims.get("picture") or clerk_claims.get("avatar_url"),
+                is_active=True,
             )
+            db.add(user)
+            try:
+                db.commit()
+                db.refresh(user)
+            except IntegrityError:
+                db.rollback()
+                user = db.query(User).filter(User.clerk_id == clerk_id).first()
+                if user is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Could not provision user profile",
+                    )
 
     return user
 

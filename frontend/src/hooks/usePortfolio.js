@@ -1,14 +1,22 @@
-import { useEffect, useState } from 'react'
-import { useAuth } from '@clerk/react'
+import { useEffect, useState, useRef } from 'react'
+import { useAuth, useUser } from '@clerk/react'
 import { apiUrl } from '../utils/api'
 
 export default function usePortfolio() {
     const { getToken } = useAuth()
+    const { user, isLoaded: isUserLoaded } = useUser()
     const [portfolio, setPortfolio] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
+    const activeUserIdRef = useRef(user?.id)
 
     const refetch = async () => {
+        if (!user?.id) {
+            setPortfolio(null)
+            setLoading(false)
+            return null
+        }
+
         setLoading(true)
         setError(null)
         try {
@@ -25,7 +33,11 @@ export default function usePortfolio() {
             if (data) {
                 const value = Array.isArray(data) ? data : data
                 setPortfolio(value)
-                try { localStorage.setItem('hulmaPortfolio', JSON.stringify(value)) } catch {}
+                try {
+                    if (user?.id) {
+                        localStorage.setItem(`hulmaPortfolio:${user.id}`, JSON.stringify(value))
+                    }
+                } catch {}
             } else {
                 setPortfolio(null)
             }
@@ -40,8 +52,21 @@ export default function usePortfolio() {
     }
 
     useEffect(() => {
-        refetch()
-    }, [getToken])
+        if (!isUserLoaded) return
+
+        if (activeUserIdRef.current !== user?.id) {
+            activeUserIdRef.current = user?.id
+            setPortfolio(null)
+            setError(null)
+        }
+
+        if (user?.id) {
+            refetch()
+        } else {
+            setPortfolio(null)
+            setLoading(false)
+        }
+    }, [isUserLoaded, user?.id, getToken])
 
     return { portfolio, loading, error, refetch }
 }

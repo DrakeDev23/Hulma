@@ -6,6 +6,7 @@ import { FcGoogle } from 'react-icons/fc'
 import { FiEye, FiEyeOff, FiArrowLeft, FiAlertCircle, FiCheckCircle } from 'react-icons/fi'
 import logoImg from '../assets/logo.png'
 import puppetImg from '../assets/puppet.png'
+import { clearAuthSession } from '../utils/session'
 
 const errorText = (err, fallback) =>
   err?.errors?.[0]?.longMessage ||
@@ -47,6 +48,7 @@ export default function LoginPage({ mode = 'login' }) {
     setError('')
     setInfoMessage('')
     setIsGoogleSubmitting(true)
+    clearAuthSession()
 
     try {
       await signIn.authenticateWithRedirect({
@@ -81,6 +83,7 @@ export default function LoginPage({ mode = 'login' }) {
       })
 
       if (result.status === 'complete') {
+        clearAuthSession()
         await setActive({ session: result.createdSessionId })
         navigate('/dashboard')
       } else if (result.status === 'needs_second_factor') {
@@ -95,6 +98,7 @@ export default function LoginPage({ mode = 'login' }) {
           password,
         })
         if (factorResult.status === 'complete') {
+          clearAuthSession()
           await setActive({ session: factorResult.createdSessionId })
           navigate('/dashboard')
         } else {
@@ -142,6 +146,7 @@ export default function LoginPage({ mode = 'login' }) {
       })
 
       if (result.status === 'complete') {
+        clearAuthSession()
         await setActive({ session: result.createdSessionId })
         navigate('/dashboard')
       } else {
@@ -316,7 +321,6 @@ export default function LoginPage({ mode = 'login' }) {
                     value={email}
                     onChange={(e) => {
                       setEmail(e.target.value)
-                      setIsAccountNotFound(false)
                       if (error) setError('')
                     }}
                     placeholder="Email"

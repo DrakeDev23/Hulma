@@ -106,7 +106,6 @@ def get_or_create_user(db: Session, clerk_claims: dict) -> User:
         db.rollback()
         user = db.query(User).filter(User.clerk_id == clerk_id).first()
         if user is None:
-            # Username or email collided. Provision with guaranteed unique values for this clerk_id
             fallback_username = f"user_{secrets.token_hex(6)}"
             fallback_email = f"{clerk_id}@clerk.local"
             user = User(

@@ -1,6 +1,6 @@
 import json
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -15,6 +15,8 @@ class UserUpdate(BaseModel):
     @classmethod
     def validate_settings(cls, v):
         if v is not None:
+            if not isinstance(v, dict):
+                return {}
             if len(v) > 50:
                 raise ValueError("Settings dictionary has too many keys (max 50).")
             try:
@@ -22,6 +24,21 @@ class UserUpdate(BaseModel):
                     raise ValueError("Settings payload exceeds maximum allowed size (20KB).")
             except (TypeError, OverflowError):
                 raise ValueError("Settings must be JSON serializable.")
+            if "tone" in v:
+                tone = v.get("tone")
+                v["tone"] = tone if isinstance(tone, str) and tone in {"gentle", "direct", "balanced"} else "balanced"
+            if "focus" in v:
+                raw_focus = v.get("focus")
+                if isinstance(raw_focus, list):
+                    filtered = []
+                    seen = set()
+                    for f in raw_focus:
+                        if isinstance(f, str) and f in {"template", "layout", "design", "content"} and f not in seen:
+                            seen.add(f)
+                            filtered.append(f)
+                    v["focus"] = filtered if filtered else ["template", "layout", "design", "content"]
+                else:
+                    v["focus"] = ["template", "layout", "design", "content"]
         return v
 
 
@@ -44,27 +61,40 @@ def _is_safe_url(url: Any) -> bool:
     s = url.strip()
     if not s:
         return True
+    if s.startswith("//"):
+        return False
     lower = s.lower()
     if lower.startswith(("javascript:", "data:", "vbscript:", "file:")):
         return False
     return lower.startswith(("http://", "https://", "mailto:", "tel:")) or s.startswith(("/", "#"))
 
 
+URL_FIELD_SUBSTRINGS = (
+    "url", "link", "demo", "repo", "github", "href", "src", "image", "thumbnail"
+)
+
+
+def _validate_urls_recursive(data: Any, path: str = "") -> None:
+    if isinstance(data, dict):
+        for k, val in data.items():
+            key_str = str(k).lower()
+            current_path = f"{path}.{k}" if path else str(k)
+            if any(sub in key_str for sub in URL_FIELD_SUBSTRINGS):
+                if isinstance(val, str) and not _is_safe_url(val):
+                    raise ValueError(f"Unsafe URL scheme detected in field '{current_path}'. Only http/https URLs are allowed.")
+            _validate_urls_recursive(val, current_path)
+    elif isinstance(data, list):
+        for idx, item in enumerate(data):
+            current_path = f"{path}[{idx}]"
+            _validate_urls_recursive(item, current_path)
+
+
 def _validate_project_urls(projects: list[dict[str, Any]]) -> None:
-    for p in projects:
-        if isinstance(p, dict):
-            for k, val in p.items():
-                if any(sub in k.lower() for sub in ("url", "link", "demo", "repo", "github")):
-                    if not _is_safe_url(val):
-                        raise ValueError(f"Unsafe URL scheme detected in project field '{k}'. Only http/https URLs are allowed.")
+    _validate_urls_recursive(projects, "projects")
 
 
 def _validate_section_urls(sections: dict[str, Any]) -> None:
-    social = sections.get("socialLinks")
-    if isinstance(social, dict):
-        for k, val in social.items():
-            if not _is_safe_url(val):
-                raise ValueError(f"Unsafe URL scheme detected in social link '{k}'. Only http/https URLs are allowed.")
+    _validate_urls_recursive(sections, "sections")
 
 
 class PortfolioBase(BaseModel):
@@ -162,28 +192,33 @@ class PortfolioRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+Category = Literal["template", "layout", "design", "content"]
+Priority = Literal["high", "medium", "low"]
+
+
 class ReviewCategory(BaseModel):
-    key: str
-    label: str
-    score: int
-    note: str
+    key: Category
+    label: str = Field(..., max_length=50)
+    score: int = Field(..., ge=0, le=100)
+    note: str = Field(..., max_length=200)
 
 
 class ReviewSuggestion(BaseModel):
-    id: str
-    category: str
-    priority: str
-    title: str
-    text: str
+    id: str = Field(..., max_length=20)
+    category: Category
+    priority: Priority
+    title: str = Field(..., max_length=100)
+    text: str = Field(..., max_length=600)
 
 
 class AiReviewResponse(BaseModel):
-    summary: str
+    summary: str = Field(..., max_length=400)
     score: int
     categories: list[ReviewCategory] = []
-    suggestions: list[Any] = []
+    suggestions: list[ReviewSuggestion] = []
     remaining: Optional[int] = None
     daily_remaining: Optional[int] = None
+    source: Literal["ai", "heuristic"] = "heuristic"
 
 
 class AiReviewStatusResponse(BaseModel):

@@ -35,3 +35,17 @@ CREATE INDEX IF NOT EXISTS idx_portfolios_user_updated ON portfolios (user_id, u
 ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS slug VARCHAR(32);
 ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS review JSONB;
 ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+CREATE TABLE IF NOT EXISTS ai_review_usage (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    window_start TIMESTAMPTZ NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    blocked_attempts INTEGER NOT NULL DEFAULT 0,
+    penalty_until TIMESTAMPTZ,
+    daily_count INTEGER NOT NULL DEFAULT 0,
+    daily_window_start TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_review_usage_user_id ON ai_review_usage (user_id);
+

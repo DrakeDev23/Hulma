@@ -70,8 +70,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if request.url.scheme == "https" or settings.app_env.lower() == "production":
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
-        # User-specific / API caching controls (CRITICAL FOR USER DATA ISOLATION)
-        # Prevent any caching on user endpoints or authenticated responses
         if request.url.path.startswith("/api/"):
             is_unauthenticated_public = (
                 request.url.path.startswith("/api/portfolio/public/")

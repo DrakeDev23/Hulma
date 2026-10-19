@@ -10,30 +10,45 @@ const STORAGE_KEY = 'hulma-template'
 
 function SimplePreview() {
     return (
-        <div className="h-full rounded-lg bg-white p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-                <div className="h-1.5 w-10 rounded bg-slate-300" />
-                <div className="flex gap-1.5">
-                    <div className="h-1.5 w-5 rounded bg-slate-200" />
-                    <div className="h-1.5 w-5 rounded bg-slate-200" />
-                    <div className="h-1.5 w-5 rounded bg-slate-200" />
+        <div className="h-full rounded-lg bg-[#fdfcf9] border border-stone-200 p-3 shadow-xs font-serif flex flex-col justify-between">
+            <div className="flex items-center justify-between border-b border-stone-200/80 pb-1.5">
+                <div className="h-1.5 w-12 rounded-xs bg-stone-800" />
+                <div className="flex gap-2">
+                    <div className="h-1 w-4 rounded-xs bg-stone-400" />
+                    <div className="h-1 w-4 rounded-xs bg-stone-400" />
+                    <div className="h-1 w-4 rounded-xs bg-stone-400" />
                 </div>
             </div>
-            <div className="mt-5 h-3 w-28 rounded bg-slate-800" />
-            <div className="mt-2 h-1.5 w-36 rounded bg-slate-300" />
-            <div className="mt-1.5 h-1.5 w-28 rounded bg-slate-200" />
-            <div className="mt-4 h-px bg-slate-200" />
-            <div className="mt-3 grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                    <div className="h-2 w-12 rounded bg-[#1f6fdc]" />
-                    <div className="h-1.5 w-full rounded bg-slate-200" />
-                    <div className="h-1.5 w-4/5 rounded bg-slate-200" />
+
+            <div className="my-auto max-w-[85%] mx-auto w-full space-y-2 py-1">
+                <div className="h-2.5 w-28 rounded-xs bg-stone-900" />
+                <div className="h-1.5 w-36 rounded-xs bg-stone-500 italic" />
+                <div className="space-y-1 pt-1">
+                    <div className="h-1 w-full rounded-xs bg-stone-300" />
+                    <div className="h-1 w-4/5 rounded-xs bg-stone-300" />
                 </div>
+
+                <div className="h-px bg-stone-200 my-2" />
+
                 <div className="space-y-1.5">
-                    <div className="h-2 w-12 rounded bg-[#1f6fdc]" />
-                    <div className="h-1.5 w-full rounded bg-slate-200" />
-                    <div className="h-1.5 w-4/5 rounded bg-slate-200" />
+                    <div className="flex justify-between items-center">
+                        <div className="h-1.5 w-20 rounded-xs bg-stone-800" />
+                        <div className="h-1 w-6 rounded-xs bg-stone-400" />
+                    </div>
+                    <div className="h-1 w-3/4 rounded-xs bg-stone-300" />
+                    <div className="flex justify-between items-center pt-0.5">
+                        <div className="h-1.5 w-16 rounded-xs bg-stone-800" />
+                        <div className="h-1 w-6 rounded-xs bg-stone-400" />
+                    </div>
                 </div>
+
+                <div className="h-px bg-stone-200 my-2" />
+
+                <div className="h-1 w-5/6 rounded-xs bg-stone-400" />
+            </div>
+
+            <div className="border-t border-stone-200/80 pt-1 text-center">
+                <div className="h-1 w-16 rounded-xs bg-stone-300 mx-auto" />
             </div>
         </div>
     )
@@ -41,27 +56,47 @@ function SimplePreview() {
 
 function ModernPreview() {
     return (
-        <div className="h-full rounded-lg bg-[#eaf1fc] p-3">
-            <div className="rounded-lg bg-linear-to-br from-[#3e90e2] to-[#1b5c9a] p-3">
-                <div className="h-2.5 w-24 rounded bg-white" />
-                <div className="mt-2 h-1.5 w-32 rounded bg-white/60" />
-                <div className="mt-3 h-4 w-14 rounded-md bg-white/90" />
+        <div className="h-full rounded-lg bg-[#f8fafc] border border-slate-200 p-2.5 flex flex-col justify-between">
+            <div className="flex items-center justify-between border-b border-slate-200/80 bg-white/80 px-1 py-1 rounded-md">
+                <div className="flex items-center gap-1">
+                    <div className="h-3 w-3 rounded-md bg-blue-600" />
+                    <div className="h-1.5 w-8 rounded bg-slate-700" />
+                </div>
+                <div className="flex gap-1">
+                    <div className="h-1.5 w-4 rounded bg-slate-400" />
+                    <div className="h-1.5 w-4 rounded bg-slate-400" />
+                </div>
             </div>
-            <div className="mt-2.5 grid grid-cols-3 gap-2">
+
+            <div className="grid grid-cols-5 gap-1.5 my-1.5 items-center">
+                <div className="col-span-3 space-y-1">
+                    <div className="h-1.5 w-12 rounded-full bg-blue-100" />
+                    <div className="h-2.5 w-24 rounded bg-slate-900" />
+                    <div className="h-1 w-20 rounded bg-slate-400" />
+                    <div className="h-2 w-8 rounded bg-blue-600 mt-1" />
+                </div>
+                <div className="col-span-2 rounded-lg border border-slate-200 bg-white p-1.5 shadow-xs">
+                    <div className="aspect-square w-full rounded-md bg-gradient-to-tr from-blue-500 to-indigo-600" />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1 my-1">
                 {[0, 1, 2].map((i) => (
-                    <div key={i} className="rounded-md bg-white p-2 shadow-sm">
-                        <div className="h-3 w-3 rounded bg-[#1f6fdc]" />
-                        <div className="mt-2 h-1.5 w-full rounded bg-slate-200" />
-                        <div className="mt-1 h-1.5 w-2/3 rounded bg-slate-200" />
+                    <div key={i} className="rounded-md border border-slate-200 bg-white p-1 text-center shadow-2xs">
+                        <div className="h-2 w-4 mx-auto rounded bg-blue-600" />
+                        <div className="mt-0.5 h-1 w-6 mx-auto rounded bg-slate-400" />
                     </div>
                 ))}
             </div>
-            <div className="mt-2.5 flex items-center gap-2 rounded-md bg-white p-2 shadow-sm">
-                <div className="h-5 w-5 rounded-full bg-[#dce9fb]" />
-                <div className="flex-1 space-y-1">
-                    <div className="h-1.5 w-3/4 rounded bg-slate-300" />
-                    <div className="h-1.5 w-1/2 rounded bg-slate-200" />
-                </div>
+
+            <div className="grid grid-cols-2 gap-1.5 mt-1">
+                {[0, 1].map((i) => (
+                    <div key={i} className="rounded-md border border-slate-200 bg-white p-1 shadow-2xs">
+                        <div className="h-5 w-full rounded bg-blue-50 border border-blue-100" />
+                        <div className="mt-1 h-1.5 w-12 rounded bg-slate-800" />
+                        <div className="mt-0.5 h-1 w-full rounded bg-slate-300" />
+                    </div>
+                ))}
             </div>
         </div>
     )
@@ -69,15 +104,37 @@ function ModernPreview() {
 
 function CreativePreview() {
     return (
-        <div className="relative h-full overflow-hidden rounded-lg bg-[#14306b]">
-            <div className="absolute -right-5 -top-5 h-24 w-24 rounded-full bg-[#3e90e2]" />
-            <div className="absolute bottom-3 left-4 h-14 w-14 rotate-12 rounded-[40%] bg-orange-400" />
-            <div className="absolute bottom-6 right-10 h-8 w-8 rotate-45 rounded-md bg-emerald-400" />
-            <div className="absolute left-4 top-3 text-4xl font-black leading-none text-white">Aa</div>
-            <div className="absolute left-4 top-16 h-1.5 w-20 rounded bg-white/70" />
-            <div className="absolute left-4 top-20 h-1.5 w-14 rounded bg-white/40" />
-            <div className="absolute right-4 top-4 h-10 w-14 -rotate-6 rounded-md bg-white shadow-lg" />
-            <div className="absolute right-8 top-9 h-10 w-14 rotate-6 rounded-md bg-[#dce9fb] shadow-lg" />
+        <div className="relative h-full overflow-hidden rounded-lg bg-[#08070e] border border-white/10 p-2.5 flex flex-col justify-between">
+            <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-purple-600/30 blur-lg" />
+            <div className="absolute -left-6 bottom-4 h-16 w-16 rounded-full bg-pink-600/25 blur-lg" />
+
+            <div className="relative z-10 mx-auto w-max rounded-full border border-white/20 bg-white/10 px-2 py-0.5 flex gap-1">
+                <div className="h-1 w-3 rounded-full bg-pink-400" />
+                <div className="h-1 w-3 rounded-full bg-white/60" />
+                <div className="h-1 w-3 rounded-full bg-white/60" />
+            </div>
+
+            <div className="relative z-10 my-1 space-y-1">
+                <div className="h-1 w-14 rounded-full bg-orange-400/80 -rotate-2" />
+                <div className="text-3xl font-black leading-none tracking-tighter text-white">
+                    AR
+                </div>
+                <div className="h-1 w-24 rounded bg-white/60" />
+            </div>
+
+            <div className="relative z-10 -mx-2.5 border-y border-white/15 bg-white/5 py-0.5 px-2 flex justify-between">
+                <div className="h-1 w-8 rounded-full bg-pink-400" />
+                <div className="h-1 w-8 rounded-full bg-purple-400" />
+                <div className="h-1 w-8 rounded-full bg-orange-400" />
+            </div>
+
+            <div className="relative z-10 flex items-center justify-between border-b border-white/10 py-1">
+                <div>
+                    <div className="text-sm font-black text-stroke-outline leading-none">01</div>
+                    <div className="h-1 w-12 rounded bg-white/80 mt-0.5" />
+                </div>
+                <div className="h-3.5 w-3.5 rounded-full border border-pink-500 bg-pink-500/20" />
+            </div>
         </div>
     )
 }
@@ -391,7 +448,6 @@ export default function Templates() {
                 </div>
             </div>
 
-            {/* Template Live Preview Modal */}
             {previewOpen && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-2 sm:p-6 backdrop-blur-xs"
@@ -404,7 +460,6 @@ export default function Templates() {
                         className="flex h-full max-h-[96vh] sm:max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {/* Modal Header */}
                         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
                             <div className="flex items-center gap-3">
                                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-[#1f6fdc]">
@@ -425,7 +480,6 @@ export default function Templates() {
                                 </div>
                             </div>
 
-                            {/* Template Switcher Tabs */}
                             <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1">
                                 {TEMPLATES.map((t) => (
                                     <button
@@ -443,7 +497,6 @@ export default function Templates() {
                                 ))}
                             </div>
 
-                            {/* Action Buttons */}
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
@@ -467,7 +520,6 @@ export default function Templates() {
                             </div>
                         </div>
 
-                        {/* Modal Body: Scrollable PortfolioSite */}
                         <div className="min-h-0 flex-1 overflow-y-auto">
                             <PortfolioSite
                                 portfolio={samplePortfolio}

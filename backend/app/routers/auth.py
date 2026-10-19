@@ -59,7 +59,6 @@ def update_me(
 
     if payload.email is not None and payload.email.strip():
         clean_email = payload.email.strip().lower()
-        # Verify against Clerk claims so no client can spoof another user's email
         verified_clerk_email = (
             clerk_claims.get("email")
             or clerk_claims.get("email_address")

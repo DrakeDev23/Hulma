@@ -383,9 +383,7 @@ export default function Settings() {
                     <h3 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[28px]">Settings</h3>
                     <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">Update your profile, portfolio defaults and AI review preferences</p>
                 </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#1f6fdc] bg-white px-3 py-1.5 text-xs font-medium text-[#1f6fdc]">
-                    <Clock size={13} /> {saved ? 'All changes saved' : 'Unsaved changes'}
-                </span>
+                
             </div>
 
             <form onSubmit={onSave} className="mt-4 grid gap-4 lg:grid-cols-2">

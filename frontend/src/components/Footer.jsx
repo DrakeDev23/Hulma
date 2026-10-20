@@ -3,11 +3,6 @@ import logoImg from '../assets/logo.png'
 
 const footerLinks = {
   create: ['Portfolio Generator', 'Portfolio Templates', 'AI Review', 'Customize Portfolio'],
-  resources: [
-    { label: 'About', href: '#about' },
-    { label: 'Help', href: '#help' },
-    { label: 'FAQ', href: '#faq' },
-  ],
 }
 
 const iconClass = 'h-4 w-4'
@@ -94,21 +89,7 @@ export default function Footer() {
           </ul>
         </div>
 
-        <div className="lg:col-span-2">
-          <h3 className="text-sm font-semibold text-slate-800 mb-3 sm:mb-4">Resources</h3>
-          <ul className="space-y-2.5 text-xs sm:text-sm text-slate-600">
-            {footerLinks.resources.map((link) => (
-              <li key={link.label}>
-                <a
-                  href={link.href}
-                  className="hover:text-blue-600 cursor-pointer transition-colors"
-                >
-                  {link.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
+    
 
         <div className="lg:col-span-3">
           <h3 className="text-sm font-semibold text-slate-800 mb-3 sm:mb-4">Contact Information</h3>

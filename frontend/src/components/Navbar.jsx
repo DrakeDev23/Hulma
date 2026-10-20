@@ -6,8 +6,8 @@ const navItems = [
   { label: 'Templates', to: '/login' },
   { label: 'AI Review', to: '/login' },
   { label: 'About', href: '#about' },
-  { label: 'Help', href: '#help' },
   { label: 'FAQ', href: '#faq' },
+  { label: 'Help', href: '#help' },
 ]
 
 export default function Navbar() {

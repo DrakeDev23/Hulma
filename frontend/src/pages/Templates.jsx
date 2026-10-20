@@ -421,7 +421,7 @@ export default function Templates() {
             </div>
 
             <div className="mt-4 flex flex-col items-start justify-between gap-3 rounded-2xl bg-linear-to-br from-[#3e90e2] via-[#2272c4] to-[#1b5c9a] p-4 text-white shadow-md sm:flex-row sm:items-center sm:p-5">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                     <strong className="block text-base font-semibold sm:text-lg">
                         {current ? `${current.num} – ${current.name} selected` : 'No template selected yet'}
                     </strong>
@@ -429,14 +429,7 @@ export default function Templates() {
                         {current ? current.text : 'Pick one of the three templates above to continue.'}
                     </p>
                 </div>
-                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-                    <button
-                        type="button"
-                        onClick={() => openPreview(selected || 'simple')}
-                        className="inline-flex w-full sm:w-auto justify-center shrink-0 items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-medium text-white transition duration-200 hover:bg-white/20 active:scale-95"
-                    >
-                        <Eye size={16} /> Preview looks
-                    </button>
+                <div className="w-full shrink-0 sm:w-auto">
                     <button
                         type="button"
                         disabled={!current}

@@ -107,34 +107,47 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                 }`}
             >
                 <div className="flex h-full w-full flex-col overflow-y-auto overflow-x-hidden">
-                    <div className="flex items-center justify-between px-3.5 pt-4 sm:px-4 sm:pt-5">
-                        <div className="flex min-w-0 items-center gap-2 overflow-hidden text-lg font-semibold sm:text-xl">
+                    <div className={`flex items-center ${open ? 'justify-between px-3.5 sm:px-4' : 'justify-center px-2'} pt-4 sm:pt-5`}>
+                        {open ? (
+                            <>
+                                <div className="flex min-w-0 items-center gap-2 overflow-hidden text-lg font-semibold sm:text-xl">
+                                    <button
+                                        type="button"
+                                        aria-label="Hulma logo"
+                                        onClick={() => setOpen(false)}
+                                        className="shrink-0 rounded-lg p-1 transition-transform duration-200 hover:scale-105 active:scale-95"
+                                    >
+                                        <img
+                                            src={logoImg}
+                                            alt="Hulma logo"
+                                            className="h-8 w-8 object-contain"
+                                        />
+                                    </button>
+                                    <span className="whitespace-nowrap">
+                                        Hulma
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    title="Collapse sidebar"
+                                    aria-label="Collapse sidebar"
+                                    onClick={() => setOpen(false)}
+                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-95"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </>
+                        ) : (
                             <button
                                 type="button"
-                                aria-label={open ? 'Hulma logo' : 'Open menu'}
-                                onClick={() => setOpen((prev) => !prev)}
-                                className="shrink-0 rounded-lg p-1 transition-transform duration-200 hover:scale-105 active:scale-95"
+                                title="Expand sidebar"
+                                aria-label="Expand sidebar"
+                                onClick={() => setOpen(true)}
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white transition-all duration-200 hover:bg-white/15 active:scale-95"
                             >
-                                <img
-                                    key={open ? 'open' : 'closed'}
-                                    src={logoImg}
-                                    alt="Hulma logo"
-                                    className="h-8 w-8 object-contain"
-                                    style={!open ? { animation: 'hulma-pop 0.5s ease-out' } : undefined}
-                                />
+                                <Menu size={22} />
                             </button>
-                            <span className={`whitespace-nowrap transition-opacity duration-200 ${open ? 'opacity-100' : 'md:opacity-0'}`}>
-                                Hulma
-                            </span>
-                        </div>
-                        <button
-                            type="button"
-                            aria-label={open ? 'Collapse sidebar' : 'Expand sidebar'}
-                            onClick={() => setOpen((prev) => !prev)}
-                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-95"
-                        >
-                            <X size={20} className={open ? 'block' : 'hidden'} />
-                        </button>
+                        )}
                     </div>
 
                     <nav className="mt-6 flex flex-col gap-1.5 px-2.5 sm:mt-8 sm:px-3 lg:mt-10">
@@ -145,16 +158,23 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                                     key={path}
                                     onClick={() => goTo(path)}
                                     title={label}
-                                    className={`group flex w-full items-center gap-2.5 overflow-hidden rounded-xl px-2.5 py-2.5 text-left text-sm font-medium transition-all duration-200 ${
+                                    aria-label={label}
+                                    className={`group flex w-full items-center ${
+                                        open ? 'gap-2.5 px-2.5 text-left' : 'justify-center px-0'
+                                    } overflow-hidden rounded-xl py-2.5 text-sm font-medium transition-all duration-200 ${
                                         active
                                             ? 'bg-white/20 text-white shadow-xs font-semibold'
                                             : 'text-white/85 hover:bg-white/10 hover:text-white'
                                     }`}
                                 >
-                                    <Icon size={19} strokeWidth={active ? 2.2 : 1.75} className="shrink-0 transition-transform duration-200 group-hover:scale-110" />
+                                    <Icon
+                                        size={19}
+                                        strokeWidth={active ? 2.2 : 1.75}
+                                        className="shrink-0 transition-transform duration-200 group-hover:scale-110"
+                                    />
                                     <span
                                         className={`whitespace-nowrap transition-opacity duration-200 ${
-                                            open ? 'opacity-100' : 'md:opacity-0'
+                                            open ? 'opacity-100' : 'hidden'
                                         }`}
                                     >
                                         {label}
@@ -164,15 +184,18 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                         })}
                     </nav>
 
-                    <div className="mt-6 px-3.5 sm:mt-8 sm:px-4 lg:mt-10">
-                        <div className="mb-3 h-px w-full max-w-40 bg-white/20" />
+                    <div className={`mt-6 ${open ? 'px-3.5 sm:px-4' : 'px-2.5'} sm:mt-8 lg:mt-10`}>
+                        <div className={`mb-3 h-px w-full ${open ? 'max-w-40' : 'max-w-full'} bg-white/20`} />
                         <button
                             onClick={handleLogout}
                             title="Log out"
-                            className="group flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-white/80 transition-all duration-200 hover:bg-white/10 hover:text-white"
+                            aria-label="Log out"
+                            className={`group flex w-full items-center ${
+                                open ? 'gap-2.5 px-2.5 text-left' : 'justify-center px-0'
+                            } rounded-xl py-2 text-sm text-white/80 transition-all duration-200 hover:bg-white/10 hover:text-white`}
                         >
                             <LogOut size={19} strokeWidth={1.75} className="shrink-0 transition-transform duration-200 group-hover:scale-110" />
-                            <span className={`whitespace-nowrap transition-opacity duration-200 ${open ? 'opacity-100' : 'md:opacity-0'}`}>
+                            <span className={`whitespace-nowrap transition-opacity duration-200 ${open ? 'opacity-100' : 'hidden'}`}>
                                 Log out
                             </span>
                         </button>
@@ -202,8 +225,11 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                     <button
                         type="button"
                         aria-label="Open menu"
+                        title="Open menu"
                         onClick={() => setOpen(true)}
-                        className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-xs transition hover:border-[#1f6fdc]/30 hover:bg-blue-50/50 hover:text-[#1f6fdc] active:scale-95 md:hidden"
+                        className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-xs transition hover:border-[#1f6fdc]/30 hover:bg-blue-50/50 hover:text-[#1f6fdc] active:scale-95 ${
+                            open ? 'md:hidden' : 'md:inline-flex'
+                        }`}
                     >
                         <Menu size={20} />
                     </button>

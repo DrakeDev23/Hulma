@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/react'
-import { ArrowRight, Save, Share2, Sparkles, Check, RefreshCw } from 'lucide-react'
+import { ArrowRight, Save, Share2, Sparkles, RefreshCw, Eye, CheckCircle2, AlertCircle, X } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import PortfolioModal from '../components/PortfolioModal'
 import ShareLink, { buildShareUrl, getShareSlug } from '../components/ShareLink'
 import { resolveDisplayName } from '../utils/portfolioUtils'
 import { apiUrl } from '../utils/api'
@@ -153,7 +154,9 @@ function buildPortfolioPayload(form, user, emailAddress, templateId) {
     }
 }
 
-const inputClass = 'rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:border-[#1f6fdc] focus:bg-white'
+const inputBaseClass = 'rounded-xl border bg-slate-50 px-3 py-2.5 text-sm outline-none transition focus:bg-white'
+const getFieldClass = (hasError) =>
+    `${inputBaseClass} ${hasError ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-slate-200 focus:border-[#1f6fdc]'}`
 const labelClass = 'flex flex-col gap-1.5 text-sm font-medium text-slate-700'
 
 export default function CreatePortfolio() {
@@ -224,6 +227,29 @@ export default function CreatePortfolio() {
     const [notice, setNotice] = useState(() => (savedDraft?.form && savedDraft.version === 1 ? 'Draft restored.' : ''))
     const [loadedTemplate, setLoadedTemplate] = useState('')
     const [slug, setSlug] = useState('')
+    const [errors, setErrors] = useState({})
+    const [previewOpen, setPreviewOpen] = useState(false)
+    const [toast, setToast] = useState(null)
+    const toastTimerRef = useRef(null)
+
+    const showToast = (message, type = 'success') => {
+        if (toastTimerRef.current) {
+            clearTimeout(toastTimerRef.current)
+        }
+        const id = Date.now()
+        setToast({ message, type, id })
+        toastTimerRef.current = setTimeout(() => {
+            setToast((current) => (current?.id === id ? null : current))
+        }, 4000)
+    }
+
+    useEffect(() => {
+        return () => {
+            if (toastTimerRef.current) {
+                clearTimeout(toastTimerRef.current)
+            }
+        }
+    }, [])
 
     const initialLoadDoneRef = useRef(false)
 
@@ -493,6 +519,83 @@ export default function CreatePortfolio() {
         isDirtyRef.current = true
         setIsDirty(true)
         setForm((current) => ({ ...current, [field]: value }))
+        if (errors[field]) {
+            setErrors((prev) => {
+                const next = { ...prev }
+                delete next[field]
+                return next
+            })
+        }
+    }
+
+    const validateForm = () => {
+        const newErrors = {}
+
+        if (!form.title || !form.title.trim()) {
+            newErrors.title = 'Portfolio title is required.'
+        }
+
+        if (!form.fullName || !form.fullName.trim()) {
+            newErrors.fullName = 'Full name is required.'
+        }
+
+        const hasProfilePic = Boolean(
+            (form.profilePicture && form.profilePicture.trim()) ||
+            (selectedImageName && selectedImageName.trim())
+        )
+        if (!hasProfilePic) {
+            newErrors.profilePicture = 'Profile picture is required.'
+        }
+
+        const emailTrimmed = (form.email || '').trim()
+        if (!emailTrimmed) {
+            newErrors.email = 'Email is required.'
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
+            newErrors.email = 'Please enter a valid email address.'
+        }
+
+        const contactTrimmed = (form.contactNumber || '').trim()
+        if (!contactTrimmed) {
+            newErrors.contactNumber = 'Contact number is required.'
+        } else {
+            const allowedChars = /^[+\d\s\-()]+$/
+            const digitsOnly = contactTrimmed.replace(/\D/g, '')
+            if (!allowedChars.test(contactTrimmed)) {
+                newErrors.contactNumber = 'Contact number can only contain digits, +, spaces, and dashes.'
+            } else if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+                newErrors.contactNumber = 'Please enter a valid contact number (7-15 digits).'
+            }
+        }
+
+        if (!form.address || !form.address.trim()) {
+            newErrors.address = 'Address is required.'
+        }
+
+        if (!form.aboutMe || !form.aboutMe.trim()) {
+            newErrors.aboutMe = 'About Me is required.'
+        }
+
+        if (!form.education || !form.education.trim()) {
+            newErrors.education = 'Educational background is required.'
+        }
+
+        if (!form.skills || !form.skills.trim()) {
+            newErrors.skills = 'Skills are required.'
+        }
+
+        if (!form.projects || !form.projects.trim()) {
+            newErrors.projects = 'Projects are required.'
+        }
+
+        if (!form.workExperience || !form.workExperience.trim()) {
+            newErrors.workExperience = 'Work experience is required.'
+        }
+
+        if (!form.socialLinks || !form.socialLinks.trim()) {
+            newErrors.socialLinks = 'Social media or website links are required.'
+        }
+
+        return newErrors
     }
 
     const previewPortfolio = useMemo(
@@ -583,6 +686,7 @@ export default function CreatePortfolio() {
             setSelectedImageName('')
             setPortfolioId(null)
             setSlug('')
+            setErrors({})
             isDirtyRef.current = false
             setIsDirty(false)
             removeDraft(userId)
@@ -621,15 +725,45 @@ export default function CreatePortfolio() {
         }
     }
 
-    const handleSubmit = async () => {
+    const handleSaveClick = async () => {
+        if (isSaving) return
+
+        const validationErrors = validateForm()
+        if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors)
+            showToast('Please fix all required fields before saving.', 'error')
+
+            const fieldOrder = [
+                'title',
+                'fullName',
+                'profilePicture',
+                'email',
+                'contactNumber',
+                'address',
+                'aboutMe',
+                'education',
+                'skills',
+                'projects',
+                'workExperience',
+                'socialLinks',
+            ]
+            const firstInvalid = fieldOrder.find((key) => validationErrors[key])
+            if (firstInvalid) {
+                const el = document.getElementById(`field-${firstInvalid}`)
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    el.focus()
+                }
+            }
+            return
+        }
+
+        setErrors({})
         const saved = await handleSave()
         if (saved) {
-            const shareSlug = getShareSlug(saved) || slug
-            if (shareSlug) {
-                navigate(`/p/${shareSlug}`)
-            } else {
-                navigate('/portfolio/live')
-            }
+            showToast('Portfolio saved successfully.', 'success')
+        } else {
+            showToast('Failed to save portfolio. Please try again.', 'error')
         }
     }
 
@@ -649,11 +783,11 @@ export default function CreatePortfolio() {
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                     <button
                         type="button"
-                        onClick={handleSubmit}
+                        onClick={handleSaveClick}
                         disabled={isSaving}
                         className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-800 transition duration-200 hover:-translate-y-0.5 hover:border-[#1f6fdc] hover:text-[#1f6fdc] disabled:cursor-not-allowed disabled:opacity-60 sm:flex-initial"
                     >
-                        <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
+                        <Save size={16} className={isSaving ? 'animate-spin' : ''} /> {isSaving ? 'Saving...' : 'Save'}
                     </button>
                     <button
                         type="button"
@@ -702,20 +836,56 @@ export default function CreatePortfolio() {
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <label className={labelClass}>
-                            Portfolio title
-                            <input value={form.title} onChange={(e) => updateField('title', e.target.value)} placeholder="My Portfolio" className={inputClass} />
+                        <label htmlFor="field-title" className={labelClass}>
+                            <span>
+                                Portfolio title <span className="text-red-500 font-bold">*</span>
+                            </span>
+                            <input
+                                id="field-title"
+                                name="title"
+                                value={form.title}
+                                onChange={(e) => updateField('title', e.target.value)}
+                                placeholder="My Portfolio"
+                                aria-invalid={Boolean(errors.title)}
+                                aria-describedby={errors.title ? 'error-title' : undefined}
+                                className={getFieldClass(Boolean(errors.title))}
+                            />
+                            {errors.title && (
+                                <span id="error-title" className="mt-1 text-xs font-medium text-red-600">
+                                    {errors.title}
+                                </span>
+                            )}
                         </label>
-                        <label className={labelClass}>
-                            Full Name
-                            <input value={form.fullName} onChange={(e) => updateField('fullName', e.target.value)} placeholder="Jane Doe" className={inputClass} />
+                        <label htmlFor="field-fullName" className={labelClass}>
+                            <span>
+                                Full Name <span className="text-red-500 font-bold">*</span>
+                            </span>
+                            <input
+                                id="field-fullName"
+                                name="fullName"
+                                value={form.fullName}
+                                onChange={(e) => updateField('fullName', e.target.value)}
+                                placeholder="Jane Doe"
+                                aria-invalid={Boolean(errors.fullName)}
+                                aria-describedby={errors.fullName ? 'error-fullName' : undefined}
+                                className={getFieldClass(Boolean(errors.fullName))}
+                            />
+                            {errors.fullName && (
+                                <span id="error-fullName" className="mt-1 text-xs font-medium text-red-600">
+                                    {errors.fullName}
+                                </span>
+                            )}
                         </label>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <label className={labelClass}>
-                            Profile Picture
+                        <label htmlFor="field-profilePicture" className={labelClass}>
+                            <span>
+                                Profile Picture <span className="text-red-500 font-bold">*</span>
+                            </span>
                             <input
+                                id="field-profilePicture"
+                                name="profilePicture"
                                 type="file"
                                 accept="image/jpeg,image/png,image/webp"
                                 onChange={async (event) => {
@@ -726,6 +896,13 @@ export default function CreatePortfolio() {
                                     }
 
                                     setSelectedImageName(file.name.split(/[\\/]/).pop() || 'image')
+                                    if (errors.profilePicture) {
+                                        setErrors((prev) => {
+                                            const next = { ...prev }
+                                            delete next.profilePicture
+                                            return next
+                                        })
+                                    }
 
                                     try {
                                         const uploadedUrl = await uploadProfilePicture(file)
@@ -738,94 +915,216 @@ export default function CreatePortfolio() {
                                         setNotice(error.message || 'Please choose a valid image file.')
                                     }
                                 }}
-                                className={inputClass}
+                                aria-invalid={Boolean(errors.profilePicture)}
+                                aria-describedby={errors.profilePicture ? 'error-profilePicture' : undefined}
+                                className={getFieldClass(Boolean(errors.profilePicture))}
                             />
                             {selectedImageName ? (
                                 <span className="mt-1 text-[11px] font-medium text-slate-500">Selected file: {selectedImageName}</span>
                             ) : (
                                 <span className="mt-1 text-[11px] text-slate-400">No file selected</span>
                             )}
+                            {errors.profilePicture && (
+                                <span id="error-profilePicture" className="mt-1 text-xs font-medium text-red-600">
+                                    {errors.profilePicture}
+                                </span>
+                            )}
                         </label>
-                        <label className={labelClass}>
-                            Email
-                            <input value={form.email} onChange={(e) => updateField('email', e.target.value)} placeholder="you@example.com" className={inputClass} />
+                        <label htmlFor="field-email" className={labelClass}>
+                            <span>
+                                Email <span className="text-red-500 font-bold">*</span>
+                            </span>
+                            <input
+                                id="field-email"
+                                name="email"
+                                type="email"
+                                value={form.email}
+                                onChange={(e) => updateField('email', e.target.value)}
+                                placeholder="you@example.com"
+                                aria-invalid={Boolean(errors.email)}
+                                aria-describedby={errors.email ? 'error-email' : undefined}
+                                className={getFieldClass(Boolean(errors.email))}
+                            />
+                            {errors.email && (
+                                <span id="error-email" className="mt-1 text-xs font-medium text-red-600">
+                                    {errors.email}
+                                </span>
+                            )}
                         </label>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <label className={labelClass}>
-                            Contact Number
-                            <input value={form.contactNumber} onChange={(e) => updateField('contactNumber', e.target.value)} placeholder="+1 555 123 4567" className={inputClass} />
+                        <label htmlFor="field-contactNumber" className={labelClass}>
+                            <span>
+                                Contact Number <span className="text-red-500 font-bold">*</span>
+                            </span>
+                            <input
+                                id="field-contactNumber"
+                                name="contactNumber"
+                                value={form.contactNumber}
+                                onChange={(e) => updateField('contactNumber', e.target.value)}
+                                placeholder="+1 555 123 4567"
+                                aria-invalid={Boolean(errors.contactNumber)}
+                                aria-describedby={errors.contactNumber ? 'error-contactNumber' : undefined}
+                                className={getFieldClass(Boolean(errors.contactNumber))}
+                            />
+                            {errors.contactNumber && (
+                                <span id="error-contactNumber" className="mt-1 text-xs font-medium text-red-600">
+                                    {errors.contactNumber}
+                                </span>
+                            )}
                         </label>
-                        <label className={labelClass}>
-                            Address
-                            <input value={form.address} onChange={(e) => updateField('address', e.target.value)} placeholder="Lagos, Nigeria" className={inputClass} />
+                        <label htmlFor="field-address" className={labelClass}>
+                            <span>
+                                Address <span className="text-red-500 font-bold">*</span>
+                            </span>
+                            <input
+                                id="field-address"
+                                name="address"
+                                value={form.address}
+                                onChange={(e) => updateField('address', e.target.value)}
+                                placeholder="Lagos, Nigeria"
+                                aria-invalid={Boolean(errors.address)}
+                                aria-describedby={errors.address ? 'error-address' : undefined}
+                                className={getFieldClass(Boolean(errors.address))}
+                            />
+                            {errors.address && (
+                                <span id="error-address" className="mt-1 text-xs font-medium text-red-600">
+                                    {errors.address}
+                                </span>
+                            )}
                         </label>
                     </div>
 
-                    <label className={labelClass}>
-                        About Me
+                    <label htmlFor="field-aboutMe" className={labelClass}>
+                        <span>
+                            About Me <span className="text-red-500 font-bold">*</span>
+                        </span>
                         <textarea
+                            id="field-aboutMe"
+                            name="aboutMe"
                             value={form.aboutMe}
                             onChange={(e) => updateField('aboutMe', e.target.value)}
                             rows={4}
                             placeholder="I design and build digital experiences that feel simple, useful, and memorable."
-                            className={inputClass}
+                            aria-invalid={Boolean(errors.aboutMe)}
+                            aria-describedby={errors.aboutMe ? 'error-aboutMe' : undefined}
+                            className={getFieldClass(Boolean(errors.aboutMe))}
                         />
+                        {errors.aboutMe && (
+                            <span id="error-aboutMe" className="mt-1 text-xs font-medium text-red-600">
+                                {errors.aboutMe}
+                            </span>
+                        )}
                     </label>
 
-                    <label className={labelClass}>
-                        Educational Background (one entry per line)
+                    <label htmlFor="field-education" className={labelClass}>
+                        <span>
+                            Educational Background (one entry per line) <span className="text-red-500 font-bold">*</span>
+                        </span>
                         <textarea
+                            id="field-education"
+                            name="education"
                             value={form.education}
                             onChange={(e) => updateField('education', e.target.value)}
                             rows={3}
                             placeholder={'B.Sc. Computer Science - University of Lagos\n2020 - 2024'}
-                            className={inputClass}
+                            aria-invalid={Boolean(errors.education)}
+                            aria-describedby={errors.education ? 'error-education' : undefined}
+                            className={getFieldClass(Boolean(errors.education))}
                         />
+                        {errors.education && (
+                            <span id="error-education" className="mt-1 text-xs font-medium text-red-600">
+                                {errors.education}
+                            </span>
+                        )}
                     </label>
 
-                    <label className={labelClass}>
-                        Skills (separated by commas)
+                    <label htmlFor="field-skills" className={labelClass}>
+                        <span>
+                            Skills (separated by commas) <span className="text-red-500 font-bold">*</span>
+                        </span>
                         <input
+                            id="field-skills"
+                            name="skills"
                             value={form.skills}
                             onChange={(e) => updateField('skills', e.target.value)}
                             placeholder="Product design, UX research, React, Product strategy"
-                            className={inputClass}
+                            aria-invalid={Boolean(errors.skills)}
+                            aria-describedby={errors.skills ? 'error-skills' : undefined}
+                            className={getFieldClass(Boolean(errors.skills))}
                         />
+                        {errors.skills && (
+                            <span id="error-skills" className="mt-1 text-xs font-medium text-red-600">
+                                {errors.skills}
+                            </span>
+                        )}
                     </label>
 
-                    <label className={labelClass}>
-                        Projects (Name: description, one per line)
+                    <label htmlFor="field-projects" className={labelClass}>
+                        <span>
+                            Projects (Name: description, one per line) <span className="text-red-500 font-bold">*</span>
+                        </span>
                         <textarea
+                            id="field-projects"
+                            name="projects"
                             value={form.projects}
                             onChange={(e) => updateField('projects', e.target.value)}
                             rows={4}
                             placeholder={'Hulma redesign: Rebuilt the portfolio experience across landing pages and onboarding flows.\nGrowth dashboard: Built analytics views for product teams.'}
-                            className={inputClass}
+                            aria-invalid={Boolean(errors.projects)}
+                            aria-describedby={errors.projects ? 'error-projects' : undefined}
+                            className={getFieldClass(Boolean(errors.projects))}
                         />
+                        {errors.projects && (
+                            <span id="error-projects" className="mt-1 text-xs font-medium text-red-600">
+                                {errors.projects}
+                            </span>
+                        )}
                     </label>
 
-                    <label className={labelClass}>
-                        Work Experience (one entry per line)
+                    <label htmlFor="field-workExperience" className={labelClass}>
+                        <span>
+                            Work Experience (one entry per line) <span className="text-red-500 font-bold">*</span>
+                        </span>
                         <textarea
+                            id="field-workExperience"
+                            name="workExperience"
                             value={form.workExperience}
                             onChange={(e) => updateField('workExperience', e.target.value)}
                             rows={4}
                             placeholder={'Product Designer - Pixel Labs\n2022 - Present\nBuilt user flows, improved conversion, and supported design systems.'}
-                            className={inputClass}
+                            aria-invalid={Boolean(errors.workExperience)}
+                            aria-describedby={errors.workExperience ? 'error-workExperience' : undefined}
+                            className={getFieldClass(Boolean(errors.workExperience))}
                         />
+                        {errors.workExperience && (
+                            <span id="error-workExperience" className="mt-1 text-xs font-medium text-red-600">
+                                {errors.workExperience}
+                            </span>
+                        )}
                     </label>
 
-                    <label className={labelClass}>
-                        Social Media / Website Links (Label: url, one per line)
+                    <label htmlFor="field-socialLinks" className={labelClass}>
+                        <span>
+                            Social Media / Website Links (Label: url, one per line) <span className="text-red-500 font-bold">*</span>
+                        </span>
                         <textarea
+                            id="field-socialLinks"
+                            name="socialLinks"
                             value={form.socialLinks}
                             onChange={(e) => updateField('socialLinks', e.target.value)}
                             rows={3}
                             placeholder={'LinkedIn: https://linkedin.com/in/janedoe\nGitHub: https://github.com/janedoe\nPortfolio: https://janedoe.dev'}
-                            className={inputClass}
+                            aria-invalid={Boolean(errors.socialLinks)}
+                            aria-describedby={errors.socialLinks ? 'error-socialLinks' : undefined}
+                            className={getFieldClass(Boolean(errors.socialLinks))}
                         />
+                        {errors.socialLinks && (
+                            <span id="error-socialLinks" className="mt-1 text-xs font-medium text-red-600">
+                                {errors.socialLinks}
+                            </span>
+                        )}
                     </label>
                 </div>
 
@@ -915,11 +1214,10 @@ export default function CreatePortfolio() {
                     <div className="space-y-2">
                         <button
                             type="button"
-                            onClick={handleSubmit}
-                            disabled={isSaving || isCheckingDraft}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1b64dc] px-4 py-3 text-sm font-medium text-white shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => setPreviewOpen(true)}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1b64dc] px-4 py-3 text-sm font-medium text-white shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95"
                         >
-                            {isSaving ? 'Saving...' : 'Save portfolio'} <Check size={16} />
+                            Preview <Eye size={16} />
                         </button>
                     </div>
 
@@ -930,6 +1228,37 @@ export default function CreatePortfolio() {
                     </div>
                 </aside>
             </section>
+
+            <PortfolioModal
+                portfolio={previewPortfolio}
+                open={previewOpen}
+                onClose={() => setPreviewOpen(false)}
+            />
+
+            {toast && (
+                <div
+                    role={toast.type === 'error' ? 'alert' : 'status'}
+                    aria-live="polite"
+                    className="fixed bottom-5 right-5 z-50 flex max-w-sm items-center gap-3 rounded-2xl bg-white p-4 shadow-xl ring-1 ring-black/5 animate-in fade-in slide-in-from-bottom-3 duration-300 sm:bottom-6 sm:right-6"
+                >
+                    <div
+                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${
+                            toast.type === 'error' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                        }`}
+                    >
+                        {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+                    </div>
+                    <p className="min-w-0 flex-1 text-sm font-medium text-slate-800 break-words">{toast.message}</p>
+                    <button
+                        type="button"
+                        onClick={() => setToast(null)}
+                        aria-label="Dismiss notification"
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 active:scale-95 transition"
+                    >
+                        <X size={15} />
+                    </button>
+                </div>
+            )}
         </DashboardLayout>
     )
 }

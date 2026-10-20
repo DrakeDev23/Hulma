@@ -102,8 +102,8 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
             )}
 
             <aside
-                className={`fixed left-0 top-0 z-50 h-screen w-64 overflow-hidden bg-[#1f6fdc] text-white shadow-xl transition-[width,translate,transform,visibility] duration-300 ease-in-out md:sticky md:z-20 md:shrink-0 md:self-start md:shadow-none ${
-                    open ? 'translate-x-0 md:w-52 lg:w-56' : 'max-md:invisible max-md:-translate-x-full md:w-16'
+                className={`sticky top-0 z-50 h-screen shrink-0 self-start overflow-hidden bg-[#1f6fdc] text-white shadow-xl transition-[width] duration-300 ease-in-out md:shadow-none ${
+                    open ? 'w-64 max-md:fixed max-md:left-0 max-md:top-0 md:w-52 lg:w-56' : 'w-16'
                 }`}
             >
                 <div className="flex h-full w-full flex-col overflow-y-auto overflow-x-hidden">
@@ -222,17 +222,6 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
 
             <main className="min-w-0 flex-1 px-3.5 pb-10 pt-3.5 sm:px-6 sm:pb-12 sm:pt-5 lg:px-8">
                 <header className="flex items-start gap-2.5 sm:gap-3">
-                    <button
-                        type="button"
-                        aria-label="Open menu"
-                        title="Open menu"
-                        onClick={() => setOpen(true)}
-                        className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-xs transition hover:border-[#1f6fdc]/30 hover:bg-blue-50/50 hover:text-[#1f6fdc] active:scale-95 ${
-                            open ? 'md:hidden' : 'md:inline-flex'
-                        }`}
-                    >
-                        <Menu size={20} />
-                    </button>
                     <div className="min-w-0 flex-1">
                         <h1 className="truncate text-base font-medium leading-tight text-slate-500 sm:text-xl lg:text-2xl">
                             {heading}

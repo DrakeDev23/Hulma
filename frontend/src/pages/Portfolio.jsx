@@ -520,11 +520,11 @@ export default function Portfolio() {
                                                     e.stopPropagation()
                                                     setOpenMenuId(openMenuId === p.id ? null : p.id)
                                                 }}
-                                                className="grid h-6 w-6 place-items-center rounded-full bg-white/95 backdrop-blur-xs text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-200 shadow-xs transition cursor-pointer"
+                                                className="grid h-7 w-7 place-items-center rounded-full bg-white/95 backdrop-blur-xs text-slate-700 hover:bg-white hover:text-slate-900 border border-slate-200 shadow-xs transition cursor-pointer active:scale-95"
                                                 title="More actions"
                                                 aria-label="More actions"
                                             >
-                                                <MoreHorizontal className="w-3.5 h-3.5" aria-hidden="true" />
+                                                <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
                                             </button>
 
                                             {openMenuId === p.id && (

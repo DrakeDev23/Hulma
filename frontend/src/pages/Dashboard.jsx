@@ -719,13 +719,13 @@ export default function Dashboard() {
             subtitle="Here's how your portfolios are doing."
         >
             <div className="space-y-6 pb-12">
-                <section className="mt-4 rounded-2xl bg-gradient-to-br from-[#2563eb] via-[#1d4ed8] to-[#1e40af] p-5 sm:p-6 text-white shadow-md">
+                <section className="mt-4 rounded-2xl bg-gradient-to-br from-[#2563eb] via-[#1d4ed8] to-[#1e40af] p-4 sm:p-6 text-white shadow-md">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="space-y-1 max-w-xl">
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-white/15 px-3 py-0.5 text-xs font-semibold backdrop-blur-xs">
                                 <Sparkles size={13} /> Portfolio overview
                             </span>
-                            <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+                            <h2 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight break-words">
                                 Welcome back, {firstName}
                             </h2>
                             <p className="text-xs sm:text-sm text-blue-100 leading-relaxed">
@@ -733,10 +733,10 @@ export default function Dashboard() {
                             </p>
                         </div>
 
-                        <div className="flex items-center gap-2.5 w-full sm:w-auto justify-start sm:justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/15">
+                        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto justify-start sm:justify-end shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-white/15">
                             <button
                                 onClick={() => navigate(editUrl)}
-                                className="inline-flex items-center gap-1.5 rounded-xl bg-white text-blue-700 font-bold px-4 py-2.5 text-xs sm:text-sm shadow-sm hover:bg-blue-50 active:scale-95 transition cursor-pointer"
+                                className="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 rounded-xl bg-white text-blue-700 font-bold px-3.5 sm:px-4 py-2.5 text-xs sm:text-sm shadow-sm hover:bg-blue-50 active:scale-95 transition cursor-pointer"
                             >
                                 <PenLine size={15} />
                                 <span>Edit portfolio</span>
@@ -744,7 +744,7 @@ export default function Dashboard() {
                             <button
                                 onClick={handleCopyLink}
                                 title={shareUrl || 'Copy link'}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 text-white font-medium px-3.5 py-2.5 text-xs sm:text-sm hover:bg-white/20 active:scale-95 transition cursor-pointer"
+                                className="flex-1 sm:flex-none justify-center inline-flex items-center gap-1.5 rounded-xl border border-white/30 bg-white/10 text-white font-medium px-3 sm:px-3.5 py-2.5 text-xs sm:text-sm hover:bg-white/20 active:scale-95 transition cursor-pointer"
                             >
                                 {copied ? <Check size={15} className="text-emerald-300" /> : <Copy size={15} />}
                                 <span>{copied ? 'Copied' : 'Copy link'}</span>
@@ -857,7 +857,7 @@ export default function Dashboard() {
 
                 <div className="grid gap-6 lg:grid-cols-12 items-start">
                     <div className="lg:col-span-7 space-y-6">
-                        <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-xs">
+                        <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 sm:p-5 shadow-xs">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-100">
                                 <div className="flex items-start sm:items-center gap-2.5">
                                     <div className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600 shrink-0 mt-0.5 sm:mt-0">
@@ -873,12 +873,12 @@ export default function Dashboard() {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto flex-wrap">
-                                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 shrink-0">
+                                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
+                                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 flex-1 sm:flex-none">
                                         <button
                                             type="button"
                                             onClick={() => setViewMode('week')}
-                                            className={`min-h-[34px] px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                                            className={`flex-1 sm:flex-none text-center min-h-[34px] px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
                                                 viewMode === 'week'
                                                     ? 'bg-white text-slate-900 shadow-2xs font-bold'
                                                     : 'text-slate-600 hover:text-slate-900'
@@ -889,7 +889,7 @@ export default function Dashboard() {
                                         <button
                                             type="button"
                                             onClick={() => setViewMode('month')}
-                                            className={`min-h-[34px] px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                                            className={`flex-1 sm:flex-none text-center min-h-[34px] px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
                                                 viewMode === 'month'
                                                     ? 'bg-white text-slate-900 shadow-2xs font-bold'
                                                     : 'text-slate-600 hover:text-slate-900'
@@ -913,20 +913,20 @@ export default function Dashboard() {
                             <div className="mt-3 flex items-center justify-between gap-2 pt-1 flex-wrap">
                                 {viewMode === 'week' ? (
                                     <div className="flex items-center justify-between w-full gap-2">
-                                        <div className="flex items-center gap-1 sm:gap-1.5">
+                                        <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                                             <button
                                                 type="button"
                                                 onClick={() => {
                                                     setWeekOffset((w) => w - 1)
                                                     setSelectedDayIndex(null)
                                                 }}
-                                                className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer shadow-2xs shrink-0"
+                                                className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer shadow-2xs shrink-0 active:scale-95 transition"
                                                 title="Previous week"
                                                 aria-label="Previous week"
                                             >
                                                 <ChevronLeft size={14} aria-hidden="true" />
                                             </button>
-                                            <span className="text-xs sm:text-sm font-bold text-slate-800 px-1 whitespace-nowrap">
+                                            <span className="text-xs sm:text-sm font-bold text-slate-800 px-1 truncate max-w-[170px] xs:max-w-none">
                                                 {weekRangeStr}
                                             </span>
                                             <button
@@ -935,7 +935,7 @@ export default function Dashboard() {
                                                     setWeekOffset((w) => w + 1)
                                                     setSelectedDayIndex(null)
                                                 }}
-                                                className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer shadow-2xs shrink-0"
+                                                className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer shadow-2xs shrink-0 active:scale-95 transition"
                                                 title="Next week"
                                                 aria-label="Next week"
                                             >
@@ -949,7 +949,7 @@ export default function Dashboard() {
                                                     setWeekOffset(0)
                                                     setSelectedDayIndex(null)
                                                 }}
-                                                className="text-xs font-semibold text-blue-600 hover:text-blue-700 underline cursor-pointer shrink-0"
+                                                className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-100 transition cursor-pointer shrink-0 active:scale-95"
                                             >
                                                 This week
                                             </button>
@@ -957,14 +957,14 @@ export default function Dashboard() {
                                     </div>
                                 ) : (
                                     <div className="flex items-center justify-between w-full gap-2">
-                                        <div className="flex items-center gap-1 sm:gap-1.5">
+                                        <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
                                             <button
                                                 type="button"
                                                 onClick={() => {
                                                     setSelectedYear((y) => y - 1)
                                                     setSelectedMonthIndex(null)
                                                 }}
-                                                className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer shadow-2xs shrink-0"
+                                                className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer shadow-2xs shrink-0 active:scale-95 transition"
                                                 title="Previous year"
                                                 aria-label="Previous year"
                                             >
@@ -979,7 +979,7 @@ export default function Dashboard() {
                                                     setSelectedYear((y) => y + 1)
                                                     setSelectedMonthIndex(null)
                                                 }}
-                                                className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer shadow-2xs shrink-0"
+                                                className="h-8 w-8 sm:h-7 sm:w-7 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 cursor-pointer shadow-2xs shrink-0 active:scale-95 transition"
                                                 title="Next year"
                                                 aria-label="Next year"
                                             >
@@ -993,7 +993,7 @@ export default function Dashboard() {
                                                     setSelectedYear(new Date().getFullYear())
                                                     setSelectedMonthIndex(null)
                                                 }}
-                                                className="text-xs font-semibold text-blue-600 hover:text-blue-700 underline cursor-pointer shrink-0"
+                                                className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-600 hover:bg-blue-100 transition cursor-pointer shrink-0 active:scale-95"
                                             >
                                                 Current year
                                             </button>
@@ -1002,9 +1002,9 @@ export default function Dashboard() {
                                 )}
                             </div>
 
-                            <div className="mt-2 w-full overflow-x-auto pb-1">
+                            <div className="mt-2 w-full overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                                 {viewMode === 'week' ? (
-                                    <div className="flex items-end justify-between gap-1 sm:gap-2.5 h-36 pt-3 pb-1 px-0.5 min-w-[280px]">
+                                    <div className="flex items-end justify-between gap-1 sm:gap-2.5 h-36 pt-3 pb-1 px-0.5 w-full min-w-[270px]">
                                         {weekData.map((d) => {
                                             const isSelected = activeDayIndex === d.index
                                             const heightPct = d.hasActivity
@@ -1016,7 +1016,7 @@ export default function Dashboard() {
                                                     key={d.day}
                                                     type="button"
                                                     onClick={() => setSelectedDayIndex(d.index)}
-                                                    className={`flex-1 min-w-[36px] flex flex-col items-center gap-1 h-full justify-end cursor-pointer group rounded-xl p-1 sm:p-1.5 transition-all focus:outline-none ${
+                                                    className={`flex-1 min-w-0 flex flex-col items-center gap-1 h-full justify-end cursor-pointer group rounded-xl p-1 sm:p-1.5 transition-all focus:outline-none ${
                                                         isSelected
                                                             ? 'bg-blue-50/80 ring-2 ring-blue-500 shadow-2xs'
                                                             : 'hover:bg-slate-50'
@@ -1036,7 +1036,7 @@ export default function Dashboard() {
                                                         {d.count}
                                                     </span>
 
-                                                    <div className="w-full max-w-[34px] sm:max-w-[40px] bg-slate-100 rounded-t-lg overflow-hidden flex items-end h-18">
+                                                    <div className="w-full max-w-[32px] sm:max-w-[40px] bg-slate-100 rounded-t-lg overflow-hidden flex items-end h-18">
                                                         <div
                                                             style={{ height: `${heightPct}%` }}
                                                             className={`w-full rounded-t-lg transition-all duration-300 ${
@@ -1085,7 +1085,7 @@ export default function Dashboard() {
                                         })}
                                     </div>
                                 ) : (
-                                    <div className="flex items-end justify-between gap-1 sm:gap-2 h-36 pt-3 pb-1 px-0.5 min-w-[360px] sm:min-w-0">
+                                    <div className="flex items-end justify-between gap-0.5 sm:gap-1.5 h-36 pt-3 pb-1 px-0.5 w-full min-w-[270px] sm:min-w-0">
                                         {monthData.map((m) => {
                                             const isSelected = activeMonthIndex === m.index
                                             const heightPct = m.hasActivity
@@ -1097,7 +1097,7 @@ export default function Dashboard() {
                                                     key={m.name}
                                                     type="button"
                                                     onClick={() => setSelectedMonthIndex(m.index)}
-                                                    className={`flex-1 min-w-[26px] sm:min-w-0 flex flex-col items-center gap-1.5 h-full justify-end cursor-pointer group rounded-lg p-0.5 sm:p-1 transition-all focus:outline-none ${
+                                                    className={`flex-1 min-w-0 flex flex-col items-center gap-1 sm:gap-1.5 h-full justify-end cursor-pointer group rounded-lg p-0.5 sm:p-1 transition-all focus:outline-none ${
                                                         isSelected
                                                             ? 'bg-blue-50/80 ring-2 ring-blue-500 shadow-2xs'
                                                             : 'hover:bg-slate-50'
@@ -1117,7 +1117,7 @@ export default function Dashboard() {
                                                         {m.count}
                                                     </span>
 
-                                                    <div className="w-full max-w-[24px] sm:max-w-[30px] bg-slate-100 rounded-t-lg overflow-hidden flex items-end h-18">
+                                                    <div className="w-full max-w-[18px] xs:max-w-[22px] sm:max-w-[30px] bg-slate-100 rounded-t-lg overflow-hidden flex items-end h-18">
                                                         <div
                                                             style={{ height: `${heightPct}%` }}
                                                             className={`w-full rounded-t-lg transition-all duration-300 ${
@@ -1131,7 +1131,7 @@ export default function Dashboard() {
                                                     </div>
 
                                                     <span
-                                                        className={`text-[10px] sm:text-xs font-semibold transition ${
+                                                        className={`text-[9px] xs:text-[10px] sm:text-xs font-semibold transition truncate ${
                                                             isSelected
                                                                 ? 'text-blue-700 font-bold underline underline-offset-2'
                                                                 : m.hasActivity
@@ -1163,8 +1163,8 @@ export default function Dashboard() {
                                 {viewMode === 'week' ? (
                                     <>
                                         <div className="flex items-center justify-between pb-3 gap-2 flex-wrap">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                                            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 break-words leading-tight">
                                                     {selectedDayData.formattedFull}'s history
                                                 </h4>
                                                 <span
@@ -1185,8 +1185,8 @@ export default function Dashboard() {
                                         </div>
 
                                         {selectedDayData.events.length === 0 ? (
-                                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-5 sm:p-6 text-center">
-                                                <Clock className="w-6 h-6 text-slate-300 mx-auto mb-1.5" aria-hidden="true" />
+                                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4 sm:p-6 text-center">
+                                                <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 mx-auto mb-1.5" aria-hidden="true" />
                                                 <p className="text-xs font-bold text-slate-700">
                                                     No modifications or creations recorded on {selectedDayData.formattedFull}
                                                 </p>
@@ -1195,7 +1195,7 @@ export default function Dashboard() {
                                                 </p>
                                             </div>
                                         ) : (
-                                            <div className="relative pl-5 sm:pl-6 ml-2 sm:ml-2.5 border-l-2 border-slate-100 space-y-4 pt-1">
+                                            <div className="relative pl-5 sm:pl-6 ml-3 sm:ml-4 border-l-2 border-slate-100 space-y-4 pt-1">
                                                 {pagedHistoryEvents.map((item) => {
                                                     const ItemIcon = item.Icon
                                                     return (
@@ -1205,14 +1205,14 @@ export default function Dashboard() {
                                                             >
                                                                 <ItemIcon className="w-3 h-3" aria-hidden="true" />
                                                             </div>
-                                                            <div className="min-w-0">
-                                                                <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex flex-col xs:flex-row xs:items-baseline justify-between gap-x-2 gap-y-0.5">
                                                                     <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
-                                                                        <h5 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                                                                        <h5 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug break-words">
                                                                             {item.title}
                                                                         </h5>
                                                                         {heroList.length > 1 && item.portfolioTitle && (
-                                                                            <span className="text-[9px] sm:text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 sm:px-2 py-0.5 rounded-full truncate max-w-[140px]">
+                                                                            <span className="text-[9px] sm:text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 sm:px-2 py-0.5 rounded-full truncate max-w-[120px] sm:max-w-[140px]">
                                                                                 {item.portfolioTitle}
                                                                             </span>
                                                                         )}
@@ -1221,7 +1221,7 @@ export default function Dashboard() {
                                                                         {relativeTime(item.date) || 'Recently'}
                                                                     </span>
                                                                 </div>
-                                                                <p className="mt-0.5 text-[11px] sm:text-xs text-slate-500 leading-relaxed">
+                                                                <p className="mt-0.5 text-[11px] sm:text-xs text-slate-500 leading-relaxed break-words">
                                                                     {item.text}
                                                                 </p>
                                                                 {item.date && (
@@ -1240,8 +1240,8 @@ export default function Dashboard() {
                                 ) : (
                                     <>
                                         <div className="flex items-center justify-between pb-3 gap-2 flex-wrap">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 truncate">
+                                            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+                                                <h4 className="text-xs sm:text-sm font-bold text-slate-900 break-words leading-tight">
                                                     {selectedMonthData.fullName} {selectedMonthData.year}'s history
                                                 </h4>
                                                 <span
@@ -1262,8 +1262,8 @@ export default function Dashboard() {
                                         </div>
 
                                         {selectedMonthData.events.length === 0 ? (
-                                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-5 sm:p-6 text-center">
-                                                <Clock className="w-6 h-6 text-slate-300 mx-auto mb-1.5" aria-hidden="true" />
+                                            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-4 sm:p-6 text-center">
+                                                <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-slate-300 mx-auto mb-1.5" aria-hidden="true" />
                                                 <p className="text-xs font-bold text-slate-700">
                                                     No modifications or creations recorded in {selectedMonthData.fullName} {selectedMonthData.year}
                                                 </p>
@@ -1272,7 +1272,7 @@ export default function Dashboard() {
                                                 </p>
                                             </div>
                                         ) : (
-                                            <div className="relative pl-5 sm:pl-6 ml-2 sm:ml-2.5 border-l-2 border-slate-100 space-y-4 pt-1">
+                                            <div className="relative pl-5 sm:pl-6 ml-3 sm:ml-4 border-l-2 border-slate-100 space-y-4 pt-1">
                                                 {pagedHistoryEvents.map((item) => {
                                                     const ItemIcon = item.Icon
                                                     return (
@@ -1282,14 +1282,14 @@ export default function Dashboard() {
                                                             >
                                                                 <ItemIcon className="w-3 h-3" aria-hidden="true" />
                                                             </div>
-                                                            <div className="min-w-0">
-                                                                <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="flex flex-col xs:flex-row xs:items-baseline justify-between gap-x-2 gap-y-0.5">
                                                                     <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
-                                                                        <h5 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
+                                                                        <h5 className="text-xs sm:text-sm font-bold text-slate-900 leading-snug break-words">
                                                                             {item.title}
                                                                         </h5>
                                                                         {heroList.length > 1 && item.portfolioTitle && (
-                                                                            <span className="text-[9px] sm:text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 sm:px-2 py-0.5 rounded-full truncate max-w-[140px]">
+                                                                            <span className="text-[9px] sm:text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 sm:px-2 py-0.5 rounded-full truncate max-w-[120px] sm:max-w-[140px]">
                                                                                 {item.portfolioTitle}
                                                                             </span>
                                                                         )}
@@ -1298,7 +1298,7 @@ export default function Dashboard() {
                                                                         {relativeTime(item.date) || 'Recently'}
                                                                     </span>
                                                                 </div>
-                                                                <p className="mt-0.5 text-[11px] sm:text-xs text-slate-500 leading-relaxed">
+                                                                <p className="mt-0.5 text-[11px] sm:text-xs text-slate-500 leading-relaxed break-words">
                                                                     {item.text}
                                                                 </p>
                                                                 {item.date && (
@@ -1318,10 +1318,10 @@ export default function Dashboard() {
 
                                 {totalHistoryItems > HISTORY_PAGE_SIZE && (
                                     <div className="mt-5 flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-4 border-t border-slate-100">
-                                        <p className="text-xs text-slate-500 font-medium">
+                                        <p className="text-xs text-slate-500 font-medium text-center sm:text-left">
                                             Showing {(currentHistoryPage - 1) * HISTORY_PAGE_SIZE + 1}–{Math.min(currentHistoryPage * HISTORY_PAGE_SIZE, totalHistoryItems)} of {totalHistoryItems} events
                                         </p>
-                                        <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1.5 flex-wrap justify-center">
                                             <button
                                                 type="button"
                                                 onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
@@ -1333,7 +1333,11 @@ export default function Dashboard() {
                                                 <span>Prev</span>
                                             </button>
 
-                                            <div className="flex items-center gap-1">
+                                            <span className="sm:hidden text-xs font-bold text-slate-700 px-2">
+                                                Page {currentHistoryPage} of {totalHistoryPages}
+                                            </span>
+
+                                            <div className="hidden sm:flex items-center gap-1">
                                                 {Array.from({ length: totalHistoryPages }, (_, i) => i + 1).map((pageNum) => (
                                                     <button
                                                         key={pageNum}

@@ -35,12 +35,15 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
         const handleResize = () => {
             if (window.innerWidth >= 1024) {
                 setOpen(true)
+            } else if (window.innerWidth < 768) {
+                setOpen(false)
             }
         }
         window.addEventListener('resize', handleResize)
         return () => window.removeEventListener('resize', handleResize)
     }, [])
 
+    // Lock body scroll when mobile drawer is open
     useEffect(() => {
         if (typeof window === 'undefined') return
         if (window.innerWidth < 768 && open) {
@@ -50,6 +53,17 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                 document.body.style.overflow = originalOverflow
             }
         }
+    }, [open])
+
+    // Close on Escape key for mobile drawer
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.key === 'Escape' && open && typeof window !== 'undefined' && window.innerWidth < 768) {
+                setOpen(false)
+            }
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
     }, [open])
 
     const clerkEmail = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || ''
@@ -110,8 +124,54 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
     }
 
     return (
-        <div className="flex min-h-screen bg-[#f3f7ff] font-sans text-slate-800 antialiased">
+        <div className="flex min-h-screen flex-col bg-[#f3f7ff] font-sans text-slate-800 antialiased md:flex-row">
             <style>{`@keyframes hulma-pop{0%{transform:scale(.4) rotate(-12deg);opacity:0}55%{transform:scale(1.25) rotate(6deg);opacity:1}80%{transform:scale(.95) rotate(0)}100%{transform:scale(1)}}`}</style>
+
+            {/* Mobile Top Header (visible on mobile / small screens < md) */}
+            <header className="sticky top-0 z-40 flex h-14 w-full shrink-0 items-center justify-between border-b border-slate-200/80 bg-white/95 px-3.5 sm:px-4 backdrop-blur-md md:hidden shadow-xs">
+                <div className="flex items-center gap-2.5">
+                    <button
+                        type="button"
+                        aria-label={open ? 'Close navigation menu' : 'Open navigation menu'}
+                        aria-expanded={open}
+                        onClick={() => setOpen((prev) => !prev)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-2xs hover:bg-slate-50 active:scale-95 transition cursor-pointer"
+                    >
+                        {open ? <X size={20} /> : <Menu size={20} />}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => goTo('/dashboard')}
+                        className="flex items-center gap-2 text-left cursor-pointer"
+                    >
+                        <img
+                            src={logoImg}
+                            alt="Hulma logo"
+                            className="h-7 w-7 object-contain"
+                        />
+                        <span className="text-lg font-black tracking-tight text-slate-900">
+                            Hulma
+                        </span>
+                    </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => goTo('/settings')}
+                        aria-label="User settings"
+                        className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#1f6fdc] text-xs font-bold text-white shadow-xs cursor-pointer active:scale-95 transition"
+                    >
+                        {avatarUrl ? (
+                            <img src={avatarUrl} alt={displayName || 'User'} className="h-full w-full object-cover" />
+                        ) : (
+                            <span>{initials || 'U'}</span>
+                        )}
+                    </button>
+                </div>
+            </header>
+
+            {/* Backdrop overlay for mobile drawer */}
             {open && (
                 <div
                     className="fixed inset-0 z-40 bg-slate-950/50 backdrop-blur-xs transition-opacity duration-300 md:hidden"
@@ -120,9 +180,12 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                 />
             )}
 
+            {/* Sidebar: Off-canvas drawer on mobile (< md), sticky collapsible sidebar on desktop (>= md) */}
             <aside
-                className={`sticky top-0 z-50 h-screen shrink-0 self-start overflow-hidden bg-[#1f6fdc] text-white shadow-xl transition-[width] duration-300 ease-in-out md:shadow-none ${
-                    open ? 'w-64 max-md:fixed max-md:left-0 max-md:top-0 md:w-52 lg:w-56' : 'w-16'
+                className={`fixed inset-y-0 left-0 z-50 h-screen w-64 max-w-[85vw] bg-[#1f6fdc] text-white shadow-2xl transition-all duration-300 ease-in-out md:static md:sticky md:top-0 md:z-30 md:max-w-none md:shadow-none ${
+                    open
+                        ? 'translate-x-0 md:w-52 lg:w-56'
+                        : '-translate-x-full md:translate-x-0 md:w-16'
                 }`}
             >
                 <div className="flex h-full w-full flex-col overflow-y-auto overflow-x-hidden">
@@ -133,8 +196,8 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                                     <button
                                         type="button"
                                         aria-label="Hulma logo"
-                                        onClick={() => setOpen(false)}
-                                        className="shrink-0 rounded-lg p-1 transition-transform duration-200 hover:scale-105 active:scale-95"
+                                        onClick={() => goTo('/dashboard')}
+                                        className="shrink-0 rounded-lg p-1 transition-transform duration-200 hover:scale-105 active:scale-95 cursor-pointer"
                                     >
                                         <img
                                             src={logoImg}
@@ -142,16 +205,16 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                                             className="h-8 w-8 object-contain"
                                         />
                                     </button>
-                                    <span className="whitespace-nowrap">
+                                    <span className="whitespace-nowrap font-bold">
                                         Hulma
                                     </span>
                                 </div>
                                 <button
                                     type="button"
-                                    title="Collapse sidebar"
-                                    aria-label="Collapse sidebar"
+                                    title="Close sidebar"
+                                    aria-label="Close sidebar"
                                     onClick={() => setOpen(false)}
-                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-95"
+                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white/80 transition-all duration-200 hover:bg-white/10 hover:text-white active:scale-95 cursor-pointer"
                                 >
                                     <X size={20} />
                                 </button>
@@ -162,7 +225,7 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                                 title="Expand sidebar"
                                 aria-label="Expand sidebar"
                                 onClick={() => setOpen(true)}
-                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white transition-all duration-200 hover:bg-white/15 active:scale-95"
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white transition-all duration-200 hover:bg-white/15 active:scale-95 cursor-pointer"
                             >
                                 <Menu size={22} />
                             </button>
@@ -180,7 +243,7 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                                     aria-label={label}
                                     className={`group flex w-full items-center ${
                                         open ? 'gap-2.5 px-2.5 text-left' : 'justify-center px-0'
-                                    } overflow-hidden rounded-xl py-2.5 text-sm font-medium transition-all duration-200 ${
+                                    } overflow-hidden rounded-xl py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer ${
                                         active
                                             ? 'bg-white/20 text-white shadow-xs font-semibold'
                                             : 'text-white/85 hover:bg-white/10 hover:text-white'
@@ -206,12 +269,17 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                     <div className={`mt-6 ${open ? 'px-3.5 sm:px-4' : 'px-2.5'} sm:mt-8 lg:mt-10`}>
                         <div className={`mb-3 h-px w-full ${open ? 'max-w-40' : 'max-w-full'} bg-white/20`} />
                         <button
-                            onClick={() => setShowLogoutConfirm(true)}
+                            onClick={() => {
+                                if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                                    setOpen(false)
+                                }
+                                setShowLogoutConfirm(true)
+                            }}
                             title="Log out"
                             aria-label="Log out"
                             className={`group flex w-full items-center ${
                                 open ? 'gap-2.5 px-2.5 text-left' : 'justify-center px-0'
-                            } rounded-xl py-2 text-sm text-white/80 transition-all duration-200 hover:bg-white/10 hover:text-white`}
+                            } rounded-xl py-2 text-sm text-white/80 transition-all duration-200 hover:bg-white/10 hover:text-white cursor-pointer`}
                         >
                             <LogOut size={19} strokeWidth={1.75} className="shrink-0 transition-transform duration-200 group-hover:scale-110" />
                             <span className={`whitespace-nowrap transition-opacity duration-200 ${open ? 'opacity-100' : 'hidden'}`}>

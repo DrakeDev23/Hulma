@@ -119,36 +119,7 @@ async def upload_portfolio_image(
     if portfolio_id is not None:
         target_portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id, Portfolio.user_id == user.id).first()
 
-    if target_portfolio is None and template_id:
-        portfolios = db.query(Portfolio).filter(Portfolio.user_id == user.id).all()
-        for p in portfolios:
-            if isinstance(p.sections, dict) and p.sections.get("meta", {}).get("templateId") == template_id:
-                target_portfolio = p
-                break
-
-    if target_portfolio is None:
-        target_portfolio = (
-            db.query(Portfolio)
-            .filter(Portfolio.user_id == user.id)
-            .order_by(Portfolio.updated_at.desc())
-            .first()
-        )
-
-    if target_portfolio is None:
-        chosen_template = template_id or "simple"
-        target_portfolio = Portfolio(
-            user_id=user.id,
-            title=f"{user.username or (user.email.split('@', 1)[0] if user.email else 'User')}'s Portfolio",
-            summary="",
-            sections={"meta": {"templateId": chosen_template}, "profile": {"profilePicture": public_url}},
-            projects=[],
-            views=0,
-            completion=0,
-            slug=_new_slug(db),
-            updated_at=datetime.now(timezone.utc),
-        )
-        db.add(target_portfolio)
-    else:
+    if target_portfolio is not None:
         sections = dict(target_portfolio.sections or {})
         profile = dict(sections.get("profile") or {})
         profile["profilePicture"] = public_url
@@ -158,8 +129,8 @@ async def upload_portfolio_image(
         if not target_portfolio.slug:
             target_portfolio.slug = _new_slug(db)
         target_portfolio.updated_at = datetime.now(timezone.utc)
+        db.commit()
 
-    db.commit()
     return PortfolioImageUploadResponse(url=public_url, path=object_path, bucket=settings.supabase_bucket)
 
 

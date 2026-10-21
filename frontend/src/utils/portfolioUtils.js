@@ -56,11 +56,11 @@ export function normalizePortfolio(raw) {
         sections,
         profile,
         projects,
-        title: pick(p.title, profile.fullName),
-        summary: pick(p.summary, profile.aboutMe),
-        picture: pick(profile.profilePicture, p.profilePicture),
+        title: pick(p.title, profile.fullName, 'Untitled Portfolio'),
+        summary: pick(p.summary, profile.aboutMe, ''),
+        picture: pick(profile.profilePicture, p.profilePicture, ''),
         skills: (Array.isArray(sections.skills) ? sections.skills : []).map(toText).filter(Boolean),
-        templateId: pick(sections.meta?.templateId, p.template, p.templateId),
+        templateId: pick(sections.meta?.templateId, p.template, p.templateId, 'simple'),
         completion: Number.isFinite(Number(completionRaw)) && completionRaw !== undefined ? Number(completionRaw) : 0,
         views: Number(p.views || 0),
         updatedAt: pick(p.updated_at, p.updatedAt),
@@ -70,7 +70,7 @@ export function normalizePortfolio(raw) {
 }
 
 export const hasContent = (p) =>
-    Boolean(p && (p.title || p.summary || p.projects.length || countSections(p) > 0))
+    Boolean(p && (p.id != null || p.title || p.summary || (p.projects && p.projects.length > 0) || countSections(p) > 0))
 
 export const countSections = (p) =>
     Object.entries(p?.sections || {}).filter(([k, v]) => k !== 'meta' && isFilled(v)).length
@@ -88,9 +88,18 @@ export function resolvePortfolio(raw, userId = null) {
 
 export function resolvePortfolioList(raw, userId = null) {
     const list = Array.isArray(raw) ? raw : Array.isArray(raw?.portfolios) ? raw.portfolios : null
-    if (list) {
-        const items = list.map(normalizePortfolio).filter(hasContent)
+    if (list && list.length > 0) {
+        const items = list.map(normalizePortfolio).filter(Boolean)
         if (items.length) return items
+    }
+    if (userId) {
+        const localKey = `${DRAFT_KEY}:${userId}`
+        const localData = readLocalJSON(localKey)
+        const localList = Array.isArray(localData) ? localData : Array.isArray(localData?.portfolios) ? localData.portfolios : null
+        if (localList && localList.length > 0) {
+            const items = localList.map(normalizePortfolio).filter(Boolean)
+            if (items.length) return items
+        }
     }
     const { portfolio } = resolvePortfolio(raw, userId)
     return portfolio ? [portfolio] : []
@@ -109,6 +118,13 @@ export const reviewInfo = (review) => {
 
 export function getStoredUsername() {
     return ''
+}
+
+export function timeGreeting() {
+    const h = new Date().getHours()
+    if (h < 12) return 'Good morning'
+    if (h < 18) return 'Good afternoon'
+    return 'Good evening'
 }
 
 export function resolveDisplayName(user, fallback = 'User') {

@@ -93,12 +93,26 @@ export default function PortfolioPreviewModal({ portfolio, open, onClose, onEdit
                 </div>
 
                 {confirmDelete && (
-                    <div className="border-t border-red-200 bg-red-50 px-4 py-3"> 
-                        <p className="text-sm font-semibold text-red-700">Delete this portfolio?</p>
-                        <p className="mt-0.5 text-xs text-red-600">This cannot be undone.</p>
-                        <div className="mt-2 flex gap-2">
-                            <button onClick={() => { setConfirmDelete(false); onDelete?.(); }} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 active:scale-95">Confirm delete</button>
-                            <button onClick={() => setConfirmDelete(false)} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 active:scale-95">Cancel</button>
+                    <div className="border-t border-red-200 bg-red-50/90 px-4 py-3 sm:px-6 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3"> 
+                        <div>
+                            <p className="text-sm font-semibold text-red-900">Delete this portfolio?</p>
+                            <p className="mt-0.5 text-xs text-red-700">This action is permanent and cannot be undone.</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setConfirmDelete(false)}
+                                className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition active:scale-95 cursor-pointer min-h-[36px]"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => { setConfirmDelete(false); onDelete?.(); }}
+                                className="rounded-xl bg-red-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-red-700 transition active:scale-95 shadow-xs cursor-pointer min-h-[36px]"
+                            >
+                                Delete
+                            </button>
                         </div>
                     </div>
                 )}

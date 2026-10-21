@@ -32,7 +32,21 @@ export default function ShareLink({ slug, dark = false }) {
             setCopied(true)
             setTimeout(() => setCopied(false), 2000)
         } catch {
-            window.prompt('Copy your portfolio link', url)
+            try {
+                const ta = document.createElement('textarea')
+                ta.value = url
+                ta.style.position = 'fixed'
+                ta.style.opacity = '0'
+                document.body.appendChild(ta)
+                ta.focus()
+                ta.select()
+                document.execCommand('copy')
+                document.body.removeChild(ta)
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+            } catch {
+                // Clipboard fallback
+            }
         }
     }
 

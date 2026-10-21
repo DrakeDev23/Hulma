@@ -123,19 +123,12 @@ def save_portfolio(
         portfolio = existing
 
     if portfolio is None:
-        user_portfolios = (
-            db.query(Portfolio)
+        user_portfolios_count = (
+            db.query(Portfolio.id)
             .filter(Portfolio.user_id == user.id)
-            .order_by(Portfolio.updated_at.desc())
-            .all()
+            .count()
         )
-        for p in user_portfolios:
-            if _template_of(p.sections) == template_id:
-                portfolio = p
-                break
-        if portfolio is None and len(user_portfolios) == 1:
-            portfolio = user_portfolios[0]
-        if portfolio is None and len(user_portfolios) >= MAX_PORTFOLIOS_PER_USER:
+        if user_portfolios_count >= MAX_PORTFOLIOS_PER_USER:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Maximum portfolio limit reached ({MAX_PORTFOLIOS_PER_USER} portfolios). Please update or delete an existing portfolio.",

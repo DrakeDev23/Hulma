@@ -56,16 +56,16 @@ export default function SimpleTemplate({
     return (
         <div className="min-h-full bg-[#fdfcf9] text-[#1c1917] font-serif antialiased selection:bg-[#964222]/15 selection:text-[#964222]">
             <header className={`${stickyNav ? 'sticky top-0 bg-[#fdfcf9]/95 backdrop-blur-sm' : ''} z-20 border-b border-[#e7e5e0] transition-colors`}>
-                <div className="mx-auto flex max-w-[720px] items-center justify-between px-6 py-4">
+                <div className="mx-auto flex max-w-[720px] items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
                     <a
                         href={`#${idPrefix}-intro`}
                         onClick={go('intro')}
-                        className="font-serif text-sm font-semibold tracking-normal text-[#1c1917] transition hover:text-[#964222]"
+                        className="font-serif text-xs sm:text-sm font-semibold tracking-normal text-[#1c1917] transition hover:text-[#964222] truncate max-w-[130px] sm:max-w-none"
                     >
                         {name}
                     </a>
 
-                    <nav className="flex items-center gap-4 text-xs font-sans tracking-wide text-stone-500">
+                    <nav className="flex items-center gap-2.5 sm:gap-4 text-xs font-sans tracking-wide text-stone-500 overflow-x-auto no-scrollbar">
                         {nav.map((s) => (
                             <a
                                 key={s.id}
@@ -92,7 +92,7 @@ export default function SimpleTemplate({
             </header>
 
             <main id={`${idPrefix}-intro`} className="mx-auto max-w-[720px] px-6 py-16 sm:py-24">
-                <section className="space-y-4">
+                <section id={`${idPrefix}-about`} className="space-y-4 scroll-mt-12">
                     {picture && (
                         <div className="pb-2">
                             <img

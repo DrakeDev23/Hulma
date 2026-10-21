@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/react'
-import { ArrowRight, Save, Share2, Sparkles, RefreshCw, Eye, CheckCircle2, AlertCircle, X } from 'lucide-react'
+import { ArrowRight, Save, Share2, Sparkles, RefreshCw, Eye, CheckCircle2, AlertCircle, X, Trash2 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import PortfolioModal from '../components/PortfolioModal'
 import ShareLink, { buildShareUrl, getShareSlug } from '../components/ShareLink'
@@ -34,32 +34,41 @@ const safeGet = (key) => {
     }
 }
 
-const getDraftKey = (uid) => `hulma-draft:${uid}`
+const getDraftKey = (uid, editId = null) =>
+    editId ? `hulma-draft:${uid}:edit:${editId}` : `hulma-draft:${uid}:create`
 
-const getDraft = (uid) => {
+const getDraft = (uid, editId = null) => {
     if (!uid) return null
     try {
-        const raw = window.localStorage.getItem(getDraftKey(uid))
-        return raw ? JSON.parse(raw) : null
+        const raw = window.localStorage.getItem(getDraftKey(uid, editId))
+        if (raw) return JSON.parse(raw)
+        if (!editId) {
+            const legacy = window.localStorage.getItem(`hulma-draft:${uid}`)
+            return legacy ? JSON.parse(legacy) : null
+        }
+        return null
     } catch (err) {
         console.error('Failed to read draft from localStorage:', err)
         return null
     }
 }
 
-const saveDraft = (uid, data) => {
+const saveDraft = (uid, editId, data) => {
     if (!uid) return
     try {
-        window.localStorage.setItem(getDraftKey(uid), JSON.stringify(data))
+        window.localStorage.setItem(getDraftKey(uid, editId), JSON.stringify(data))
     } catch (err) {
         console.error('Failed to save draft to localStorage:', err)
     }
 }
 
-const removeDraft = (uid) => {
+const removeDraft = (uid, editId = null) => {
     if (!uid) return
     try {
-        window.localStorage.removeItem(getDraftKey(uid))
+        window.localStorage.removeItem(getDraftKey(uid, editId))
+        if (!editId) {
+            window.localStorage.removeItem(`hulma-draft:${uid}`)
+        }
     } catch (err) {
         console.error('Failed to remove draft from localStorage:', err)
     }
@@ -99,7 +108,7 @@ function portfolioToForm(portfolioData, currentUser, currentEmail) {
     const profile = portfolioData?.sections?.profile || {}
     return {
         title: portfolioData?.title || '',
-        fullName: profile.fullName || resolveDisplayName(currentUser, ''),
+        fullName: (profile.fullName || resolveDisplayName(currentUser, '')).replace(/[0-9]/g, ''),
         profilePicture: profile.profilePicture || '',
         email: profile.email || currentEmail || '',
         contactNumber: profile.contactNumber || '',
@@ -124,7 +133,7 @@ function portfolioToForm(portfolioData, currentUser, currentEmail) {
 }
 
 function buildPortfolioPayload(form, user, emailAddress, templateId) {
-    const fullName = form.fullName || resolveDisplayName(user, '')
+    const fullName = (form.fullName || resolveDisplayName(user, '')).replace(/[0-9]/g, '').trim()
     const email = form.email || emailAddress || ''
 
     const checks = [fullName, form.aboutMe, form.skills, form.projects, form.education, form.workExperience, form.socialLinks]
@@ -168,6 +177,7 @@ export default function CreatePortfolio() {
 
     const [searchParams] = useSearchParams()
     const urlTemplate = searchParams.get('template')
+    const urlId = searchParams.get('id')
     const { getToken } = useAuth()
     const { user } = useUser()
     const userId = user?.id
@@ -183,8 +193,13 @@ export default function CreatePortfolio() {
         urlTemplateRef.current = urlTemplate
     }, [urlTemplate])
 
-    const [savedDraft] = useState(() => {
-        const rawDraft = userId ? getDraft(userId) : null
+    const urlIdRef = useRef(urlId)
+    useEffect(() => {
+        urlIdRef.current = urlId
+    }, [urlId])
+
+    const [savedDraft, setSavedDraft] = useState(() => {
+        const rawDraft = userId ? getDraft(userId, urlId) : null
         return rawDraft && rawDraft.version === 1 ? rawDraft : null
     })
     const savedDraftRef = useRef(savedDraft)
@@ -213,6 +228,7 @@ export default function CreatePortfolio() {
         isDirtyRef.current = isDirty
     }, [isDirty])
 
+    const [showClearModal, setShowClearModal] = useState(false)
     const [draftFeedback, setDraftFeedback] = useState(null)
     const [portfolioId, setPortfolioId] = useState(null)
     const [userPortfolios, setUserPortfolios] = useState([])
@@ -279,8 +295,8 @@ export default function CreatePortfolio() {
         let cancelled = false
 
         const loadCurrentPortfolio = async () => {
-            const raw = savedDraftRef.current || getDraft(userId)
-            const draft = raw && raw.version === 1 ? raw : null
+            const rawDraft = getDraft(userId, urlId)
+            const draft = rawDraft && rawDraft.version === 1 ? rawDraft : null
             const hasDraft = Boolean(draft && draft.form)
 
             if (hasDraft) {
@@ -293,9 +309,6 @@ export default function CreatePortfolio() {
                 setIsDirty(true)
                 isDirtyRef.current = true
                 setNotice('Draft restored.')
-                if (!urlTemplateRef.current && draft.template && TEMPLATES.includes(draft.template)) {
-                    navigateRef.current(`/portfolio/create?template=${draft.template}`, { replace: true })
-                }
             }
 
             try {
@@ -312,59 +325,51 @@ export default function CreatePortfolio() {
                 userPortfoliosRef.current = list
                 setSavedTemplates(list.map((p) => p.sections?.meta?.templateId || 'simple'))
 
-                const activeTemplate =
-                    urlTemplateRef.current || (hasDraft && draft.template) || list[0]?.sections?.meta?.templateId || 'simple'
-                const matchedPortfolio = list.find((p) => (p.sections?.meta?.templateId || 'simple') === activeTemplate)
+                const { user: currentUser, emailAddress: currentEmail } = userRef.current
 
-                if (matchedPortfolio) {
-                    setPortfolioId(matchedPortfolio.id ?? null)
-                    setSlug(getShareSlug(matchedPortfolio))
-                    setLoadedTemplate(matchedPortfolio.sections?.meta?.templateId || '')
+                if (urlId) {
+                    let matchedPortfolio = list.find((p) => String(p.id) === String(urlId))
+                    if (!matchedPortfolio) {
+                        try {
+                            const singleRes = await fetch(apiUrl(`/api/portfolio/${urlId}`), {
+                                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                            })
+                            if (singleRes.ok) {
+                                matchedPortfolio = await singleRes.json()
+                            }
+                        } catch {}
+                    }
+
+                    if (matchedPortfolio && !cancelled) {
+                        setPortfolioId(matchedPortfolio.id ?? null)
+                        setSlug(getShareSlug(matchedPortfolio))
+                        setLoadedTemplate(matchedPortfolio.sections?.meta?.templateId || '')
+                        if (!hasDraft && !isDirtyRef.current) {
+                            setForm(portfolioToForm(matchedPortfolio, currentUser, currentEmail))
+                            setSelectedImageName(
+                                matchedPortfolio.sections?.profile?.profilePicture
+                                    ? getImageNameFromUrl(matchedPortfolio.sections.profile.profilePicture)
+                                    : ''
+                            )
+                        }
+                    } else if (!cancelled) {
+                        setPortfolioId(null)
+                        setSlug('')
+                        setLoadedTemplate('')
+                    }
                 } else {
                     setPortfolioId(null)
                     setSlug('')
-                }
-
-                if (hasDraft) {
-                    return
-                }
-
-                const { user: currentUser, emailAddress: currentEmail } = userRef.current
-                if (matchedPortfolio) {
-                    if (!isDirtyRef.current) {
-                        setForm(portfolioToForm(matchedPortfolio, currentUser, currentEmail))
-                        setSelectedImageName(
-                            matchedPortfolio.sections?.profile?.profilePicture
-                                ? getImageNameFromUrl(matchedPortfolio.sections.profile.profilePicture)
-                                : ''
-                        )
-                    }
-                    setLoadedTemplate(matchedPortfolio.sections?.meta?.templateId || '')
-                } else if (!urlTemplateRef.current && list[0]) {
-                    const firstP = list[0]
-                    setPortfolioId(firstP.id ?? null)
-                    setSlug(getShareSlug(firstP))
-                    if (!isDirtyRef.current) {
-                        setForm(portfolioToForm(firstP, currentUser, currentEmail))
-                        setSelectedImageName(
-                            firstP.sections?.profile?.profilePicture
-                                ? getImageNameFromUrl(firstP.sections.profile.profilePicture)
-                                : ''
-                        )
-                    }
-                    setLoadedTemplate(firstP.sections?.meta?.templateId || '')
-                } else {
-                    if (!isDirtyRef.current) {
+                    setLoadedTemplate('')
+                    if (!hasDraft && !isDirtyRef.current) {
                         setForm({
                             ...DEFAULT_FORM,
-                            fullName: resolveDisplayName(currentUser, ''),
+                            title: currentUser?.fullName ? `${currentUser.fullName}'s Portfolio` : 'My Portfolio',
+                            fullName: resolveDisplayName(currentUser, '').replace(/[0-9]/g, ''),
                             email: currentEmail || '',
                         })
                         setSelectedImageName('')
                     }
-                    setLoadedTemplate('')
-                    setSlug('')
-                    setPortfolioId(null)
                 }
             } catch (error) {
                 console.error('Failed to load portfolio:', error)
@@ -380,7 +385,7 @@ export default function CreatePortfolio() {
         return () => {
             cancelled = true
         }
-    }, [userId, getToken])
+    }, [userId, urlId, getToken])
 
     useEffect(() => {
         if (!initialLoadDoneRef.current) {
@@ -390,37 +395,13 @@ export default function CreatePortfolio() {
 
         if (prevTemplateRef.current === templateId) return
         prevTemplateRef.current = templateId
-
-        const targetPortfolio = userPortfoliosRef.current.find(
-            (p) => (p.sections?.meta?.templateId || 'simple') === templateId
-        )
-
-        if (targetPortfolio) {
-            setPortfolioId(targetPortfolio.id ?? null)
-            setSlug(getShareSlug(targetPortfolio))
-        } else {
-            setPortfolioId(null)
-            setSlug('')
-        }
-
-        if (!isDirtyRef.current) {
-            if (targetPortfolio) {
-                const { user: currentUser, emailAddress: currentEmail } = userRef.current
-                setForm(portfolioToForm(targetPortfolio, currentUser, currentEmail))
-                setSelectedImageName(
-                    targetPortfolio.sections?.profile?.profilePicture
-                        ? getImageNameFromUrl(targetPortfolio.sections.profile.profilePicture)
-                        : ''
-                )
-            }
-        }
     }, [templateId])
 
     useEffect(() => {
         if (!isDirty || !userId) return
 
         const timer = setTimeout(() => {
-            saveDraft(userId, {
+            saveDraft(userId, portfolioId, {
                 version: 1,
                 updatedAt: Date.now(),
                 form,
@@ -432,7 +413,7 @@ export default function CreatePortfolio() {
         return () => {
             clearTimeout(timer)
         }
-    }, [form, selectedImageName, templateId, isDirty, userId])
+    }, [form, selectedImageName, templateId, isDirty, userId, portfolioId])
 
     const draftDataRef = useRef({ form, selectedImageName, templateId })
     useEffect(() => {
@@ -442,7 +423,7 @@ export default function CreatePortfolio() {
     useEffect(() => {
         return () => {
             if (isDirtyRef.current && userId) {
-                saveDraft(userId, {
+                saveDraft(userId, portfolioId, {
                     version: 1,
                     updatedAt: Date.now(),
                     form: draftDataRef.current.form,
@@ -451,7 +432,7 @@ export default function CreatePortfolio() {
                 })
             }
         }
-    }, [userId])
+    }, [userId, portfolioId])
 
     useEffect(() => {
         if (!isDirty) return
@@ -516,9 +497,13 @@ export default function CreatePortfolio() {
     }
 
     const updateField = (field, value) => {
+        let nextValue = value
+        if (field === 'fullName') {
+            nextValue = typeof value === 'string' ? value.replace(/[0-9]/g, '') : value
+        }
         isDirtyRef.current = true
         setIsDirty(true)
-        setForm((current) => ({ ...current, [field]: value }))
+        setForm((current) => ({ ...current, [field]: nextValue }))
         if (errors[field]) {
             setErrors((prev) => {
                 const next = { ...prev }
@@ -537,6 +522,8 @@ export default function CreatePortfolio() {
 
         if (!form.fullName || !form.fullName.trim()) {
             newErrors.fullName = 'Full name is required.'
+        } else if (/[0-9]/.test(form.fullName)) {
+            newErrors.fullName = 'Full name must contain only letters, no numbers.'
         }
 
         const hasProfilePic = Boolean(
@@ -624,10 +611,18 @@ export default function CreatePortfolio() {
         setNotice('')
 
         try {
-            const response = await fetch(apiUrl('/api/portfolio/me'), {
+            const payloadToSend = { ...previewPortfolio }
+            if (portfolioId) {
+                payloadToSend.id = portfolioId
+            } else {
+                delete payloadToSend.id
+            }
+
+            const queryStr = portfolioId ? `?portfolio_id=${portfolioId}` : ''
+            const response = await fetch(apiUrl(`/api/portfolio/me${queryStr}`), {
                 method: 'POST',
                 headers: await getAuthHeaders(),
-                body: JSON.stringify({ ...previewPortfolio, id: portfolioId }),
+                body: JSON.stringify(payloadToSend),
             })
 
             if (!response.ok) {
@@ -635,22 +630,31 @@ export default function CreatePortfolio() {
                 if (response.status === 401) {
                     throw new Error('Your session is expired or invalid. Please log in again.')
                 }
-                throw new Error(text || 'Failed to save portfolio')
+                let errDetail = 'Failed to save portfolio'
+                try {
+                    const parsed = JSON.parse(text)
+                    errDetail = parsed.detail || parsed.message || errDetail
+                } catch {
+                    errDetail = text || errDetail
+                }
+                throw new Error(errDetail)
             }
 
             const saved = await response.json()
-            removeDraft(userId)
+            removeDraft(userId, portfolioId)
             isDirtyRef.current = false
             setIsDirty(false)
             setPortfolioId(saved.id ?? null)
-            setUserPortfolios((prev) => {
-                const filtered = prev.filter(
-                    (p) => p.id !== saved.id && (p.sections?.meta?.templateId || 'simple') !== templateId
-                )
-                const updated = [...filtered, saved]
-                userPortfoliosRef.current = updated
-                return updated
-            })
+            const currentList = userPortfoliosRef.current || []
+            const filtered = currentList.filter((p) => p.id !== saved.id)
+            const updated = [saved, ...filtered]
+            userPortfoliosRef.current = updated
+            setUserPortfolios(updated)
+            try {
+                if (userId) {
+                    localStorage.setItem(`hulmaPortfolio:${userId}`, JSON.stringify(updated))
+                }
+            } catch {}
             setSavedTemplates((current) => (current.includes(templateId) ? current : [...current, templateId]))
             const rawSettings = user?.id ? localStorage.getItem(`hulma-settings:${user.id}`) : null
             let userSettings = {}
@@ -661,13 +665,19 @@ export default function CreatePortfolio() {
             const savedSlug = getShareSlug(saved)
             if (savedSlug) {
                 setSlug(savedSlug)
-                setNotice(
-                    userSettings.publicLink === false
-                        ? 'Portfolio saved. (Public link sharing is currently disabled in your Settings).'
-                        : 'Portfolio saved. Your public link is ready to share.'
-                )
-            } else {
-                setNotice('Portfolio saved.')
+            }
+            setNotice(
+                <span>
+                    Portfolio saved successfully. View all in your{' '}
+                    <Link to="/portfolio" className="underline font-semibold hover:text-[#1558c4]">
+                        Portfolios
+                    </Link>
+                    .
+                </span>
+            )
+
+            if (!urlId && saved.id) {
+                navigateRef.current(`/portfolio/create?id=${saved.id}&template=${templateId}`, { replace: true })
             }
 
             return saved
@@ -681,16 +691,27 @@ export default function CreatePortfolio() {
     }
 
     const handleClear = () => {
-        if (window.confirm('Are you sure you want to clear your portfolio inputs?')) {
-            setForm(DEFAULT_FORM)
-            setSelectedImageName('')
+        setShowClearModal(true)
+    }
+
+    const handleConfirmClear = () => {
+        setShowClearModal(false)
+        setForm({
+            ...DEFAULT_FORM,
+            title: user?.fullName ? `${user.fullName}'s Portfolio` : 'My Portfolio',
+            fullName: resolveDisplayName(user, '').replace(/[0-9]/g, ''),
+            email: emailAddress || '',
+        })
+        setSelectedImageName('')
+        if (!urlId) {
             setPortfolioId(null)
             setSlug('')
-            setErrors({})
-            isDirtyRef.current = false
-            setIsDirty(false)
-            removeDraft(userId)
         }
+        setErrors({})
+        isDirtyRef.current = false
+        setIsDirty(false)
+        removeDraft(userId, portfolioId)
+        setToast({ type: 'success', message: 'Form cleared.' })
     }
 
     const handleCheckDraft = async () => {
@@ -773,12 +794,18 @@ export default function CreatePortfolio() {
         <DashboardLayout
             userName={resolveDisplayName(user, 'Portfolio creator')}
             email={emailAddress || 'No email'}
-            subtitle="Fill in your portfolio details"
+            subtitle={portfolioId ? 'Edit your portfolio details' : 'Fill in your portfolio details'}
         >
             <div className="mt-5 flex flex-col items-start gap-2 sm:mt-6 sm:flex-row sm:justify-between sm:gap-3">
                 <div>
-                    <h3 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[28px]">Create Portfolio</h3>
-                    <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">Add your information, save it, and share it with a public link. View your finished portfolio from the dashboard.</p>
+                    <h3 className="text-2xl font-medium leading-tight sm:text-[26px] lg:text-[28px]">
+                        {portfolioId ? 'Edit Portfolio' : 'Create Portfolio'}
+                    </h3>
+                    <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">
+                        {portfolioId
+                            ? 'Update your portfolio details and save changes.'
+                            : 'Add your information to create a new portfolio. Your existing portfolios will be kept safe.'}
+                    </p>
                 </div>
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                     <button
@@ -820,7 +847,11 @@ export default function CreatePortfolio() {
                                     aria-pressed={id === templateId}
                                     onClick={() => {
                                         if (id !== templateId) {
-                                            navigate(`/portfolio/create?template=${id}`)
+                                            if (urlId) {
+                                                navigate(`/portfolio/create?id=${urlId}&template=${id}`)
+                                            } else {
+                                                navigate(`/portfolio/create?template=${id}`)
+                                            }
                                         }
                                     }}
                                     className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition active:scale-95 ${
@@ -863,8 +894,14 @@ export default function CreatePortfolio() {
                             <input
                                 id="field-fullName"
                                 name="fullName"
+                                type="text"
                                 value={form.fullName}
                                 onChange={(e) => updateField('fullName', e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (/[0-9]/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                                        e.preventDefault()
+                                    }
+                                }}
                                 placeholder="Jane Doe"
                                 aria-invalid={Boolean(errors.fullName)}
                                 aria-describedby={errors.fullName ? 'error-fullName' : undefined}
@@ -1234,6 +1271,53 @@ export default function CreatePortfolio() {
                 open={previewOpen}
                 onClose={() => setPreviewOpen(false)}
             />
+
+            {showClearModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="clear-dialog-title"
+                    onClick={() => setShowClearModal(false)}
+                >
+                    <div
+                        className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-200/90 animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-start gap-3.5">
+                            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-600 border border-red-100 shadow-2xs">
+                                <Trash2 className="h-5 w-5" aria-hidden="true" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h3 id="clear-dialog-title" className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                                    Clear portfolio inputs?
+                                </h3>
+                                <p className="mt-1.5 text-xs sm:text-sm text-slate-500 leading-relaxed">
+                                    Are you sure you want to clear your portfolio inputs? Any unsaved changes will be removed.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5">
+                            <button
+                                type="button"
+                                onClick={() => setShowClearModal(false)}
+                                className="h-11 sm:h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition active:scale-95 cursor-pointer min-h-[44px] sm:min-h-0"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmClear}
+                                className="h-11 sm:h-10 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer min-h-[44px] sm:min-h-0"
+                            >
+                                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                <span>Clear inputs</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {toast && (
                 <div

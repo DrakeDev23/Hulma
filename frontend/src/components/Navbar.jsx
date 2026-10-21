@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom'
 import logoImg from '../assets/logo.png'
 
 const navItems = [
-  { label: 'Templates', to: '/login' },
   { label: 'AI Review', to: '/login' },
   { label: 'About', href: '#about' },
+  { label: 'Templates', href: '#templates' },
   { label: 'FAQ', href: '#faq' },
   { label: 'Help', href: '#help' },
 ]

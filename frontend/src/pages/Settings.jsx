@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useUser, useAuth, useClerk } from '@clerk/react'
-import { Clock, Check, User, LayoutGrid, Sparkles, Lock, Trash2, Loader2, AlertCircle } from 'lucide-react'
+import { Check, User, LayoutGrid, Sparkles, Lock, Trash2, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import { resolveDisplayName } from '../utils/portfolioUtils'
 import { apiUrl } from '../utils/api'
@@ -120,8 +120,10 @@ export default function Settings() {
     const [saved, setSaved] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [showDeleteModal, setShowDeleteModal] = useState(false)
     const [error, setError] = useState('')
     const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
+    const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false })
     const [pwMsg, setPwMsg] = useState(null)
     const [isUpdatingPw, setIsUpdatingPw] = useState(false)
 
@@ -318,12 +320,11 @@ export default function Settings() {
         }
     }
 
-    const onDeleteAccount = async () => {
-        const confirmed = window.confirm(
-            'Are you sure you want to delete your account? All your portfolios, images, and settings will be permanently removed. This action cannot be undone.'
-        )
-        if (!confirmed) return
+    const onDeleteAccount = () => {
+        setShowDeleteModal(true)
+    }
 
+    const confirmDeleteAccount = async () => {
         setIsDeleting(true)
         setError('')
 
@@ -360,6 +361,7 @@ export default function Settings() {
         } catch (err) {
             setError('Could not delete account: ' + (err?.message || 'Unknown error'))
             setIsDeleting(false)
+            setShowDeleteModal(false)
         }
     }
 
@@ -521,38 +523,68 @@ export default function Settings() {
                             ) : (
                                 <div>
                                     <label htmlFor="pw-current" className={label}>Current password</label>
-                                    <input
-                                        id="pw-current"
-                                        type="password"
-                                        autoComplete="current-password"
-                                        className={input}
-                                        value={pw.current}
-                                        onChange={(e) => setPw({ ...pw, current: e.target.value })}
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            id="pw-current"
+                                            type={showPw.current ? 'text' : 'password'}
+                                            autoComplete="current-password"
+                                            className={`${input} pr-10`}
+                                            value={pw.current}
+                                            onChange={(e) => setPw({ ...pw, current: e.target.value })}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPw((prev) => ({ ...prev, current: !prev.current }))}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-1 cursor-pointer"
+                                            aria-label={showPw.current ? 'Hide password' : 'Show password'}
+                                        >
+                                            {showPw.current ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                             <div className="grid gap-3 sm:grid-cols-2">
                                 <div>
                                     <label htmlFor="pw-new" className={label}>New password</label>
-                                    <input
-                                        id="pw-new"
-                                        type="password"
-                                        autoComplete="new-password"
-                                        className={input}
-                                        value={pw.next}
-                                        onChange={(e) => setPw({ ...pw, next: e.target.value })}
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            id="pw-new"
+                                            type={showPw.next ? 'text' : 'password'}
+                                            autoComplete="new-password"
+                                            className={`${input} pr-10`}
+                                            value={pw.next}
+                                            onChange={(e) => setPw({ ...pw, next: e.target.value })}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPw((prev) => ({ ...prev, next: !prev.next }))}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-1 cursor-pointer"
+                                            aria-label={showPw.next ? 'Hide password' : 'Show password'}
+                                        >
+                                            {showPw.next ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div>
                                     <label htmlFor="pw-confirm" className={label}>Confirm new password</label>
-                                    <input
-                                        id="pw-confirm"
-                                        type="password"
-                                        autoComplete="new-password"
-                                        className={input}
-                                        value={pw.confirm}
-                                        onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
-                                    />
+                                    <div className="relative">
+                                        <input
+                                            id="pw-confirm"
+                                            type={showPw.confirm ? 'text' : 'password'}
+                                            autoComplete="new-password"
+                                            className={`${input} pr-10`}
+                                            value={pw.confirm}
+                                            onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPw((prev) => ({ ...prev, confirm: !prev.confirm }))}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition p-1 cursor-pointer"
+                                            aria-label={showPw.confirm ? 'Hide password' : 'Show password'}
+                                        >
+                                            {showPw.confirm ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-3">
@@ -593,6 +625,64 @@ export default function Settings() {
                     </div>
                 </Section>
             </div>
+
+            {showDeleteModal && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="delete-account-title"
+                    onClick={() => !isDeleting && setShowDeleteModal(false)}
+                >
+                    <div
+                        className="w-full max-w-md rounded-2xl bg-white p-5 sm:p-6 shadow-2xl border border-slate-200/90 animate-in zoom-in-95 duration-200"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-start gap-3.5">
+                            <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-red-50 text-red-600 border border-red-100 shadow-2xs">
+                                <Trash2 className="h-5 w-5" aria-hidden="true" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h3 id="delete-account-title" className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                                    Delete Account?
+                                </h3>
+                                <p className="mt-1.5 text-xs sm:text-sm text-slate-500 leading-relaxed">
+                                    Are you sure you want to delete your account? All your portfolios, uploaded images, and settings will be permanently removed. This action cannot be undone.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5">
+                            <button
+                                type="button"
+                                onClick={() => setShowDeleteModal(false)}
+                                disabled={isDeleting}
+                                className="h-11 sm:h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition active:scale-95 disabled:opacity-50 cursor-pointer min-h-[44px] sm:min-h-0"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDeleteAccount}
+                                disabled={isDeleting}
+                                className="h-11 sm:h-10 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 cursor-pointer min-h-[44px] sm:min-h-0"
+                            >
+                                {isDeleting ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                                        <span>Deleting...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                        <span>Delete account</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </DashboardLayout>
     )
 }

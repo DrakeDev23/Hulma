@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useClerk, useUser } from '@clerk/react'
-import { Home, Briefcase, Sparkles, Settings, X, Menu, LogOut, LayoutTemplate, PlusSquare } from 'lucide-react'
+import { Home, Briefcase, Sparkles, Settings, X, Menu, LogOut, LayoutTemplate, PlusSquare, AlertCircle, Loader2 } from 'lucide-react'
 import logoImg from '../assets/logo.png'
 import { resolveDisplayName } from '../utils/portfolioUtils'
 import { clearAuthSession } from '../utils/session'
@@ -79,7 +80,22 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
         if (window.innerWidth < 768) setOpen(false)
     }
 
-    const handleLogout = async () => {
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+    const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+    useEffect(() => {
+        if (!showLogoutConfirm) return
+        const onKey = (e) => {
+            if (e.key === 'Escape' && !isLoggingOut) {
+                setShowLogoutConfirm(false)
+            }
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+    }, [showLogoutConfirm, isLoggingOut])
+
+    const handleConfirmLogout = async () => {
+        setIsLoggingOut(true)
         try {
             clearAuthSession()
             await signOut({ redirectUrl: '/login' })
@@ -87,6 +103,9 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
             console.error('Logout failed:', error)
             clearAuthSession()
             navigate('/login')
+        } finally {
+            setIsLoggingOut(false)
+            setShowLogoutConfirm(false)
         }
     }
 
@@ -187,7 +206,7 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                     <div className={`mt-6 ${open ? 'px-3.5 sm:px-4' : 'px-2.5'} sm:mt-8 lg:mt-10`}>
                         <div className={`mb-3 h-px w-full ${open ? 'max-w-40' : 'max-w-full'} bg-white/20`} />
                         <button
-                            onClick={handleLogout}
+                            onClick={() => setShowLogoutConfirm(true)}
                             title="Log out"
                             aria-label="Log out"
                             className={`group flex w-full items-center ${
@@ -241,6 +260,65 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                     {children}
                 </div>
             </main>
+
+            {/* Logout Confirmation Pop-up Modal */}
+            {showLogoutConfirm &&
+                typeof document !== 'undefined' &&
+                createPortal(
+                    <div
+                        className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-xs animate-in fade-in duration-200"
+                        onClick={() => !isLoggingOut && setShowLogoutConfirm(false)}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="logout-dialog-title"
+                    >
+                        <div
+                            className="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-amber-50 text-amber-600">
+                                <AlertCircle className="h-6 w-6" aria-hidden="true" />
+                            </div>
+
+                            <h3 id="logout-dialog-title" className="text-lg font-bold text-slate-900">
+                                Are you sure you want to log out?
+                            </h3>
+                            <p className="mt-1.5 text-xs sm:text-sm text-slate-500 leading-relaxed">
+                                You will need to sign in again to access and manage your portfolios.
+                            </p>
+
+                            <div className="mt-6 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowLogoutConfirm(false)}
+                                    disabled={isLoggingOut}
+                                    className="min-h-[44px] sm:min-h-0 h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-semibold transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                                >
+                                    No, cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleConfirmLogout}
+                                    disabled={isLoggingOut}
+                                    className="min-h-[44px] sm:min-h-0 h-10 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold shadow-xs flex items-center justify-center gap-2 transition active:scale-95 disabled:opacity-60 cursor-pointer"
+                                >
+                                    {isLoggingOut ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                                            <span>Logging out...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <LogOut className="h-4 w-4" aria-hidden="true" />
+                                            <span>Yes, log out</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>,
+                    document.body
+                )}
         </div>
     )
 }

@@ -98,23 +98,23 @@ export default function ModernTemplate({
                     stickyNav ? 'sticky top-0' : ''
                 } z-30 border-b border-slate-200/80 bg-white/80 backdrop-blur-md transition-all`}
             >
-                <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-sm font-bold text-white shadow-sm shadow-blue-500/20">
+                <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-2.5 sm:px-6 sm:py-3">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <div className="flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-xs sm:text-sm font-bold text-white shadow-sm shadow-blue-500/20">
                             {name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                            <span className="block text-sm font-bold tracking-tight text-slate-900">
+                        <div className="min-w-0">
+                            <span className="block truncate text-xs sm:text-sm font-bold tracking-tight text-slate-900">
                                 {name}
                             </span>
-                            <span className="block text-[11px] font-medium text-emerald-600 flex items-center gap-1">
-                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="hidden xs:flex text-[10px] sm:text-[11px] font-medium text-emerald-600 items-center gap-1 truncate">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                                 Available for opportunities
                             </span>
                         </div>
                     </div>
 
-                    <nav className="flex items-center gap-1 sm:gap-2">
+                    <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[55%] sm:max-w-none">
                         {nav.map((s) => (
                             <a
                                 key={s.id}

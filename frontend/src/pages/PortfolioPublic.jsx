@@ -161,7 +161,7 @@ export default function PortfolioPublic() {
 
     return (
         <div className="relative min-h-screen">
-            {isOwner && <OwnerEditButton templateId={templateId} />}
+            {isOwner && <OwnerEditButton portfolioId={portfolio?.id} templateId={templateId} />}
 
             <PortfolioSite
                 portfolio={portfolio}

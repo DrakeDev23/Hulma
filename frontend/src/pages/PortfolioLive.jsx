@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/react'
 import { ArrowLeft } from 'lucide-react'
 import PortfolioSite from '../components/PortfolioSite'
@@ -20,6 +20,8 @@ function getStoredTemplate(userId) {
 
 export default function PortfolioLive() {
     const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
+    const queryId = searchParams.get('id')
     const { getToken } = useAuth()
     const { user } = useUser()
     const [portfolio, setPortfolio] = useState(null)
@@ -34,7 +36,14 @@ export default function PortfolioLive() {
                 })
                 if (res.ok) {
                     const data = await res.json()
-                    const item = Array.isArray(data) ? data[0] : data
+                    const list = (Array.isArray(data) ? data : [data]).filter(Boolean)
+                    let item = null
+                    if (queryId) {
+                        item = list.find((p) => String(p.id) === String(queryId))
+                    }
+                    if (!item && list.length > 0) {
+                        item = list[0]
+                    }
                     if (item) {
                         const slug = getShareSlug(item)
                         if (slug) {
@@ -51,7 +60,7 @@ export default function PortfolioLive() {
             }
         }
         fetchData()
-    }, [getToken, navigate])
+    }, [getToken, navigate, queryId])
 
     if (loading) return <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-800">Loading portfolio...</div>
     if (!portfolio) {
@@ -66,7 +75,11 @@ export default function PortfolioLive() {
     const template = portfolio.sections?.meta?.templateId || getStoredTemplate(user?.id)
     const slug = getShareSlug(portfolio)
 
-    const createUrl = template ? `/portfolio/create?template=${encodeURIComponent(template)}` : '/portfolio/create'
+    const createUrl = portfolio?.id
+        ? `/portfolio/create?id=${portfolio.id}&template=${encodeURIComponent(template)}`
+        : template
+            ? `/portfolio/create?template=${encodeURIComponent(template)}`
+            : '/portfolio/create'
 
     return (
         <div className="min-h-screen">

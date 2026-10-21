@@ -4,6 +4,7 @@ import { useUser, useAuth } from '@clerk/react'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import About from './components/About'
+import TemplatesSection from './components/TemplatesSection'
 import FAQ from './components/FAQ'
 import Help from './components/Help'
 import Footer from './components/Footer'
@@ -51,6 +52,7 @@ function HomePage() {
       <Navbar />
       <Hero />
       <About />
+      <TemplatesSection />
       <FAQ />
       <Help />
       <Footer />

@@ -36,6 +36,24 @@ html {
   }
 }
 
+@keyframes carouselSpin360 {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(-360deg);
+  }
+}
+
+@keyframes carouselIntroSpin360 {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(-360deg);
+  }
+}
+
 @keyframes pageLoadReveal {
   0% {
     opacity: 0;
@@ -44,8 +62,8 @@ html {
   }
   100% {
     opacity: 1;
-    filter: blur(0);
-    transform: translateY(0) scale(1);
+    filter: none;
+    transform: none;
   }
 }
 
@@ -100,7 +118,7 @@ html {
 .reveal-on-scroll {
   opacity: 0;
   filter: blur(8px);
-  transform: translateY(36px) scale(0.985);
+  transform: translateY(28px);
   transition:
     opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
     transform 0.8s cubic-bezier(0.16, 1, 0.3, 1),
@@ -112,7 +130,7 @@ html {
 .reveal-on-scroll.is-visible {
   opacity: 1;
   filter: blur(0);
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
 }
 
 @media (prefers-reduced-motion: reduce) {

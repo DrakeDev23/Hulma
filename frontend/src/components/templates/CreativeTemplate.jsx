@@ -110,8 +110,8 @@ export default function CreativeTemplate({
                 </nav>
             </div>
 
-            <header className="relative min-h-[85vh] flex flex-col justify-between pt-10 sm:pt-16 pb-8 px-4 sm:px-8 lg:px-16 overflow-hidden border-b border-white/10">
-                <div className="my-auto py-8">
+            <header className="relative min-h-[70vh] sm:min-h-[78vh] flex flex-col justify-between pt-8 sm:pt-14 pb-8 px-4 sm:px-8 lg:px-12 overflow-hidden border-b border-white/10">
+                <div className="mx-auto max-w-6xl w-full my-auto py-6 sm:py-8">
                     <div className="flex flex-col-reverse lg:flex-row lg:items-center justify-between gap-8 lg:gap-12">
                         <div className="flex-1 min-w-0">
                             {tagline && (
@@ -121,7 +121,7 @@ export default function CreativeTemplate({
                             )}
 
                             {name && (
-                                <h1 className="text-5xl sm:text-7xl md:text-8xl lg:text-[8.5rem] xl:text-[9.5rem] font-black uppercase tracking-tighter leading-[0.88] break-words">
+                                <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-black uppercase tracking-tight leading-[0.95] break-words">
                                     <span className="block text-white hover:text-transparent hover:bg-clip-text hover:bg-gradient-to-r hover:from-purple-400 hover:via-pink-500 hover:to-orange-400 transition-all duration-300">
                                         {name}
                                     </span>
@@ -137,10 +137,10 @@ export default function CreativeTemplate({
                                         <img
                                             src={picture}
                                             alt={name || 'Profile photo'}
-                                            className="aspect-square w-28 sm:w-40 md:w-52 lg:w-60 rounded-2xl object-cover"
+                                            className="aspect-square w-28 sm:w-36 md:w-44 lg:w-52 rounded-2xl object-cover"
                                         />
                                     ) : (
-                                        <div className="aspect-square w-28 sm:w-40 md:w-52 lg:w-60 rounded-2xl bg-gradient-to-br from-purple-900/60 to-pink-900/40 border border-white/10 grid place-items-center text-4xl sm:text-6xl font-black text-white">
+                                        <div className="aspect-square w-28 sm:w-36 md:w-44 lg:w-52 rounded-2xl bg-gradient-to-br from-purple-900/60 to-pink-900/40 border border-white/10 grid place-items-center text-4xl sm:text-6xl font-black text-white">
                                             {name.charAt(0).toUpperCase()}
                                         </div>
                                     )}
@@ -180,7 +180,7 @@ export default function CreativeTemplate({
                 </div>
 
                 {marqueeItems.length > 0 && (
-                    <div className="relative -mx-4 sm:-mx-8 lg:-mx-16 border-t border-b border-white/10 bg-white/[0.02] py-3 overflow-hidden backdrop-blur-xs">
+                    <div className="relative -mx-4 sm:-mx-8 lg:-mx-12 border-t border-b border-white/10 bg-white/[0.02] py-3 overflow-hidden backdrop-blur-xs">
                         <div className="animate-marquee whitespace-nowrap flex items-center gap-8">
                             {marqueeItems.map((item, idx) => (
                                 <span
@@ -197,14 +197,14 @@ export default function CreativeTemplate({
             </header>
 
             {stats.length > 0 && (
-                <section className="border-b border-white/10 px-4 sm:px-8 lg:px-16 py-12 sm:py-16 bg-white/[0.01]">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                <section className="border-b border-white/10 px-4 sm:px-8 lg:px-12 py-10 sm:py-14 bg-white/[0.01]">
+                    <div className="mx-auto max-w-6xl w-full grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
                         {stats.map((stat, idx) => (
                             <div key={idx} className="space-y-1">
                                 <span className="text-[10px] font-black tracking-widest text-orange-400 uppercase">
                                     // STAT {stat.tag}
                                 </span>
-                                <div className="text-6xl sm:text-7xl md:text-8xl font-black text-stroke-outline tracking-tight hover:text-pink-500 transition-colors">
+                                <div className="text-5xl sm:text-6xl md:text-7xl font-black text-stroke-outline tracking-tight hover:text-pink-500 transition-colors">
                                     {String(stat.val).padStart(2, '0')}
                                 </div>
                                 <p className="text-xs font-bold uppercase tracking-wider text-slate-300">
@@ -216,7 +216,7 @@ export default function CreativeTemplate({
                 </section>
             )}
 
-            <main className="px-4 sm:px-8 lg:px-16 py-16 sm:py-24 space-y-24 sm:space-y-36">
+            <main className="mx-auto max-w-6xl w-full px-4 sm:px-8 lg:px-12 py-14 sm:py-20 space-y-16 sm:space-y-24">
                 {about && (
                     <section id={`${idPrefix}-about`} className="scroll-mt-24">
                         <div className="flex items-baseline gap-4 mb-8">
@@ -489,9 +489,11 @@ export default function CreativeTemplate({
                 )}
             </main>
 
-            <footer className="border-t border-white/10 px-4 sm:px-8 lg:px-16 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-slate-500">
-                <p>{name ? `✦ ${name}` : '✦ PORTFOLIO'}</p>
-                <p className="uppercase tracking-widest text-slate-600">ALL RIGHTS RESERVED</p>
+            <footer className="border-t border-white/10 px-4 sm:px-8 lg:px-12 py-8">
+                <div className="mx-auto max-w-6xl w-full flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-mono text-slate-500">
+                    <p>{name ? `✦ ${name}` : '✦ PORTFOLIO'}</p>
+                    <p className="uppercase tracking-widest text-slate-600">ALL RIGHTS RESERVED</p>
+                </div>
             </footer>
         </div>
     )

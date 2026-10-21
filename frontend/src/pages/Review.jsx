@@ -666,7 +666,7 @@ export default function Review() {
                                 {doneCount} of {result.suggestions.length} completed
                             </span>
                             <button
-                                onClick={() => navigate(activePortfolio?.id ? `/portfolio/create?template=${template || 'simple'}` : '/portfolio')}
+                                onClick={() => navigate(activePortfolio?.id ? `/portfolio/create?id=${activePortfolio.id}&template=${template || 'simple'}` : '/portfolio')}
                                 className="inline-flex items-center gap-2 rounded-xl bg-[#1f6fdc] px-4 py-2.5 text-sm font-medium text-white transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95"
                             >
                                 Edit portfolio <ArrowRight size={16} />

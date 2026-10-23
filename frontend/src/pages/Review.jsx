@@ -4,6 +4,7 @@ import { useAuth, useUser } from '@clerk/react'
 import {
     Sparkles,
     Clock,
+    Lock,
     CheckCircle2,
     LayoutGrid,
     Palette,
@@ -163,19 +164,37 @@ export default function Review() {
     const [reviewError, setReviewError] = useState('')
     const [done, setDone] = useState({})
     const [reviewLimits, setReviewLimits] = useState({
-        remaining: 3,
-        maxPerWindow: 3,
-        dailyRemaining: 10,
-        maxPerDay: 10,
+        remaining: 5,
+        maxPerWindow: 5,
+        dailyRemaining: 5,
+        maxPerDay: 5,
         isPenaltyActive: false,
     })
-    const [countdown, setCountdown] = useState(0)
+    const [lockedUntil, setLockedUntil] = useState(null)
 
-    function formatCountdown(totalSecs) {
-        if (!totalSecs || totalSecs <= 0) return '0:00'
-        const m = Math.floor(totalSecs / 60)
-        const s = totalSecs % 60
-        return `${m}:${s < 10 ? '0' : ''}${s}`
+    function formatUnlockDay(targetDateOrSecs) {
+        if (!targetDateOrSecs) return 'Available in 5 hours'
+        const target = typeof targetDateOrSecs === 'number'
+            ? new Date(Date.now() + targetDateOrSecs * 1000)
+            : new Date(targetDateOrSecs)
+        if (isNaN(target.getTime())) return 'Available in 5 hours'
+
+        const now = new Date()
+        const isToday = target.toDateString() === now.toDateString()
+        const tomorrow = new Date(now)
+        tomorrow.setDate(now.getDate() + 1)
+        const isTomorrow = target.toDateString() === tomorrow.toDateString()
+
+        const timeStr = target.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+
+        if (isToday) {
+            return `Available today at ${timeStr}`
+        }
+        if (isTomorrow) {
+            return `Available tomorrow at ${timeStr}`
+        }
+        const dayName = target.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+        return `Available ${dayName} at ${timeStr}`
     }
 
     const fetchReviewStatus = async () => {
@@ -187,20 +206,21 @@ export default function Review() {
             })
             if (!res.ok) return
             const data = await res.json()
+            const rem = data.remaining_uses !== undefined ? data.remaining_uses : data.remaining
             setReviewLimits({
-                remaining: data.remaining,
-                maxPerWindow: data.max_reviews_per_window,
+                remaining: rem,
+                maxPerWindow: data.max_per_window ?? data.max_reviews_per_window ?? 5,
                 dailyRemaining: data.daily_remaining,
-                maxPerDay: data.max_reviews_per_day,
+                maxPerDay: data.max_daily ?? data.max_reviews_per_day ?? 25,
                 isPenaltyActive: !!data.is_penalty_active,
             })
-            if (data.retry_after_seconds > 0) {
-                setCountdown(data.retry_after_seconds)
-                if (data.is_penalty_active) {
-                    setReviewError('Too many attempts. AI review is paused for 10 minutes.')
-                }
+            if (data.locked_until) {
+                setLockedUntil(data.locked_until)
+            } else if (data.retry_after_seconds > 0 || rem <= 0) {
+                const secs = data.retry_after_seconds > 0 ? data.retry_after_seconds : 18000
+                setLockedUntil(new Date(Date.now() + secs * 1000).toISOString())
             } else {
-                setCountdown(0)
+                setLockedUntil(null)
             }
         } catch {
             // Silently ignore network failures on background status query
@@ -208,18 +228,37 @@ export default function Review() {
     }
 
     useEffect(() => {
-        if (countdown <= 0) return
-        const timer = setInterval(() => {
-            setCountdown((prev) => {
-                if (prev <= 1) {
-                    fetchReviewStatus()
-                    return 0
+        const handleSync = (e) => {
+            if (e?.detail) {
+                const rem = e.detail.remaining_uses !== undefined ? e.detail.remaining_uses : e.detail.remaining
+                if (rem !== undefined) {
+                    setReviewLimits((prev) => ({ ...prev, remaining: rem }))
                 }
-                return prev - 1
-            })
-        }, 1000)
-        return () => clearInterval(timer)
-    }, [countdown])
+                if (e.detail.locked_until) {
+                    setLockedUntil(e.detail.locked_until)
+                } else if (e.detail.retry_after_seconds > 0 || rem <= 0) {
+                    const secs = e.detail.retry_after_seconds > 0 ? e.detail.retry_after_seconds : 18000
+                    setLockedUntil(new Date(Date.now() + secs * 1000).toISOString())
+                }
+            }
+            fetchReviewStatus()
+        }
+        window.addEventListener('hulma:ai-usage-updated', handleSync)
+        return () => window.removeEventListener('hulma:ai-usage-updated', handleSync)
+    }, [])
+
+    useEffect(() => {
+        if (!lockedUntil) return
+        const msUntilReset = new Date(lockedUntil).getTime() - Date.now()
+        if (msUntilReset <= 0) {
+            fetchReviewStatus()
+            return
+        }
+        const timer = setTimeout(() => {
+            fetchReviewStatus()
+        }, msUntilReset + 500)
+        return () => clearTimeout(timer)
+    }, [lockedUntil])
 
     useEffect(() => {
         let cancelled = false
@@ -272,12 +311,8 @@ export default function Review() {
             return
         }
 
-        if (countdown > 0 || reviewLimits.remaining <= 0) {
-            setReviewError(
-                reviewLimits.isPenaltyActive
-                    ? 'Too many attempts. AI review is paused for 10 minutes.'
-                    : `Cooldown active. Try again in ${formatCountdown(countdown)}.`
-            )
+        if (isLimitReached) {
+            setReviewError(`You hit 5 trials, please come back in 5 hours. ${availableSubtext}`)
             return
         }
 
@@ -316,21 +351,18 @@ export default function Review() {
             })
             if (res.status === 429) {
                 const errData = await res.json().catch(() => null)
-                const retrySecs = errData?.retry_after_seconds ?? parseInt(res.headers.get('Retry-After') || '300', 10)
-                setCountdown(retrySecs)
+                const retrySecs = errData?.retry_after_seconds ?? parseInt(res.headers.get('Retry-After') || '18000', 10)
+                const lockedAt = errData?.locked_until || new Date(Date.now() + retrySecs * 1000).toISOString()
+                setLockedUntil(lockedAt)
                 setReviewLimits((prev) => ({
                     ...prev,
                     remaining: 0,
                     isPenaltyActive: !!errData?.is_penalty_active,
                 }))
-                if (errData?.is_penalty_active) {
-                    setReviewError('Too many attempts. AI review is paused for 10 minutes.')
-                } else {
-                    setReviewError(
-                        errData?.message || `You've used all 3 AI reviews. Try again in ${formatCountdown(retrySecs)}.`
-                    )
-                }
+                setReviewError(`You hit 5 trials, please come back in 5 hours. ${formatUnlockDay(lockedAt)}`)
                 setStatus(result ? 'done' : 'idle')
+                fetchReviewStatus()
+                window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: { remaining: 0, locked_until: lockedAt, retry_after_seconds: retrySecs } }))
                 return
             }
             if (!res.ok) {
@@ -338,13 +370,24 @@ export default function Review() {
                 throw new Error(errData?.detail || 'AI review request failed.')
             }
             const data = await res.json()
-            if (data.remaining !== undefined) {
+            const rem = data.remaining_uses !== undefined ? data.remaining_uses : data.remaining
+            if (rem !== undefined) {
                 setReviewLimits((prev) => ({
                     ...prev,
-                    remaining: data.remaining,
+                    remaining: rem,
                     dailyRemaining: data.daily_remaining ?? prev.dailyRemaining,
                 }))
+                if (data.locked_until) {
+                    setLockedUntil(data.locked_until)
+                } else if (data.retry_after_seconds > 0 || rem <= 0) {
+                    const secs = data.retry_after_seconds > 0 ? data.retry_after_seconds : 18000
+                    setLockedUntil(new Date(Date.now() + secs * 1000).toISOString())
+                } else {
+                    setLockedUntil(null)
+                }
             }
+            fetchReviewStatus()
+            window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: data }))
             setResult(normalizeReview(data))
             setStatus('done')
         } catch (err) {
@@ -355,8 +398,8 @@ export default function Review() {
 
     const toggleDone = (id) => setDone((d) => ({ ...d, [id]: !d[id] }))
     const doneCount = result ? result.suggestions.filter((s) => done[s.id]).length : 0
-    const isCooldown = countdown > 0
-    const isLimitReached = isCooldown || reviewLimits.remaining <= 0
+    const isLimitReached = reviewLimits.remaining <= 0 || (lockedUntil ? new Date(lockedUntil).getTime() > Date.now() : false)
+    const availableSubtext = formatUnlockDay(lockedUntil)
 
     return (
         <DashboardLayout
@@ -387,12 +430,13 @@ export default function Review() {
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#1f6fdc]">
-                        <Sparkles size={13} /> {reviewLimits.remaining} of {reviewLimits.maxPerWindow} AI reviews left
-                    </span>
-                    {isCooldown && (
-                        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-800">
-                            <Clock size={13} /> {reviewLimits.isPenaltyActive ? 'Penalty: ' : 'Cooldown: '}{formatCountdown(countdown)}
+                    {reviewLimits.remaining === 0 ? (
+                        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700">
+                            <Sparkles size={13} /> 5 of 5 used (0 reviews left)
+                        </span>
+                    ) : (
+                        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#1f6fdc]">
+                            <Sparkles size={13} /> {reviewLimits.remaining} of {reviewLimits.maxPerWindow} reviews remaining ({reviewLimits.maxPerWindow - reviewLimits.remaining} used)
                         </span>
                     )}
                     <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#1f6fdc] bg-white px-3 py-1.5 text-xs font-medium text-[#1f6fdc] transition duration-200 hover:bg-[#1f6fdc] hover:text-white">
@@ -421,6 +465,20 @@ export default function Review() {
                               : 'We analyze your template structure, layout, typography, and content clarity, providing actionable recruiter-focused feedback.'}
                     </p>
 
+                    {isLimitReached && (
+                        <div className="mt-4 flex items-center gap-3 rounded-xl border border-amber-300/40 bg-amber-500/20 px-3.5 py-2.5 text-xs text-amber-100 backdrop-blur-xs">
+                            <Clock size={18} className="shrink-0 text-amber-300" />
+                            <div>
+                                <p className="font-semibold text-white">
+                                    You hit 5 trials, please come back in 5 hours
+                                </p>
+                                <p className="mt-0.5 text-amber-200">
+                                    {availableSubtext}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="mt-5 flex flex-wrap items-center gap-2.5 sm:gap-3">
                         {status === 'no_portfolio' ? (
                             <button
@@ -432,20 +490,18 @@ export default function Review() {
                         ) : (
                             <button
                                 onClick={runReview}
-                                disabled={status === 'reviewing' || !hasPortfolio || isLimitReached}
-                                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 min-[440px]:w-auto sm:px-5 sm:py-3"
+                                disabled={isLimitReached || status === 'reviewing' || !hasPortfolio}
+                                aria-disabled={isLimitReached ? 'true' : undefined}
+                                title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
+                                className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 min-[440px]:w-auto sm:px-5 sm:py-3 ${
+                                    isLimitReached
+                                        ? 'cursor-not-allowed opacity-50 pointer-events-none'
+                                        : 'hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0'
+                                }`}
                             >
                                 {status === 'reviewing' ? (
                                     <>
                                         <RefreshCw size={17} className="animate-spin" /> Reviewing...
-                                    </>
-                                ) : isCooldown ? (
-                                    <>
-                                        <Clock size={17} /> Try again in {formatCountdown(countdown)}
-                                    </>
-                                ) : reviewLimits.remaining <= 0 ? (
-                                    <>
-                                        <Clock size={17} /> Limit reached
                                     </>
                                 ) : status === 'done' ? (
                                     <>
@@ -561,20 +617,18 @@ export default function Review() {
                         </div>
                         <button
                             onClick={runReview}
-                            disabled={status === 'reviewing' || !hasPortfolio || isLimitReached}
-                            className="inline-flex items-center gap-2 rounded-xl bg-[#1f6fdc] px-5 py-3 text-sm font-medium text-white shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-70"
+                            disabled={isLimitReached || status === 'reviewing' || !hasPortfolio}
+                            aria-disabled={isLimitReached ? 'true' : undefined}
+                            title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
+                            className={`inline-flex items-center gap-2 rounded-xl bg-[#1f6fdc] px-5 py-3 text-sm font-medium text-white shadow-md transition duration-200 ${
+                                isLimitReached
+                                    ? 'cursor-not-allowed opacity-50 pointer-events-none'
+                                    : 'hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-70'
+                            }`}
                         >
                             {status === 'reviewing' ? (
                                 <>
                                     <RefreshCw size={16} className="animate-spin" /> Reviewing...
-                                </>
-                            ) : isCooldown ? (
-                                <>
-                                    <Clock size={16} /> Try again in {formatCountdown(countdown)}
-                                </>
-                            ) : reviewLimits.remaining <= 0 ? (
-                                <>
-                                    <Clock size={16} /> Limit reached
                                 </>
                             ) : (
                                 <>

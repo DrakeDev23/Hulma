@@ -92,6 +92,18 @@ def _get_or_create_usage(db: Session, user_id: int, now: datetime) -> AiReviewUs
     return usage
 
 
+def _format_time_left(total_seconds: int) -> str:
+    if total_seconds >= 86400:
+        return "1 day"
+    hours = max(1, (total_seconds + 3599) // 3600)
+    if hours >= 24:
+        return "1 day"
+    if hours > 1:
+        return f"{hours} hours"
+    minutes = max(1, (total_seconds + 59) // 60)
+    return f"{minutes} minute{'s' if minutes != 1 else ''}"
+
+
 def check_and_consume_ai_review(
     db: Session,
     user_id: int,
@@ -142,9 +154,11 @@ def _check_and_consume_unlocked(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail={
                     "error": "rate_limited",
-                    "message": "Too many attempts. AI review is paused for 10 minutes.",
+                    "message": f"Too many attempts. Please back in {_format_time_left(retry_after)}.",
                     "retry_after_seconds": retry_after,
+                    "locked_until": penalty_until.isoformat(),
                     "remaining": 0,
+                    "remaining_uses": 0,
                     "is_penalty_active": True,
                 },
                 headers={"Retry-After": str(retry_after)},
@@ -157,57 +171,62 @@ def _check_and_consume_unlocked(
             window_start = now
 
     cooldown_end = window_start + timedelta(seconds=cooldown_seconds)
-    if usage.count >= max_per_window:
-        if now < cooldown_end:
-            usage.blocked_attempts += 1
-            usage.updated_at = now
+    if now >= cooldown_end:
+        usage.count = 0
+        usage.blocked_attempts = 0
+        usage.window_start = now
+        window_start = now
+        cooldown_end = window_start + timedelta(seconds=cooldown_seconds)
 
-            if usage.blocked_attempts >= spam_threshold:
-                usage.penalty_until = now + timedelta(seconds=spam_cooldown_seconds)
-                retry_after = spam_cooldown_seconds
-                logger.warning(
-                    "Spam penalty triggered for user_id=%s: %d blocked attempts. Penalty active for %ds.",
-                    user_id,
-                    usage.blocked_attempts,
-                    spam_cooldown_seconds,
-                )
-                db.commit()
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={
-                        "error": "rate_limited",
-                        "message": "Too many attempts. AI review is paused for 10 minutes.",
-                        "retry_after_seconds": retry_after,
-                        "remaining": 0,
-                        "is_penalty_active": True,
-                    },
-                    headers={"Retry-After": str(retry_after)},
-                )
-            else:
-                retry_after = max(1, int((cooldown_end - now).total_seconds()))
-                minutes = max(1, (retry_after + 59) // 60)
-                db.commit()
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={
-                        "error": "rate_limited",
-                        "message": f"You've used all {max_per_window} AI reviews. Try again in {minutes} minute{'s' if minutes != 1 else ''}.",
-                        "retry_after_seconds": retry_after,
-                        "remaining": 0,
-                        "is_penalty_active": False,
-                    },
-                    headers={"Retry-After": str(retry_after)},
-                )
+    if usage.count >= max_per_window:
+        usage.blocked_attempts += 1
+        usage.updated_at = now
+
+        if usage.blocked_attempts >= spam_threshold:
+            remaining_sec = max(1, int((cooldown_end - now).total_seconds()))
+            penalty_dur = max(spam_cooldown_seconds, remaining_sec)
+            usage.penalty_until = now + timedelta(seconds=penalty_dur)
+            retry_after = penalty_dur
+            logger.warning(
+                "Spam penalty triggered for user_id=%s: %d blocked attempts. Penalty active for %ds.",
+                user_id,
+                usage.blocked_attempts,
+                penalty_dur,
+            )
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": "rate_limited",
+                    "message": f"Too many attempts. Please back in {_format_time_left(retry_after)}.",
+                    "retry_after_seconds": retry_after,
+                    "locked_until": usage.penalty_until.isoformat(),
+                    "remaining": 0,
+                    "remaining_uses": 0,
+                    "is_penalty_active": True,
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
         else:
-            usage.count = 0
-            usage.blocked_attempts = 0
-            usage.window_start = now
-            window_start = now
+            retry_after = max(1, int((cooldown_end - now).total_seconds()))
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": "rate_limited",
+                    "message": f"You hit {max_per_window} trials, please back in {_format_time_left(retry_after)}.",
+                    "retry_after_seconds": retry_after,
+                    "locked_until": cooldown_end.isoformat(),
+                    "remaining": 0,
+                    "remaining_uses": 0,
+                    "is_penalty_active": False,
+                },
+                headers={"Retry-After": str(retry_after)},
+            )
 
     if usage.daily_count >= max_daily:
         daily_reset = daily_window_start + timedelta(hours=24)
         retry_after = max(1, int((daily_reset - now).total_seconds()))
-        hours = max(1, (retry_after + 3599) // 3600)
         usage.blocked_attempts += 1
         usage.updated_at = now
         db.commit()
@@ -215,9 +234,11 @@ def _check_and_consume_unlocked(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
                 "error": "rate_limited",
-                "message": f"Daily limit of {max_daily} AI reviews reached. Resets in {hours} hour{'s' if hours != 1 else ''}.",
+                "message": f"Daily limit reached. Please back in {_format_time_left(retry_after)}.",
                 "retry_after_seconds": retry_after,
+                "locked_until": daily_reset.isoformat(),
                 "remaining": 0,
+                "remaining_uses": 0,
                 "daily_remaining": 0,
                 "is_daily_limit": True,
             },
@@ -227,6 +248,8 @@ def _check_and_consume_unlocked(
     usage.count += 1
     if usage.count == 1:
         usage.window_start = now
+    elif usage.count == max_per_window:
+        usage.window_start = now
 
     usage.daily_count += 1
     usage.updated_at = now
@@ -234,9 +257,19 @@ def _check_and_consume_unlocked(
 
     remaining_window = max(0, max_per_window - usage.count)
     daily_remaining = max(0, max_daily - usage.daily_count)
+    retry_after_seconds = 0
+    locked_until = None
+    if remaining_window == 0:
+        w_start = _ensure_utc(usage.window_start) or now
+        new_cooldown_end = w_start + timedelta(seconds=cooldown_seconds)
+        retry_after_seconds = max(1, int((new_cooldown_end - now).total_seconds()))
+        locked_until = new_cooldown_end.isoformat()
 
     return {
         "remaining": remaining_window,
+        "remaining_uses": remaining_window,
+        "retry_after_seconds": retry_after_seconds,
+        "locked_until": locked_until,
         "daily_remaining": daily_remaining,
         "max_per_window": max_per_window,
         "max_daily": max_daily,
@@ -312,7 +345,9 @@ def get_ai_review_status(
     if usage is None:
         return {
             "remaining": max_per_window,
+            "remaining_uses": max_per_window,
             "retry_after_seconds": 0,
+            "locked_until": None,
             "daily_remaining": max_daily,
             "is_penalty_active": False,
             "max_per_window": max_per_window,
@@ -333,7 +368,9 @@ def get_ai_review_status(
             retry_after = max(1, int((penalty_until - now).total_seconds()))
             return {
                 "remaining": 0,
+                "remaining_uses": 0,
                 "retry_after_seconds": retry_after,
+                "locked_until": penalty_until.isoformat(),
                 "daily_remaining": daily_remaining,
                 "is_penalty_active": True,
                 "max_per_window": max_per_window,
@@ -345,7 +382,9 @@ def get_ai_review_status(
         retry_after = max(1, int((cooldown_end - now).total_seconds()))
         return {
             "remaining": 0,
+            "remaining_uses": 0,
             "retry_after_seconds": retry_after,
+            "locked_until": cooldown_end.isoformat(),
             "daily_remaining": daily_remaining,
             "is_penalty_active": False,
             "max_per_window": max_per_window,
@@ -357,7 +396,9 @@ def get_ai_review_status(
 
     return {
         "remaining": remaining,
+        "remaining_uses": remaining,
         "retry_after_seconds": 0,
+        "locked_until": None,
         "daily_remaining": daily_remaining,
         "is_penalty_active": False,
         "max_per_window": max_per_window,

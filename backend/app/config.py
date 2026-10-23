@@ -27,11 +27,11 @@ class Settings(BaseSettings):
     ai_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     ai_provider: str = "groq"
 
-    max_reviews_per_window: int = 3
-    cooldown_seconds: int = 300
+    max_reviews_per_window: int = 5
+    cooldown_seconds: int = 18000  
     spam_threshold: int = 5
-    spam_cooldown_seconds: int = 600
-    max_reviews_per_day: int = 10
+    spam_cooldown_seconds: int = 18000  
+    max_reviews_per_day: int = 25  
 
     model_config = SettingsConfigDict(
         env_file=".env",

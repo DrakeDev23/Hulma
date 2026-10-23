@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useAuth, useUser } from '@clerk/react'
-import { ArrowRight, Save, Share2, Sparkles, RefreshCw, Eye, CheckCircle2, AlertCircle, X, Trash2 } from 'lucide-react'
+import { ArrowRight, Save, Share2, Sparkles, RefreshCw, Eye, CheckCircle2, AlertCircle, X, Trash2, Lock, Clock } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import PortfolioModal from '../components/PortfolioModal'
 import ShareLink, { buildShareUrl, getShareSlug } from '../components/ShareLink'
@@ -247,6 +247,110 @@ export default function CreatePortfolio() {
     const [previewOpen, setPreviewOpen] = useState(false)
     const [toast, setToast] = useState(null)
     const toastTimerRef = useRef(null)
+
+    const [reviewLimits, setReviewLimits] = useState({
+        remaining: 5,
+        maxPerWindow: 5,
+        dailyRemaining: 5,
+        maxPerDay: 5,
+        isPenaltyActive: false,
+    })
+    const [lockedUntil, setLockedUntil] = useState(null)
+
+    function formatUnlockDay(targetDateOrSecs) {
+        if (!targetDateOrSecs) return 'Available in 5 hours'
+        const target = typeof targetDateOrSecs === 'number'
+            ? new Date(Date.now() + targetDateOrSecs * 1000)
+            : new Date(targetDateOrSecs)
+        if (isNaN(target.getTime())) return 'Available in 5 hours'
+
+        const now = new Date()
+        const isToday = target.toDateString() === now.toDateString()
+        const tomorrow = new Date(now)
+        tomorrow.setDate(now.getDate() + 1)
+        const isTomorrow = target.toDateString() === tomorrow.toDateString()
+
+        const timeStr = target.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+
+        if (isToday) {
+            return `Available today at ${timeStr}`
+        }
+        if (isTomorrow) {
+            return `Available tomorrow at ${timeStr}`
+        }
+        const dayName = target.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+        return `Available ${dayName} at ${timeStr}`
+    }
+
+    const fetchReviewStatus = async () => {
+        try {
+            const token = await getToken()
+            if (!token) return
+            const res = await fetch(apiUrl('/api/ai-review/status'), {
+                headers: { Authorization: `Bearer ${token}` },
+            })
+            if (!res.ok) return
+            const data = await res.json()
+            const rem = data.remaining_uses !== undefined ? data.remaining_uses : data.remaining
+            setReviewLimits({
+                remaining: rem,
+                maxPerWindow: data.max_per_window ?? data.max_reviews_per_window ?? 5,
+                dailyRemaining: data.daily_remaining,
+                maxPerDay: data.max_daily ?? data.max_reviews_per_day ?? 25,
+                isPenaltyActive: !!data.is_penalty_active,
+            })
+            if (data.locked_until) {
+                setLockedUntil(data.locked_until)
+            } else if (data.retry_after_seconds > 0 || rem <= 0) {
+                const secs = data.retry_after_seconds > 0 ? data.retry_after_seconds : 18000
+                setLockedUntil(new Date(Date.now() + secs * 1000).toISOString())
+            } else {
+                setLockedUntil(null)
+            }
+        } catch {
+            // Silently ignore background errors
+        }
+    }
+
+    useEffect(() => {
+        fetchReviewStatus()
+    }, [user?.id])
+
+    useEffect(() => {
+        const handleSync = (e) => {
+            if (e?.detail) {
+                const rem = e.detail.remaining_uses !== undefined ? e.detail.remaining_uses : e.detail.remaining
+                if (rem !== undefined) {
+                    setReviewLimits((prev) => ({ ...prev, remaining: rem }))
+                }
+                if (e.detail.locked_until) {
+                    setLockedUntil(e.detail.locked_until)
+                } else if (e.detail.retry_after_seconds > 0 || rem <= 0) {
+                    const secs = e.detail.retry_after_seconds > 0 ? e.detail.retry_after_seconds : 18000
+                    setLockedUntil(new Date(Date.now() + secs * 1000).toISOString())
+                }
+            }
+            fetchReviewStatus()
+        }
+        window.addEventListener('hulma:ai-usage-updated', handleSync)
+        return () => window.removeEventListener('hulma:ai-usage-updated', handleSync)
+    }, [])
+
+    useEffect(() => {
+        if (!lockedUntil) return
+        const msUntilReset = new Date(lockedUntil).getTime() - Date.now()
+        if (msUntilReset <= 0) {
+            fetchReviewStatus()
+            return
+        }
+        const timer = setTimeout(() => {
+            fetchReviewStatus()
+        }, msUntilReset + 500)
+        return () => clearTimeout(timer)
+    }, [lockedUntil])
+
+    const isLimitReached = reviewLimits.remaining <= 0 || (lockedUntil ? new Date(lockedUntil).getTime() > Date.now() : false)
+    const availableSubtext = formatUnlockDay(lockedUntil)
 
     const showToast = (message, type = 'success') => {
         if (toastTimerRef.current) {
@@ -715,6 +819,10 @@ export default function CreatePortfolio() {
     }
 
     const handleCheckDraft = async () => {
+        if (isLimitReached) {
+            setNotice(`You hit 5 trials, please come back in 5 hours. ${availableSubtext}`)
+            return
+        }
         if (!canReview) {
             setNotice('Please enter some information in the form before checking draft quality.')
             return
@@ -730,12 +838,45 @@ export default function CreatePortfolio() {
                 body: JSON.stringify(previewPortfolio),
             })
 
+            if (response.status === 429) {
+                const errData = await response.json().catch(() => null)
+                const retrySecs = errData?.retry_after_seconds ?? parseInt(response.headers.get('Retry-After') || '18000', 10)
+                const lockedAt = errData?.locked_until || new Date(Date.now() + retrySecs * 1000).toISOString()
+                setLockedUntil(lockedAt)
+                setReviewLimits((prev) => ({
+                    ...prev,
+                    remaining: 0,
+                    isPenaltyActive: !!errData?.is_penalty_active,
+                }))
+                setNotice(`You hit 5 trials, please come back in 5 hours. ${formatUnlockDay(lockedAt)}`)
+                fetchReviewStatus()
+                window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: { remaining: 0, locked_until: lockedAt, retry_after_seconds: retrySecs } }))
+                return
+            }
+
             if (!response.ok) {
                 const text = await response.text()
                 throw new Error(text || 'Draft check failed.')
             }
 
             const data = await response.json()
+            const rem = data.remaining_uses !== undefined ? data.remaining_uses : data.remaining
+            if (rem !== undefined) {
+                setReviewLimits((prev) => ({
+                    ...prev,
+                    remaining: rem,
+                }))
+                if (data.locked_until) {
+                    setLockedUntil(data.locked_until)
+                } else if (data.retry_after_seconds > 0 || rem <= 0) {
+                    const secs = data.retry_after_seconds > 0 ? data.retry_after_seconds : 18000
+                    setLockedUntil(new Date(Date.now() + secs * 1000).toISOString())
+                } else {
+                    setLockedUntil(null)
+                }
+            }
+            fetchReviewStatus()
+            window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: data }))
             setDraftFeedback(data)
             setNotice('Draft quality evaluated.')
         } catch (error) {
@@ -826,8 +967,14 @@ export default function CreatePortfolio() {
                     <button
                         type="button"
                         onClick={handleCheckDraft}
-                        disabled={isCheckingDraft || !canReview}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f6fdc] px-4 py-2.5 text-sm font-medium text-white shadow-md transition duration-200 hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                        disabled={isLimitReached || isCheckingDraft || !canReview}
+                        aria-disabled={isLimitReached ? 'true' : undefined}
+                        title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
+                        className={`inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f6fdc] px-4 py-2.5 text-sm font-medium text-white shadow-md transition duration-200 sm:w-auto ${
+                            isLimitReached
+                                ? 'cursor-not-allowed opacity-50 pointer-events-none'
+                                : 'hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60'
+                        }`}
                     >
                         <Sparkles size={16} className={isCheckingDraft ? 'animate-spin' : ''} />
                         {isCheckingDraft ? 'Checking draft...' : 'Check draft'}
@@ -1192,6 +1339,20 @@ export default function CreatePortfolio() {
                         </span>
                     </div>
 
+                    {isLimitReached && (
+                        <div className="flex items-center gap-3 rounded-xl border border-amber-300/40 bg-amber-500/20 p-3 text-xs text-amber-100 backdrop-blur-xs">
+                            <Clock size={18} className="shrink-0 text-amber-300" />
+                            <div>
+                                <p className="font-semibold text-white">
+                                    You hit 5 trials, please come back in 5 hours
+                                </p>
+                                <p className="mt-0.5 text-amber-200">
+                                    {availableSubtext}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     {draftFeedback ? (
                         <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
                             <div className="flex items-center justify-between gap-2">
@@ -1218,8 +1379,14 @@ export default function CreatePortfolio() {
                             <button
                                 type="button"
                                 onClick={handleCheckDraft}
-                                disabled={isCheckingDraft}
-                                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/25 active:scale-95 disabled:opacity-50"
+                                disabled={isLimitReached || isCheckingDraft}
+                                aria-disabled={isLimitReached ? 'true' : undefined}
+                                title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
+                                className={`mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 px-3 py-2 text-xs font-medium text-white transition ${
+                                    isLimitReached
+                                        ? 'cursor-not-allowed opacity-50 pointer-events-none'
+                                        : 'hover:bg-white/25 active:scale-95 disabled:opacity-50'
+                                }`}
                             >
                                 <RefreshCw size={13} className={isCheckingDraft ? 'animate-spin' : ''} />
                                 {isCheckingDraft ? 'Checking draft...' : 'Re-check draft quality'}
@@ -1233,8 +1400,14 @@ export default function CreatePortfolio() {
                             <button
                                 type="button"
                                 onClick={handleCheckDraft}
-                                disabled={isCheckingDraft || !canReview}
-                                className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/20 px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                                disabled={isLimitReached || isCheckingDraft || !canReview}
+                                aria-disabled={isLimitReached ? 'true' : undefined}
+                                title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
+                                className={`mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/20 px-3 py-2 text-xs font-semibold text-white transition ${
+                                    isLimitReached
+                                        ? 'cursor-not-allowed opacity-50 pointer-events-none'
+                                        : 'hover:bg-white/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50'
+                                }`}
                             >
                                 <Sparkles size={14} className={isCheckingDraft ? 'animate-spin' : ''} />
                                 {isCheckingDraft ? 'Analyzing draft...' : 'Check draft quality'}

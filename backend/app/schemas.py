@@ -217,17 +217,22 @@ class AiReviewResponse(BaseModel):
     categories: list[ReviewCategory] = []
     suggestions: list[ReviewSuggestion] = []
     remaining: Optional[int] = None
+    remaining_uses: Optional[int] = None
+    locked_until: Optional[str] = None
     daily_remaining: Optional[int] = None
+    retry_after_seconds: Optional[int] = None
     source: Literal["ai", "heuristic"] = "heuristic"
 
 
 class AiReviewStatusResponse(BaseModel):
     remaining: int
+    remaining_uses: Optional[int] = None
+    locked_until: Optional[str] = None
     retry_after_seconds: int
     daily_remaining: int
     is_penalty_active: bool
-    max_per_window: int = 3
-    max_daily: int = 10
+    max_per_window: int = 5
+    max_daily: int = 25
 
 
 class DraftTip(BaseModel):
@@ -242,6 +247,10 @@ class AiDraftCheckResponse(BaseModel):
     tips: list[DraftTip] = []
     missing_fields: list[str] = []
     ready_for_audit: bool = False
+    remaining: Optional[int] = None
+    remaining_uses: Optional[int] = None
+    locked_until: Optional[str] = None
+    retry_after_seconds: Optional[int] = None
 
 
 class PortfolioImageUploadResponse(BaseModel):

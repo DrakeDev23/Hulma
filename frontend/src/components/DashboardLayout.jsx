@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useClerk, useUser } from '@clerk/react'
-import { Home, Briefcase, Sparkles, Settings, X, Menu, LogOut, LayoutTemplate, PlusSquare, AlertCircle, Loader2 } from 'lucide-react'
+import { Home, Briefcase, Sparkles, Settings, X, Menu, LogOut, LayoutTemplate, PlusSquare, Loader2 } from 'lucide-react'
 import logoImg from '../assets/logo.png'
+import logoWhiteImg from '../assets/logo-white.png'
 import { resolveDisplayName } from '../utils/portfolioUtils'
 import { clearAuthSession } from '../utils/session'
 
@@ -192,20 +193,20 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                     <div className={`flex items-center ${open ? 'justify-between px-3.5 sm:px-4' : 'justify-center px-2'} pt-4 sm:pt-5`}>
                         {open ? (
                             <>
-                                <div className="flex min-w-0 items-center gap-2 overflow-hidden text-lg font-semibold sm:text-xl">
+                                <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-lg font-semibold sm:text-xl">
                                     <button
                                         type="button"
                                         aria-label="Hulma logo"
                                         onClick={() => goTo('/dashboard')}
-                                        className="shrink-0 rounded-lg p-1 transition-transform duration-200 hover:scale-105 active:scale-95 cursor-pointer"
+                                        className="shrink-0 rounded-lg transition-transform duration-200 hover:scale-105 active:scale-95 cursor-pointer"
                                     >
                                         <img
-                                            src={logoImg}
+                                            src={logoWhiteImg}
                                             alt="Hulma logo"
                                             className="h-8 w-8 object-contain"
                                         />
                                     </button>
-                                    <span className="whitespace-nowrap font-bold">
+                                    <span className="-ml-1 whitespace-nowrap font-bold">
                                         Hulma
                                     </span>
                                 </div>
@@ -344,10 +345,6 @@ export default function DashboardLayout({ userName: propUserName, email: propEma
                             className="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div className="mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-amber-50 text-amber-600">
-                                <AlertCircle className="h-6 w-6" aria-hidden="true" />
-                            </div>
-
                             <h3 id="logout-dialog-title" className="text-lg font-bold text-slate-900">
                                 Are you sure you want to log out?
                             </h3>

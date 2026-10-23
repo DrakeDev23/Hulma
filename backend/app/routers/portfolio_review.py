@@ -160,13 +160,11 @@ def _validate_ai_review(parsed: Any, heuristic: AiReviewResponse) -> AiReviewRes
     if not isinstance(parsed, dict):
         return heuristic
 
-    # 1. Summary validation & length cap (400 chars)
     raw_summary = parsed.get("summary")
     clean_summary = _strip_html(str(raw_summary if raw_summary is not None else heuristic.summary))[:400]
     if not clean_summary:
         clean_summary = heuristic.summary[:400]
 
-    # 2. Score clamping to heuristic.score +/- ALLOWED_SCORE_DELTA within [0, 100]
     raw_score = _safe_score(parsed.get("score"), heuristic.score)
     min_allowed = max(0, heuristic.score - ALLOWED_SCORE_DELTA)
     max_allowed = min(100, heuristic.score + ALLOWED_SCORE_DELTA)
@@ -181,7 +179,6 @@ def _validate_ai_review(parsed: Any, heuristic: AiReviewResponse) -> AiReviewRes
             ALLOWED_SCORE_DELTA,
         )
 
-    # 3. Categories validation: exactly the 4 keys template/layout/design/content with no duplicates
     raw_cats = parsed.get("categories")
     validated_categories: list[ReviewCategory] = []
     seen_keys: set[str] = set()
@@ -227,7 +224,6 @@ def _validate_ai_review(parsed: Any, heuristic: AiReviewResponse) -> AiReviewRes
     else:
         final_categories = heuristic.categories
 
-    # 4. Suggestions validation: 3-5 valid suggestions with valid category & priority
     raw_suggs = parsed.get("suggestions")
     valid_suggestions: list[ReviewSuggestion] = []
 
@@ -493,6 +489,9 @@ async def review_portfolio(
     user: User = Depends(get_current_profile),
     db: Session = Depends(get_db),
 ) -> AiReviewResponse:
+
+    limits_info = check_and_consume_ai_review(db, user.id)
+
     owned_portfolio: Optional[Portfolio] = None
     target_id = portfolio_id or payload.id
 
@@ -580,8 +579,6 @@ async def review_portfolio(
     focus_areas = _sanitize_focus_areas(user_settings.get("focus"))
     tone = _sanitize_tone(user_settings.get("tone"))
 
-    limits_info = check_and_consume_ai_review(db, user.id)
-
     heuristic_fallback = _generate_heuristic_review(payload, {"focus": focus_areas, "tone": tone})
     result = heuristic_fallback
 
@@ -652,10 +649,7 @@ async def review_portfolio(
                 )
         except Exception as exc:
             duration_ms = int((time.time() - t0) * 1000)
-            logger.warning("AI review network/timeout failure (%s, duration_ms=%d); reverting use and using heuristic fallback", exc, duration_ms)
-            if revert_ai_review_consumption(db, user.id, consumed_at=limits_info.get("consumed_at")):
-                limits_info["remaining"] = min(settings.max_reviews_per_window, (limits_info.get("remaining") or 0) + 1)
-                limits_info["daily_remaining"] = min(settings.max_reviews_per_day, (limits_info.get("daily_remaining") or 0) + 1)
+            logger.warning("AI review network/timeout failure (%s, duration_ms=%d); keeping consumption and using heuristic fallback", exc, duration_ms)
 
         if response is not None:
             duration_ms = int((time.time() - t0) * 1000)
@@ -672,17 +666,17 @@ async def review_portfolio(
                     result = heuristic_fallback
             else:
                 logger.warning(
-                    "AI review API returned status %s: %s (duration_ms=%d); reverting use and using heuristic fallback",
+                    "AI review API returned status %s: %s (duration_ms=%d); keeping consumption and using heuristic fallback",
                     response.status_code,
                     response.text[:200],
                     duration_ms,
                 )
-                if revert_ai_review_consumption(db, user.id, consumed_at=limits_info.get("consumed_at")):
-                    limits_info["remaining"] = min(settings.max_reviews_per_window, (limits_info.get("remaining") or 0) + 1)
-                    limits_info["daily_remaining"] = min(settings.max_reviews_per_day, (limits_info.get("daily_remaining") or 0) + 1)
 
     result.remaining = limits_info.get("remaining")
+    result.remaining_uses = limits_info.get("remaining_uses") if limits_info.get("remaining_uses") is not None else limits_info.get("remaining")
+    result.locked_until = limits_info.get("locked_until")
     result.daily_remaining = limits_info.get("daily_remaining")
+    result.retry_after_seconds = limits_info.get("retry_after_seconds", 0)
 
     if owned_portfolio is not None:
         owned_portfolio.review = {
@@ -709,6 +703,7 @@ def get_ai_review_status_endpoint(
 def check_draft(
     payload: PortfolioCreate,
     user: User = Depends(get_current_profile),
+    db: Session = Depends(get_db),
 ) -> AiDraftCheckResponse:
     """
     Live AI Draft Assistant for the portfolio builder (CreatePortfolio).
@@ -717,6 +712,7 @@ def check_draft(
     keeping builder draft assistance completely separate and unsynced from the official
     AI Review page audit.
     """
+    limits_info = check_and_consume_ai_review(db, user.id)
     title = (payload.title or "").strip()
     summary = (payload.summary or "").strip()
     projects = payload.projects if isinstance(payload.projects, list) else []
@@ -800,4 +796,8 @@ def check_draft(
         tips=tips[:4],
         missing_fields=missing_fields,
         ready_for_audit=final_score >= 60,
+        remaining=limits_info.get("remaining"),
+        remaining_uses=limits_info.get("remaining_uses") if limits_info.get("remaining_uses") is not None else limits_info.get("remaining"),
+        locked_until=limits_info.get("locked_until"),
+        retry_after_seconds=limits_info.get("retry_after_seconds", 0),
     )

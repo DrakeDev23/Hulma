@@ -7,6 +7,7 @@ import PortfolioModal from '../components/PortfolioModal'
 import ShareLink, { buildShareUrl, getShareSlug } from '../components/ShareLink'
 import { resolveDisplayName } from '../utils/portfolioUtils'
 import { apiUrl } from '../utils/api'
+import { MAX_REVIEWS } from '../constants'
 
 const MAX_IMAGE_BYTES = 7 * 1024 * 1024
 const TEMPLATES = ['simple', 'modern', 'creative']
@@ -249,10 +250,10 @@ export default function CreatePortfolio() {
     const toastTimerRef = useRef(null)
 
     const [reviewLimits, setReviewLimits] = useState({
-        remaining: 5,
-        maxPerWindow: 5,
-        dailyRemaining: 5,
-        maxPerDay: 5,
+        remaining: MAX_REVIEWS,
+        maxPerWindow: MAX_REVIEWS,
+        dailyRemaining: 25,
+        maxPerDay: 25,
         isPenaltyActive: false,
     })
     const [lockedUntil, setLockedUntil] = useState(null)
@@ -294,7 +295,7 @@ export default function CreatePortfolio() {
             const rem = data.remaining_uses !== undefined ? data.remaining_uses : data.remaining
             setReviewLimits({
                 remaining: rem,
-                maxPerWindow: data.max_per_window ?? data.max_reviews_per_window ?? 5,
+                maxPerWindow: data.max_per_window ?? data.max_reviews_per_window ?? MAX_REVIEWS,
                 dailyRemaining: data.daily_remaining,
                 maxPerDay: data.max_daily ?? data.max_reviews_per_day ?? 25,
                 isPenaltyActive: !!data.is_penalty_active,
@@ -349,7 +350,10 @@ export default function CreatePortfolio() {
         return () => clearTimeout(timer)
     }, [lockedUntil])
 
-    const isLimitReached = reviewLimits.remaining <= 0 || (lockedUntil ? new Date(lockedUntil).getTime() > Date.now() : false)
+    const maxReviews = reviewLimits.maxPerWindow || MAX_REVIEWS
+    const remainingReviews = typeof reviewLimits.remaining === 'number' ? reviewLimits.remaining : maxReviews
+    const usedReviews = Math.max(0, maxReviews - remainingReviews)
+    const isLimitReached = remainingReviews <= 0 || (lockedUntil ? new Date(lockedUntil).getTime() > Date.now() : false)
     const availableSubtext = formatUnlockDay(lockedUntil)
 
     const showToast = (message, type = 'success') => {
@@ -820,7 +824,6 @@ export default function CreatePortfolio() {
 
     const handleCheckDraft = async () => {
         if (isLimitReached) {
-            setNotice(`You hit 5 trials, please come back later. ${availableSubtext}`)
             return
         }
         if (!canReview) {
@@ -840,17 +843,26 @@ export default function CreatePortfolio() {
 
             if (response.status === 429) {
                 const errData = await response.json().catch(() => null)
-                const retrySecs = errData?.retry_after_seconds ?? parseInt(response.headers.get('Retry-After') || '18000', 10)
-                const lockedAt = errData?.locked_until || new Date(Date.now() + retrySecs * 1000).toISOString()
-                setLockedUntil(lockedAt)
-                setReviewLimits((prev) => ({
-                    ...prev,
-                    remaining: 0,
-                    isPenaltyActive: !!errData?.is_penalty_active,
-                }))
-                setNotice(`You hit 5 trials, please come back later. ${formatUnlockDay(lockedAt)}`)
+                const isPersonalLimit = (errData?.error === 'rate_limited' || errData?.error === 'too_many_attempts' || errData?.error === 'daily_limit_reached') && (errData?.remaining === 0 || errData?.remaining_uses === 0)
+
+                if (isPersonalLimit) {
+                    const retrySecs = errData?.retry_after_seconds ?? parseInt(response.headers.get('Retry-After') || '18000', 10)
+                    const lockedAt = errData?.locked_until || new Date(Date.now() + retrySecs * 1000).toISOString()
+                    setLockedUntil(lockedAt)
+                    setReviewLimits((prev) => ({
+                        ...prev,
+                        remaining: 0,
+                        isPenaltyActive: !!errData?.is_penalty_active,
+                    }))
+                    setNotice('')
+                    fetchReviewStatus()
+                    window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: { remaining: 0, locked_until: lockedAt, retry_after_seconds: retrySecs } }))
+                    return
+                }
+
+                // AI request failed with a rate-limit/quota error while user still has reviews left
+                setNotice('The AI service is busy right now. Please try again in a few minutes.')
                 fetchReviewStatus()
-                window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: { remaining: 0, locked_until: lockedAt, retry_after_seconds: retrySecs } }))
                 return
             }
 
@@ -1344,7 +1356,7 @@ export default function CreatePortfolio() {
                             <Clock size={18} className="shrink-0 text-amber-300" />
                             <div>
                                 <p className="font-semibold text-white">
-                                    You hit 5 trials, please come back later
+                                    {`You hit ${maxReviews} trials, please come back later`}
                                 </p>
                                 <p className="mt-0.5 text-amber-200">
                                     {availableSubtext}

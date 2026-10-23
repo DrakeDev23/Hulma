@@ -1,4 +1,5 @@
 export { apiUrl, API_BASE_URL } from './api'
+export { MAX_REVIEWS } from '../constants'
 export const DRAFT_KEY = 'hulmaPortfolio'
 
 export const pick = (...values) => values.find((v) => v !== undefined && v !== null && v !== '')

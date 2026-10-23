@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from app.constants import MAX_REVIEWS
 
 
 class UserUpdate(BaseModel):
@@ -218,6 +219,7 @@ class AiReviewResponse(BaseModel):
     suggestions: list[ReviewSuggestion] = []
     remaining: Optional[int] = None
     remaining_uses: Optional[int] = None
+    max_per_window: Optional[int] = MAX_REVIEWS
     locked_until: Optional[str] = None
     daily_remaining: Optional[int] = None
     retry_after_seconds: Optional[int] = None
@@ -231,7 +233,7 @@ class AiReviewStatusResponse(BaseModel):
     retry_after_seconds: int
     daily_remaining: int
     is_penalty_active: bool
-    max_per_window: int = 5
+    max_per_window: int = MAX_REVIEWS
     max_daily: int = 25
 
 
@@ -249,6 +251,7 @@ class AiDraftCheckResponse(BaseModel):
     ready_for_audit: bool = False
     remaining: Optional[int] = None
     remaining_uses: Optional[int] = None
+    max_per_window: Optional[int] = MAX_REVIEWS
     locked_until: Optional[str] = None
     retry_after_seconds: Optional[int] = None
 

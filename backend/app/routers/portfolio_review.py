@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.config import settings
+from app.constants import MAX_REVIEWS
 from app.deps import get_db
 from app.models import Portfolio, User
 from app.routers.portfolio_auth import get_current_profile
@@ -664,6 +665,18 @@ async def review_portfolio(
                 except Exception as parse_exc:
                     logger.warning("Failed to parse/validate 200 AI response (%s); using heuristic fallback without refunding", parse_exc)
                     result = heuristic_fallback
+            elif response.status_code == 429:
+                logger.warning("AI review API returned status 429 (rate-limited); reverting consumption and returning busy error")
+                revert_ai_review_consumption(db, user.id, consumed_at=limits_info.get("consumed_at"))
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail={
+                        "error": "ai_service_busy",
+                        "message": "The AI service is busy right now. Please try again in a few minutes.",
+                        "remaining": min(MAX_REVIEWS, (limits_info.get("remaining") or 0) + 1),
+                        "user_has_reviews_left": True,
+                    },
+                )
             else:
                 logger.warning(
                     "AI review API returned status %s: %s (duration_ms=%d); keeping consumption and using heuristic fallback",
@@ -674,6 +687,7 @@ async def review_portfolio(
 
     result.remaining = limits_info.get("remaining")
     result.remaining_uses = limits_info.get("remaining_uses") if limits_info.get("remaining_uses") is not None else limits_info.get("remaining")
+    result.max_per_window = limits_info.get("max_per_window", MAX_REVIEWS)
     result.locked_until = limits_info.get("locked_until")
     result.daily_remaining = limits_info.get("daily_remaining")
     result.retry_after_seconds = limits_info.get("retry_after_seconds", 0)
@@ -798,6 +812,7 @@ def check_draft(
         ready_for_audit=final_score >= 60,
         remaining=limits_info.get("remaining"),
         remaining_uses=limits_info.get("remaining_uses") if limits_info.get("remaining_uses") is not None else limits_info.get("remaining"),
+        max_per_window=limits_info.get("max_per_window", MAX_REVIEWS),
         locked_until=limits_info.get("locked_until"),
         retry_after_seconds=limits_info.get("retry_after_seconds", 0),
     )

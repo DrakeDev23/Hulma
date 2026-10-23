@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.constants import MAX_REVIEWS
 from app.models import AiReviewUsage
 
 logger = logging.getLogger(__name__)
@@ -127,7 +128,7 @@ def _check_and_consume_unlocked(
     Raises HTTPException(429) if blocked; otherwise increments count and commits transaction.
     """
     now = _now_utc(now_override)
-    max_per_window = settings.max_reviews_per_window
+    max_per_window = getattr(settings, "max_reviews_per_window", None) or MAX_REVIEWS
     cooldown_seconds = settings.cooldown_seconds
     spam_threshold = settings.spam_threshold
     spam_cooldown_seconds = settings.spam_cooldown_seconds
@@ -337,7 +338,7 @@ def get_ai_review_status(
     Query current rate limit and countdown status without incrementing counters or blocked attempts.
     """
     now = _now_utc(now_override)
-    max_per_window = settings.max_reviews_per_window
+    max_per_window = getattr(settings, "max_reviews_per_window", None) or MAX_REVIEWS
     cooldown_seconds = settings.cooldown_seconds
     max_daily = settings.max_reviews_per_day
 

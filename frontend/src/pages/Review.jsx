@@ -21,6 +21,7 @@ import {
 import DashboardLayout from '../components/DashboardLayout'
 import { resolveDisplayName } from '../utils/portfolioUtils'
 import { apiUrl } from '../utils/api'
+import { MAX_REVIEWS } from '../constants'
 
 const TEMPLATE_KEY = 'hulma-template'
 
@@ -164,10 +165,10 @@ export default function Review() {
     const [reviewError, setReviewError] = useState('')
     const [done, setDone] = useState({})
     const [reviewLimits, setReviewLimits] = useState({
-        remaining: 5,
-        maxPerWindow: 5,
-        dailyRemaining: 5,
-        maxPerDay: 5,
+        remaining: MAX_REVIEWS,
+        maxPerWindow: MAX_REVIEWS,
+        dailyRemaining: 25,
+        maxPerDay: 25,
         isPenaltyActive: false,
     })
     const [lockedUntil, setLockedUntil] = useState(null)
@@ -209,7 +210,7 @@ export default function Review() {
             const rem = data.remaining_uses !== undefined ? data.remaining_uses : data.remaining
             setReviewLimits({
                 remaining: rem,
-                maxPerWindow: data.max_per_window ?? data.max_reviews_per_window ?? 5,
+                maxPerWindow: data.max_per_window ?? data.max_reviews_per_window ?? MAX_REVIEWS,
                 dailyRemaining: data.daily_remaining,
                 maxPerDay: data.max_daily ?? data.max_reviews_per_day ?? 25,
                 isPenaltyActive: !!data.is_penalty_active,
@@ -312,7 +313,6 @@ export default function Review() {
         }
 
         if (isLimitReached) {
-            setReviewError(`You hit 5 trials, please come back later. ${availableSubtext}`)
             return
         }
 
@@ -351,18 +351,28 @@ export default function Review() {
             })
             if (res.status === 429) {
                 const errData = await res.json().catch(() => null)
-                const retrySecs = errData?.retry_after_seconds ?? parseInt(res.headers.get('Retry-After') || '18000', 10)
-                const lockedAt = errData?.locked_until || new Date(Date.now() + retrySecs * 1000).toISOString()
-                setLockedUntil(lockedAt)
-                setReviewLimits((prev) => ({
-                    ...prev,
-                    remaining: 0,
-                    isPenaltyActive: !!errData?.is_penalty_active,
-                }))
-                setReviewError(`You hit 5 trials, please come back later. ${formatUnlockDay(lockedAt)}`)
+                const isPersonalLimit = (errData?.error === 'rate_limited' || errData?.error === 'too_many_attempts' || errData?.error === 'daily_limit_reached') && (errData?.remaining === 0 || errData?.remaining_uses === 0)
+
+                if (isPersonalLimit) {
+                    const retrySecs = errData?.retry_after_seconds ?? parseInt(res.headers.get('Retry-After') || '18000', 10)
+                    const lockedAt = errData?.locked_until || new Date(Date.now() + retrySecs * 1000).toISOString()
+                    setLockedUntil(lockedAt)
+                    setReviewLimits((prev) => ({
+                        ...prev,
+                        remaining: 0,
+                        isPenaltyActive: !!errData?.is_penalty_active,
+                    }))
+                    setReviewError('')
+                    setStatus(result ? 'done' : 'idle')
+                    fetchReviewStatus()
+                    window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: { remaining: 0, locked_until: lockedAt, retry_after_seconds: retrySecs } }))
+                    return
+                }
+
+                // AI request failed with a rate-limit/quota error while user still has reviews left
+                setReviewError('The AI service is busy right now. Please try again in a few minutes.')
                 setStatus(result ? 'done' : 'idle')
                 fetchReviewStatus()
-                window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: { remaining: 0, locked_until: lockedAt, retry_after_seconds: retrySecs } }))
                 return
             }
             if (!res.ok) {
@@ -398,7 +408,10 @@ export default function Review() {
 
     const toggleDone = (id) => setDone((d) => ({ ...d, [id]: !d[id] }))
     const doneCount = result ? result.suggestions.filter((s) => done[s.id]).length : 0
-    const isLimitReached = reviewLimits.remaining <= 0 || (lockedUntil ? new Date(lockedUntil).getTime() > Date.now() : false)
+    const maxReviews = reviewLimits.maxPerWindow || MAX_REVIEWS
+    const remainingReviews = typeof reviewLimits.remaining === 'number' ? reviewLimits.remaining : maxReviews
+    const usedReviews = Math.max(0, maxReviews - remainingReviews)
+    const isLimitReached = remainingReviews <= 0 || (lockedUntil ? new Date(lockedUntil).getTime() > Date.now() : false)
     const availableSubtext = formatUnlockDay(lockedUntil)
 
     return (
@@ -430,16 +443,16 @@ export default function Review() {
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    {reviewLimits.remaining === 0 || isLimitReached ? (
+                    {isLimitReached || remainingReviews <= 0 ? (
                         <span
                             title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
                             className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 cursor-default"
                         >
-                            <Sparkles size={13} /> 5 of 5 used (0 reviews left)
+                            <Sparkles size={13} /> {`${maxReviews} of ${maxReviews} used (0 reviews left)`}
                         </span>
                     ) : (
                         <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-[#1f6fdc]">
-                            <Sparkles size={13} /> {reviewLimits.remaining} of {reviewLimits.maxPerWindow} reviews remaining ({reviewLimits.maxPerWindow - reviewLimits.remaining} used)
+                            <Sparkles size={13} /> {`${remainingReviews} of ${maxReviews} reviews remaining (${usedReviews} used)`}
                         </span>
                     )}
                     <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#1f6fdc] bg-white px-3 py-1.5 text-xs font-medium text-[#1f6fdc] transition duration-200 hover:bg-[#1f6fdc] hover:text-white">
@@ -473,7 +486,7 @@ export default function Review() {
                             <Clock size={18} className="shrink-0 text-amber-300" />
                             <div>
                                 <p className="font-semibold text-white">
-                                    You hit 5 trials, please come back later
+                                    {`You hit ${maxReviews} trials, please come back later`}
                                 </p>
                                 <p className="mt-0.5 text-amber-200">
                                     {availableSubtext}
@@ -561,13 +574,13 @@ export default function Review() {
                 </div>
             </section>
 
-            {reviewError && (
+            {reviewError && !isLimitReached && (
                 <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-red-50 p-4 text-sm text-red-700 shadow-xs">
                     <div className="flex items-center gap-2">
                         <AlertCircle size={18} className="shrink-0" />
                         <span>{reviewError}</span>
                     </div>
-                    {hasPortfolio && !isLimitReached && (
+                    {hasPortfolio && (
                         <button
                             onClick={runReview}
                             className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700"

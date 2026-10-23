@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from app.constants import MAX_REVIEWS
 
 
 class Settings(BaseSettings):
@@ -27,9 +28,9 @@ class Settings(BaseSettings):
     ai_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
     ai_provider: str = "groq"
 
-    max_reviews_per_window: int = 5
+    max_reviews_per_window: int = MAX_REVIEWS
     cooldown_seconds: int = 18000  
-    spam_threshold: int = 5
+    spam_threshold: int = MAX_REVIEWS
     spam_cooldown_seconds: int = 18000  
     max_reviews_per_day: int = 25  
 

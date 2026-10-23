@@ -173,11 +173,11 @@ export default function Review() {
     const [lockedUntil, setLockedUntil] = useState(null)
 
     function formatUnlockDay(targetDateOrSecs) {
-        if (!targetDateOrSecs) return 'Available in 5 hours'
+        if (!targetDateOrSecs) return 'Available later'
         const target = typeof targetDateOrSecs === 'number'
             ? new Date(Date.now() + targetDateOrSecs * 1000)
             : new Date(targetDateOrSecs)
-        if (isNaN(target.getTime())) return 'Available in 5 hours'
+        if (isNaN(target.getTime())) return 'Available later'
 
         const now = new Date()
         const isToday = target.toDateString() === now.toDateString()
@@ -185,7 +185,7 @@ export default function Review() {
         tomorrow.setDate(now.getDate() + 1)
         const isTomorrow = target.toDateString() === tomorrow.toDateString()
 
-        const timeStr = target.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        const timeStr = target.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(/\u202f/g, ' ')
 
         if (isToday) {
             return `Available today at ${timeStr}`
@@ -193,8 +193,8 @@ export default function Review() {
         if (isTomorrow) {
             return `Available tomorrow at ${timeStr}`
         }
-        const dayName = target.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
-        return `Available ${dayName} at ${timeStr}`
+        const weekday = target.toLocaleDateString('en-US', { weekday: 'long' })
+        return `Available ${weekday} at ${timeStr}`
     }
 
     const fetchReviewStatus = async () => {
@@ -312,7 +312,7 @@ export default function Review() {
         }
 
         if (isLimitReached) {
-            setReviewError(`You hit 5 trials, please come back in 5 hours. ${availableSubtext}`)
+            setReviewError(`You hit 5 trials, please come back later. ${availableSubtext}`)
             return
         }
 
@@ -359,7 +359,7 @@ export default function Review() {
                     remaining: 0,
                     isPenaltyActive: !!errData?.is_penalty_active,
                 }))
-                setReviewError(`You hit 5 trials, please come back in 5 hours. ${formatUnlockDay(lockedAt)}`)
+                setReviewError(`You hit 5 trials, please come back later. ${formatUnlockDay(lockedAt)}`)
                 setStatus(result ? 'done' : 'idle')
                 fetchReviewStatus()
                 window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: { remaining: 0, locked_until: lockedAt, retry_after_seconds: retrySecs } }))
@@ -430,8 +430,11 @@ export default function Review() {
                     </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    {reviewLimits.remaining === 0 ? (
-                        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700">
+                    {reviewLimits.remaining === 0 || isLimitReached ? (
+                        <span
+                            title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
+                            className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 cursor-default"
+                        >
                             <Sparkles size={13} /> 5 of 5 used (0 reviews left)
                         </span>
                     ) : (
@@ -470,7 +473,7 @@ export default function Review() {
                             <Clock size={18} className="shrink-0 text-amber-300" />
                             <div>
                                 <p className="font-semibold text-white">
-                                    You hit 5 trials, please come back in 5 hours
+                                    You hit 5 trials, please come back later
                                 </p>
                                 <p className="mt-0.5 text-amber-200">
                                     {availableSubtext}
@@ -495,7 +498,7 @@ export default function Review() {
                                 title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
                                 className={`inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/30 bg-[#1b64dc] px-4 py-2.5 text-sm font-medium shadow-lg shadow-blue-950/30 transition duration-200 min-[440px]:w-auto sm:px-5 sm:py-3 ${
                                     isLimitReached
-                                        ? 'cursor-not-allowed opacity-50 pointer-events-none'
+                                        ? 'cursor-not-allowed opacity-50'
                                         : 'hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0'
                                 }`}
                             >
@@ -622,7 +625,7 @@ export default function Review() {
                             title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
                             className={`inline-flex items-center gap-2 rounded-xl bg-[#1f6fdc] px-5 py-3 text-sm font-medium text-white shadow-md transition duration-200 ${
                                 isLimitReached
-                                    ? 'cursor-not-allowed opacity-50 pointer-events-none'
+                                    ? 'cursor-not-allowed opacity-50'
                                     : 'hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-70'
                             }`}
                         >

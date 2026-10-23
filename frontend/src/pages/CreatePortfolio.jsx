@@ -258,11 +258,11 @@ export default function CreatePortfolio() {
     const [lockedUntil, setLockedUntil] = useState(null)
 
     function formatUnlockDay(targetDateOrSecs) {
-        if (!targetDateOrSecs) return 'Available in 5 hours'
+        if (!targetDateOrSecs) return 'Available later'
         const target = typeof targetDateOrSecs === 'number'
             ? new Date(Date.now() + targetDateOrSecs * 1000)
             : new Date(targetDateOrSecs)
-        if (isNaN(target.getTime())) return 'Available in 5 hours'
+        if (isNaN(target.getTime())) return 'Available later'
 
         const now = new Date()
         const isToday = target.toDateString() === now.toDateString()
@@ -270,7 +270,7 @@ export default function CreatePortfolio() {
         tomorrow.setDate(now.getDate() + 1)
         const isTomorrow = target.toDateString() === tomorrow.toDateString()
 
-        const timeStr = target.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        const timeStr = target.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(/\u202f/g, ' ')
 
         if (isToday) {
             return `Available today at ${timeStr}`
@@ -278,8 +278,8 @@ export default function CreatePortfolio() {
         if (isTomorrow) {
             return `Available tomorrow at ${timeStr}`
         }
-        const dayName = target.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
-        return `Available ${dayName} at ${timeStr}`
+        const weekday = target.toLocaleDateString('en-US', { weekday: 'long' })
+        return `Available ${weekday} at ${timeStr}`
     }
 
     const fetchReviewStatus = async () => {
@@ -820,7 +820,7 @@ export default function CreatePortfolio() {
 
     const handleCheckDraft = async () => {
         if (isLimitReached) {
-            setNotice(`You hit 5 trials, please come back in 5 hours. ${availableSubtext}`)
+            setNotice(`You hit 5 trials, please come back later. ${availableSubtext}`)
             return
         }
         if (!canReview) {
@@ -848,7 +848,7 @@ export default function CreatePortfolio() {
                     remaining: 0,
                     isPenaltyActive: !!errData?.is_penalty_active,
                 }))
-                setNotice(`You hit 5 trials, please come back in 5 hours. ${formatUnlockDay(lockedAt)}`)
+                setNotice(`You hit 5 trials, please come back later. ${formatUnlockDay(lockedAt)}`)
                 fetchReviewStatus()
                 window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: { remaining: 0, locked_until: lockedAt, retry_after_seconds: retrySecs } }))
                 return
@@ -972,7 +972,7 @@ export default function CreatePortfolio() {
                         title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
                         className={`inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1f6fdc] px-4 py-2.5 text-sm font-medium text-white shadow-md transition duration-200 sm:w-auto ${
                             isLimitReached
-                                ? 'cursor-not-allowed opacity-50 pointer-events-none'
+                                ? 'cursor-not-allowed opacity-50'
                                 : 'hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60'
                         }`}
                     >
@@ -1344,7 +1344,7 @@ export default function CreatePortfolio() {
                             <Clock size={18} className="shrink-0 text-amber-300" />
                             <div>
                                 <p className="font-semibold text-white">
-                                    You hit 5 trials, please come back in 5 hours
+                                    You hit 5 trials, please come back later
                                 </p>
                                 <p className="mt-0.5 text-amber-200">
                                     {availableSubtext}
@@ -1384,7 +1384,7 @@ export default function CreatePortfolio() {
                                 title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
                                 className={`mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/15 px-3 py-2 text-xs font-medium text-white transition ${
                                     isLimitReached
-                                        ? 'cursor-not-allowed opacity-50 pointer-events-none'
+                                        ? 'cursor-not-allowed opacity-50'
                                         : 'hover:bg-white/25 active:scale-95 disabled:opacity-50'
                                 }`}
                             >
@@ -1405,7 +1405,7 @@ export default function CreatePortfolio() {
                                 title={isLimitReached ? `Limit reached. ${availableSubtext}` : undefined}
                                 className={`mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/30 bg-white/20 px-3 py-2 text-xs font-semibold text-white transition ${
                                     isLimitReached
-                                        ? 'cursor-not-allowed opacity-50 pointer-events-none'
+                                        ? 'cursor-not-allowed opacity-50'
                                         : 'hover:bg-white/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50'
                                 }`}
                             >

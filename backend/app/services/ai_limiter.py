@@ -214,7 +214,7 @@ def _check_and_consume_unlocked(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail={
                     "error": "rate_limited",
-                    "message": f"You hit {max_per_window} trials, please back in {_format_time_left(retry_after)}.",
+                    "message": f"You hit {max_per_window} trials, please come back later.",
                     "retry_after_seconds": retry_after,
                     "locked_until": cooldown_end.isoformat(),
                     "remaining": 0,

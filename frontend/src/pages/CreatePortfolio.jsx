@@ -257,15 +257,20 @@ export default function CreatePortfolio() {
         isPenaltyActive: false,
     })
     const [lockedUntil, setLockedUntil] = useState(null)
+    const [nowTime, setNowTime] = useState(() => Date.now())
 
-    function formatUnlockDay(targetDateOrSecs) {
+    function formatUnlockDay(targetDateOrSecs, currentMs = nowTime) {
         if (!targetDateOrSecs) return 'Available later'
+        const now = new Date(currentMs)
         const target = typeof targetDateOrSecs === 'number'
-            ? new Date(Date.now() + targetDateOrSecs * 1000)
+            ? new Date(now.getTime() + targetDateOrSecs * 1000)
             : new Date(targetDateOrSecs)
         if (isNaN(target.getTime())) return 'Available later'
 
-        const now = new Date()
+        if (target.getTime() <= now.getTime()) {
+            return 'Available now'
+        }
+
         const isToday = target.toDateString() === now.toDateString()
         const tomorrow = new Date(now)
         tomorrow.setDate(now.getDate() + 1)
@@ -326,9 +331,11 @@ export default function CreatePortfolio() {
                 }
                 if (e.detail.locked_until) {
                     setLockedUntil(e.detail.locked_until)
-                } else if (e.detail.retry_after_seconds > 0 || rem <= 0) {
+                } else if (e.detail.retry_after_seconds > 0 || (rem !== undefined && rem <= 0)) {
                     const secs = e.detail.retry_after_seconds > 0 ? e.detail.retry_after_seconds : 18000
                     setLockedUntil(new Date(Date.now() + secs * 1000).toISOString())
+                } else if (rem !== undefined && rem > 0) {
+                    setLockedUntil(null)
                 }
             }
             fetchReviewStatus()
@@ -339,22 +346,35 @@ export default function CreatePortfolio() {
 
     useEffect(() => {
         if (!lockedUntil) return
-        const msUntilReset = new Date(lockedUntil).getTime() - Date.now()
-        if (msUntilReset <= 0) {
-            fetchReviewStatus()
-            return
-        }
+        const msUntilReset = Math.max(0, new Date(lockedUntil).getTime() - Date.now())
         const timer = setTimeout(() => {
+            setNowTime(Date.now())
             fetchReviewStatus()
         }, msUntilReset + 500)
-        return () => clearTimeout(timer)
+        const interval = setInterval(() => {
+            const current = Date.now()
+            setNowTime(current)
+            if (new Date(lockedUntil).getTime() <= current) {
+                fetchReviewStatus()
+            }
+        }, 1000)
+        return () => {
+            clearTimeout(timer)
+            clearInterval(interval)
+        }
     }, [lockedUntil])
 
     const maxReviews = reviewLimits.maxPerWindow || MAX_REVIEWS
-    const remainingReviews = typeof reviewLimits.remaining === 'number' ? reviewLimits.remaining : maxReviews
+    const isLockedByTimer = Boolean(lockedUntil && new Date(lockedUntil).getTime() > nowTime)
+    const isLockExpired = Boolean(lockedUntil && new Date(lockedUntil).getTime() <= nowTime)
+    const remainingReviews = isLockExpired
+        ? maxReviews
+        : typeof reviewLimits.remaining === 'number'
+          ? reviewLimits.remaining
+          : maxReviews
     const usedReviews = Math.max(0, maxReviews - remainingReviews)
-    const isLimitReached = remainingReviews <= 0 || (lockedUntil ? new Date(lockedUntil).getTime() > Date.now() : false)
-    const availableSubtext = formatUnlockDay(lockedUntil)
+    const isLimitReached = isLockedByTimer || (!lockedUntil && remainingReviews <= 0)
+    const availableSubtext = formatUnlockDay(lockedUntil, nowTime)
 
     const showToast = (message, type = 'success') => {
         if (toastTimerRef.current) {
@@ -842,7 +862,8 @@ export default function CreatePortfolio() {
             })
 
             if (response.status === 429) {
-                const errData = await response.json().catch(() => null)
+                const rawErr = await response.json().catch(() => null)
+                const errData = rawErr?.detail && typeof rawErr.detail === 'object' ? rawErr.detail : rawErr
                 const isPersonalLimit = (errData?.error === 'rate_limited' || errData?.error === 'too_many_attempts' || errData?.error === 'daily_limit_reached') && (errData?.remaining === 0 || errData?.remaining_uses === 0)
 
                 if (isPersonalLimit) {
@@ -988,8 +1009,19 @@ export default function CreatePortfolio() {
                                 : 'hover:-translate-y-0.5 hover:bg-[#1558c4] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60'
                         }`}
                     >
-                        <Sparkles size={16} className={isCheckingDraft ? 'animate-spin' : ''} />
-                        {isCheckingDraft ? 'Checking draft...' : 'Check draft'}
+                        {isCheckingDraft ? (
+                            <>
+                                <Sparkles size={16} className="animate-spin" /> Checking draft...
+                            </>
+                        ) : isLimitReached ? (
+                            <>
+                                <Lock size={16} /> Locked
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles size={16} /> Check draft
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
@@ -1400,8 +1432,19 @@ export default function CreatePortfolio() {
                                         : 'hover:bg-white/25 active:scale-95 disabled:opacity-50'
                                 }`}
                             >
-                                <RefreshCw size={13} className={isCheckingDraft ? 'animate-spin' : ''} />
-                                {isCheckingDraft ? 'Checking draft...' : 'Re-check draft quality'}
+                                {isCheckingDraft ? (
+                                    <>
+                                        <RefreshCw size={13} className="animate-spin" /> Checking draft...
+                                    </>
+                                ) : isLimitReached ? (
+                                    <>
+                                        <Lock size={13} /> Locked
+                                    </>
+                                ) : (
+                                    <>
+                                        <RefreshCw size={13} /> Re-check draft quality
+                                    </>
+                                )}
                             </button>
                         </div>
                     ) : (
@@ -1421,8 +1464,19 @@ export default function CreatePortfolio() {
                                         : 'hover:bg-white/30 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50'
                                 }`}
                             >
-                                <Sparkles size={14} className={isCheckingDraft ? 'animate-spin' : ''} />
-                                {isCheckingDraft ? 'Analyzing draft...' : 'Check draft quality'}
+                                {isCheckingDraft ? (
+                                    <>
+                                        <Sparkles size={14} className="animate-spin" /> Analyzing draft...
+                                    </>
+                                ) : isLimitReached ? (
+                                    <>
+                                        <Lock size={14} /> Locked
+                                    </>
+                                ) : (
+                                    <>
+                                        <Sparkles size={14} /> Check draft quality
+                                    </>
+                                )}
                             </button>
                         </div>
                     )}

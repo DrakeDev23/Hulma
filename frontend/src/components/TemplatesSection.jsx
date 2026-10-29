@@ -180,6 +180,50 @@ function CreativePreview() {
   )
 }
 
+function CreativeStudioPreview() {
+  return (
+    <div className="relative h-full overflow-hidden rounded-xl bg-[#F2F3F5] border border-slate-200 p-2.5 flex flex-col justify-between select-none">
+      <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full bg-[#B9C3DB]/40 blur-md pointer-events-none" />
+      <div className="absolute -left-6 bottom-2 h-14 w-14 rounded-full bg-[#1F3558]/10 blur-md pointer-events-none" />
+      <div className="relative z-10 flex items-center justify-between border-b border-[#B9C3DB]/40 pb-1">
+        <div className="flex items-center gap-1">
+          <div className="h-2.5 w-2.5 rounded-full bg-[#1F3558]" />
+          <div className="h-1.5 w-10 rounded bg-[#1F3558]" />
+        </div>
+        <div className="flex gap-1">
+          <div className="h-1 w-3 rounded-full bg-[#7A7F8A]" />
+          <div className="h-1 w-3 rounded-full bg-[#7A7F8A]" />
+        </div>
+      </div>
+      <div className="relative z-10 grid grid-cols-5 gap-1.5 my-1 items-center">
+        <div className="col-span-2 relative flex justify-center">
+          <div className="h-10 w-10 rounded-full border-2 border-white bg-[#1F3558] shadow-sm flex items-center justify-center text-white text-[9px] font-bold">
+            CS
+          </div>
+          <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-[#1F3558] ring-1 ring-white flex items-center justify-center text-white text-[7px]">
+            ↗
+          </div>
+        </div>
+        <div className="col-span-3 space-y-1">
+          <div className="h-1 w-8 rounded-full bg-[#1F3558]" />
+          <div className="h-2 w-16 rounded bg-[#1A1A2E]" />
+          <div className="h-1 w-12 rounded bg-[#7A7F8A]" />
+        </div>
+      </div>
+      <div className="relative z-10 grid grid-cols-2 gap-1 mt-0.5">
+        <div className="rounded-md bg-white p-1 shadow-2xs border border-[#B9C3DB]/30">
+          <div className="h-3 w-full rounded bg-gradient-to-tr from-[#1F3558] to-[#172A47]" />
+          <div className="mt-1 h-1 w-8 rounded bg-[#1A1A2E]" />
+        </div>
+        <div className="rounded-md bg-white p-1 shadow-2xs border border-[#B9C3DB]/30">
+          <div className="h-3 w-full rounded bg-gradient-to-tr from-[#1F3558] to-[#172A47]" />
+          <div className="mt-1 h-1 w-8 rounded bg-[#1A1A2E]" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const TEMPLATES = [
   {
     id: 'simple',
@@ -208,15 +252,26 @@ const TEMPLATES = [
       'Bold, high-contrast dark theme with ambient gradient glows designed for creative impact.',
     Preview: CreativePreview,
   },
+  {
+    id: 'creative-studio',
+    num: 'Template 4',
+    name: 'Creative Studio',
+    tagline: 'Modern, soft organic corporate-creative.',
+    description:
+      'Clean corporate-creative theme with soft rounded curves, circular masks, donut indicators, and generous whitespace.',
+    Preview: CreativeStudioPreview,
+  },
 ]
 
 const CAROUSEL_CARDS = [
   { ...TEMPLATES[0], key: 'simple-1' },
   { ...TEMPLATES[1], key: 'modern-1' },
   { ...TEMPLATES[2], key: 'creative-1' },
+  { ...TEMPLATES[3], key: 'creative-studio-1' },
   { ...TEMPLATES[0], key: 'simple-2' },
   { ...TEMPLATES[1], key: 'modern-2' },
   { ...TEMPLATES[2], key: 'creative-2' },
+  { ...TEMPLATES[3], key: 'creative-studio-2' },
 ]
 
 const CAROUSEL_COUNT = CAROUSEL_CARDS.length

@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/react'
-import { Check, ArrowRight, FileText, LayoutGrid, Palette, Clock, Eye, X } from 'lucide-react'
+import { Check, ArrowRight, FileText, LayoutGrid, Palette, Clock, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import PortfolioSite from '../components/PortfolioSite'
 import { resolveDisplayName } from '../utils/portfolioUtils'
 
 const STORAGE_KEY = 'hulma-template'
+const PAGE_SIZE = 3
 
 function SimplePreview() {
     return (
@@ -139,6 +140,63 @@ function CreativePreview() {
     )
 }
 
+function CreativeStudioPreview() {
+    return (
+        <div className="relative h-full overflow-hidden rounded-lg bg-[#F2F3F5] border border-slate-200 p-2.5 flex flex-col justify-between">
+            <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-[#B9C3DB]/40 blur-md pointer-events-none" />
+            <div className="absolute -left-6 bottom-4 h-16 w-16 rounded-full bg-[#1F3558]/10 blur-md pointer-events-none" />
+
+            <div className="relative z-10 flex items-center justify-between border-b border-[#B9C3DB]/40 pb-1">
+                <div className="flex items-center gap-1">
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#1F3558]" />
+                    <div className="h-1.5 w-10 rounded bg-[#1F3558]" />
+                </div>
+                <div className="flex gap-1">
+                    <div className="h-1 w-4 rounded-full bg-[#7A7F8A]" />
+                    <div className="h-1 w-4 rounded-full bg-[#7A7F8A]" />
+                </div>
+            </div>
+
+            <div className="relative z-10 grid grid-cols-5 gap-2 my-1 items-center">
+                <div className="col-span-2 relative flex justify-center">
+                    <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full border-2 border-white bg-[#1F3558] shadow-sm flex items-center justify-center text-white text-[9px] font-bold">
+                        CS
+                    </div>
+                    <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-[#1F3558] ring-1 ring-white flex items-center justify-center text-white text-[7px]">
+                        ↗
+                    </div>
+                </div>
+                <div className="col-span-3 space-y-1">
+                    <div className="h-1 w-8 rounded-full bg-[#1F3558]" />
+                    <div className="h-2 w-20 rounded bg-[#1A1A2E]" />
+                    <div className="h-1 w-16 rounded bg-[#7A7F8A]" />
+                    <div className="h-2 w-10 rounded-full bg-[#1F3558] mt-1 shadow-xs" />
+                </div>
+            </div>
+
+            <div className="relative z-10 grid grid-cols-3 gap-1 my-0.5">
+                {[75, 88, 92].map((pct, idx) => (
+                    <div key={idx} className="rounded-md bg-white p-1 text-center shadow-2xs border border-[#B9C3DB]/30 flex flex-col items-center">
+                        <div className="h-4 w-4 rounded-full border-2 border-[#1F3558] border-t-[#B9C3DB] flex items-center justify-center text-[6px] font-bold text-[#1F3558]">
+                            {pct}%
+                        </div>
+                        <div className="mt-0.5 h-0.5 w-5 rounded bg-[#7A7F8A]" />
+                    </div>
+                ))}
+            </div>
+
+            <div className="relative z-10 grid grid-cols-2 gap-1 mt-0.5">
+                {[0, 1].map((i) => (
+                    <div key={i} className="rounded-md bg-white p-1 shadow-2xs border border-[#B9C3DB]/40">
+                        <div className="h-4 w-full rounded bg-gradient-to-tr from-[#1F3558] to-[#172A47]" />
+                        <div className="mt-1 h-1 w-10 rounded bg-[#1A1A2E]" />
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
 const TEMPLATES = [
     {
         id: 'simple',
@@ -167,6 +225,15 @@ const TEMPLATES = [
         tags: ['Bold colors', 'Custom shapes', 'Standout'],
         Preview: CreativePreview,
     },
+    {
+        id: 'creative-studio',
+        num: 'Template 4',
+        name: 'Creative Studio',
+        Icon: Palette,
+        text: 'Modern corporate-creative layout with soft organic shapes and generous whitespace.',
+        tags: ['Organic shapes', 'Corporate-creative', 'Modern'],
+        Preview: CreativeStudioPreview,
+    },
 ]
 
 function readSaved(userId) {
@@ -189,12 +256,27 @@ export default function Templates() {
     const [selected, setSelected] = useState(() => readSaved(user?.id))
     const [previewOpen, setPreviewOpen] = useState(false)
     const [previewTemplate, setPreviewTemplate] = useState('simple')
+    const [currentPage, setCurrentPage] = useState(1)
+
+    const totalPages = Math.ceil(TEMPLATES.length / PAGE_SIZE)
 
     useEffect(() => {
         if (user?.id) {
             setSelected(readSaved(user.id))
         }
     }, [user?.id])
+
+    useEffect(() => {
+        const idx = TEMPLATES.findIndex((t) => t.id === selected)
+        if (idx !== -1) {
+            setCurrentPage(Math.floor(idx / PAGE_SIZE) + 1)
+        }
+    }, [selected])
+
+    const paginatedTemplates = useMemo(() => {
+        const start = (currentPage - 1) * PAGE_SIZE
+        return TEMPLATES.slice(start, start + PAGE_SIZE)
+    }, [currentPage])
 
     const current = TEMPLATES.find((t) => t.id === selected)
     const previewTemplateConfig = TEMPLATES.find((t) => t.id === previewTemplate) || TEMPLATES[0]
@@ -316,12 +398,12 @@ export default function Templates() {
                     <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">Select the layout you want. You can change it anytime.</p>
                 </div>
                 <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#1f6fdc] bg-white px-3 py-1.5 text-xs font-medium text-[#1f6fdc] transition duration-200 hover:bg-[#1f6fdc] hover:text-white">
-                    <Clock size={13} /> 3 templates available
+                    <Clock size={13} /> {TEMPLATES.length} templates available
                 </span>
             </div>
 
             <div role="radiogroup" aria-label="Portfolio templates" className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {TEMPLATES.map(({ id, num, name, Icon, text, tags, Preview }) => {
+                {paginatedTemplates.map(({ id, num, name, Icon, text, tags, Preview }) => {
                     const isSelected = selected === id
                     return (
                         <article
@@ -420,13 +502,63 @@ export default function Templates() {
                 })}
             </div>
 
+            {totalPages > 1 && (
+                <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl bg-white p-3.5 shadow-[0_2px_10px_rgba(30,70,140,0.08)]">
+                    <p className="text-xs text-slate-500 font-medium">
+                        Showing <span className="font-semibold text-slate-800">{(currentPage - 1) * PAGE_SIZE + 1}</span>–
+                        <span className="font-semibold text-slate-800">{Math.min(currentPage * PAGE_SIZE, TEMPLATES.length)}</span> of{' '}
+                        <span className="font-semibold text-slate-800">{TEMPLATES.length}</span> templates
+                    </p>
+
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            type="button"
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                            aria-label="Previous page"
+                        >
+                            <ChevronLeft size={14} /> Previous
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                <button
+                                    key={page}
+                                    type="button"
+                                    onClick={() => setCurrentPage(page)}
+                                    aria-current={currentPage === page ? 'page' : undefined}
+                                    className={`h-8 w-8 rounded-xl text-xs font-semibold transition active:scale-95 ${
+                                        currentPage === page
+                                            ? 'bg-[#1f6fdc] text-white shadow-xs'
+                                            : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                                    }`}
+                                >
+                                    {page}
+                                </button>
+                            ))}
+                        </div>
+
+                        <button
+                            type="button"
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+                            aria-label="Next page"
+                        >
+                            Next <ChevronRight size={14} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="mt-4 flex flex-col items-start justify-between gap-3 rounded-2xl bg-linear-to-br from-[#3e90e2] via-[#2272c4] to-[#1b5c9a] p-4 text-white shadow-md sm:flex-row sm:items-center sm:p-5">
                 <div className="min-w-0 flex-1">
                     <strong className="block text-base font-semibold sm:text-lg">
                         {current ? `${current.num} – ${current.name} selected` : 'No template selected yet'}
                     </strong>
                     <p className="mt-0.5 text-sm text-[#bcd7f6]">
-                        {current ? current.text : 'Pick one of the three templates above to continue.'}
+                        {current ? current.text : 'Pick one of the templates above to continue.'}
                     </p>
                 </div>
                 <div className="w-full shrink-0 sm:w-auto">

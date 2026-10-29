@@ -50,7 +50,7 @@ const glass = 'border border-white/40 bg-white/15 backdrop-blur-sm transition du
 const bluePill =
     'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#dce9fb] px-2.5 py-1 text-[11px] font-medium text-[#1f6fdc] sm:px-3 sm:text-xs'
 
-const TEMPLATE_NAMES = { simple: 'Simple', modern: 'Modern', creative: 'Creative' }
+const TEMPLATE_NAMES = { simple: 'Simple', modern: 'Modern', creative: 'Creative', 'creative-studio': 'Creative Studio' }
 
 function readTemplate(userId) {
     try {

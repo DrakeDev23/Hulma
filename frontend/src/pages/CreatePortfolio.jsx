@@ -10,7 +10,6 @@ import { apiUrl } from '../utils/api'
 import { MAX_REVIEWS } from '../constants'
 
 const MAX_IMAGE_BYTES = 7 * 1024 * 1024
-const TEMPLATES = ['simple', 'modern', 'creative']
 
 const DEFAULT_FORM = {
     title: '',
@@ -432,7 +431,7 @@ export default function CreatePortfolio() {
 
     const templateId =
         urlTemplate ||
-        (savedDraft?.template && TEMPLATES.includes(savedDraft.template) ? savedDraft.template : null) ||
+        savedDraft?.template ||
         loadedTemplate ||
         (user?.id ? safeGet(`hulma-template:${user.id}`) : null) ||
         (() => {
@@ -1077,35 +1076,6 @@ export default function CreatePortfolio() {
 
             <section className="mt-4 grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
                 <div className="space-y-4 rounded-2xl bg-white p-4 shadow-[0_2px_10px_rgba(30,70,140,0.10)] sm:p-5">
-                    <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-medium text-slate-500">Template</span>
-                            {TEMPLATES.map((id) => (
-                                <button
-                                    key={id}
-                                    type="button"
-                                    aria-pressed={id === templateId}
-                                    onClick={() => {
-                                        if (id !== templateId) {
-                                            if (urlId) {
-                                                navigate(`/portfolio/create?id=${urlId}&template=${id}`)
-                                            } else {
-                                                navigate(`/portfolio/create?template=${id}`)
-                                            }
-                                        }
-                                    }}
-                                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition active:scale-95 ${
-                                        id === templateId ? 'bg-[#1f6fdc] text-white shadow' : 'bg-[#f3f6fb] text-slate-600 hover:bg-[#e8effa]'
-                                    }`}
-                                >
-                                    {id}
-                                    {savedTemplates.includes(id) && <span title="Saved" className={`h-1.5 w-1.5 rounded-full ${id === templateId ? 'bg-white' : 'bg-[#12875a]'}`} />}
-                                </button>
-                            ))}
-                        </div>
-                        <p className="mt-1.5 text-[11px] text-slate-400">Your information is kept when you switch templates. Save to publish each template.</p>
-                    </div>
-
                     <div className="grid gap-4 sm:grid-cols-2">
                         <label htmlFor="field-title" className={labelClass}>
                             <span>

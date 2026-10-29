@@ -58,6 +58,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
         if request.url.path in ("/docs", "/redoc", "/openapi.json"):
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "

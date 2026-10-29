@@ -10,7 +10,6 @@ import { apiUrl } from '../utils/api'
 import { MAX_REVIEWS } from '../constants'
 
 const MAX_IMAGE_BYTES = 7 * 1024 * 1024
-const TEMPLATES = ['simple', 'modern', 'creative']
 
 const DEFAULT_FORM = {
     title: '',
@@ -169,6 +168,23 @@ const getFieldClass = (hasError) =>
     `${inputBaseClass} ${hasError ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-slate-200 focus:border-[#1f6fdc]'}`
 const labelClass = 'flex flex-col gap-1.5 text-sm font-medium text-slate-700'
 
+function parseTargetDate(targetDateOrSecs, currentMs) {
+    if (!targetDateOrSecs) return null
+    if (typeof targetDateOrSecs === 'number') {
+        const base = typeof currentMs === 'number' ? currentMs : 0
+        return new Date(base + targetDateOrSecs * 1000)
+    }
+    const str = String(targetDateOrSecs).trim()
+    if (!str) return null
+    if (/^\d+$/.test(str)) {
+        const base = typeof currentMs === 'number' ? currentMs : 0
+        return new Date(base + parseInt(str, 10) * 1000)
+    }
+    const safeStr = (!str.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(str)) ? `${str}Z` : str
+    const d = new Date(safeStr)
+    return isNaN(d.getTime()) ? null : d
+}
+
 export default function CreatePortfolio() {
     const navigate = useNavigate()
     const navigateRef = useRef(navigate)
@@ -261,11 +277,9 @@ export default function CreatePortfolio() {
 
     function formatUnlockDay(targetDateOrSecs, currentMs = nowTime) {
         if (!targetDateOrSecs) return 'Available later'
+        const target = parseTargetDate(targetDateOrSecs, currentMs)
+        if (!target) return 'Available later'
         const now = new Date(currentMs)
-        const target = typeof targetDateOrSecs === 'number'
-            ? new Date(now.getTime() + targetDateOrSecs * 1000)
-            : new Date(targetDateOrSecs)
-        if (isNaN(target.getTime())) return 'Available later'
 
         if (target.getTime() <= now.getTime()) {
             return 'Available now'
@@ -298,6 +312,7 @@ export default function CreatePortfolio() {
             if (!res.ok) return
             const data = await res.json()
             const rem = data.remaining_uses !== undefined ? data.remaining_uses : data.remaining
+            const isDailyReached = typeof data.daily_remaining === 'number' && data.daily_remaining <= 0
             setReviewLimits({
                 remaining: rem,
                 maxPerWindow: data.max_per_window ?? data.max_reviews_per_window ?? MAX_REVIEWS,
@@ -305,13 +320,22 @@ export default function CreatePortfolio() {
                 maxPerDay: data.max_daily ?? data.max_reviews_per_day ?? 25,
                 isPenaltyActive: !!data.is_penalty_active,
             })
-            if (data.locked_until) {
+            if (data.retry_after_seconds > 0) {
+                setLockedUntil(new Date(Date.now() + data.retry_after_seconds * 1000).toISOString())
+            } else if (data.locked_until) {
                 setLockedUntil(data.locked_until)
-            } else if (data.retry_after_seconds > 0 || rem <= 0) {
-                const secs = data.retry_after_seconds > 0 ? data.retry_after_seconds : 18000
-                setLockedUntil(new Date(Date.now() + secs * 1000).toISOString())
+            } else if (rem <= 0 || isDailyReached) {
+                setLockedUntil(new Date(Date.now() + 18000 * 1000).toISOString())
             } else {
-                setLockedUntil(null)
+                setLockedUntil((prev) => {
+                    if (prev) {
+                        const prevTarget = parseTargetDate(prev, Date.now())
+                        if (prevTarget && prevTarget.getTime() > Date.now()) {
+                            return prev
+                        }
+                    }
+                    return null
+                })
             }
         } catch {
             // Silently ignore background errors
@@ -326,19 +350,24 @@ export default function CreatePortfolio() {
         const handleSync = (e) => {
             if (e?.detail) {
                 const rem = e.detail.remaining_uses !== undefined ? e.detail.remaining_uses : e.detail.remaining
-                if (rem !== undefined) {
-                    setReviewLimits((prev) => ({ ...prev, remaining: rem }))
+                const dailyRem = e.detail.daily_remaining
+                if (rem !== undefined || dailyRem !== undefined) {
+                    setReviewLimits((prev) => ({
+                        ...prev,
+                        ...(rem !== undefined ? { remaining: rem } : {}),
+                        ...(dailyRem !== undefined ? { dailyRemaining: dailyRem } : {}),
+                    }))
                 }
-                if (e.detail.locked_until) {
+                if (e.detail.retry_after_seconds > 0) {
+                    setLockedUntil(new Date(Date.now() + e.detail.retry_after_seconds * 1000).toISOString())
+                } else if (e.detail.locked_until) {
                     setLockedUntil(e.detail.locked_until)
-                } else if (e.detail.retry_after_seconds > 0 || (rem !== undefined && rem <= 0)) {
-                    const secs = e.detail.retry_after_seconds > 0 ? e.detail.retry_after_seconds : 18000
-                    setLockedUntil(new Date(Date.now() + secs * 1000).toISOString())
-                } else if (rem !== undefined && rem > 0) {
+                } else if ((rem !== undefined && rem <= 0) || (dailyRem !== undefined && dailyRem <= 0)) {
+                    setLockedUntil(new Date(Date.now() + 18000 * 1000).toISOString())
+                } else if (rem !== undefined && rem > 0 && (dailyRem === undefined || dailyRem > 0)) {
                     setLockedUntil(null)
                 }
             }
-            fetchReviewStatus()
         }
         window.addEventListener('hulma:ai-usage-updated', handleSync)
         return () => window.removeEventListener('hulma:ai-usage-updated', handleSync)
@@ -346,7 +375,8 @@ export default function CreatePortfolio() {
 
     useEffect(() => {
         if (!lockedUntil) return
-        const msUntilReset = Math.max(0, new Date(lockedUntil).getTime() - Date.now())
+        const targetMs = parseTargetDate(lockedUntil, Date.now())?.getTime() ?? 0
+        const msUntilReset = Math.max(0, targetMs - Date.now())
         const timer = setTimeout(() => {
             setNowTime(Date.now())
             fetchReviewStatus()
@@ -354,7 +384,7 @@ export default function CreatePortfolio() {
         const interval = setInterval(() => {
             const current = Date.now()
             setNowTime(current)
-            if (new Date(lockedUntil).getTime() <= current) {
+            if (targetMs <= current) {
                 fetchReviewStatus()
             }
         }, 1000)
@@ -365,15 +395,17 @@ export default function CreatePortfolio() {
     }, [lockedUntil])
 
     const maxReviews = reviewLimits.maxPerWindow || MAX_REVIEWS
-    const isLockedByTimer = Boolean(lockedUntil && new Date(lockedUntil).getTime() > nowTime)
-    const isLockExpired = Boolean(lockedUntil && new Date(lockedUntil).getTime() <= nowTime)
+    const targetUnlockMs = parseTargetDate(lockedUntil, nowTime)?.getTime() ?? 0
+    const isLockedByTimer = Boolean(lockedUntil && targetUnlockMs > nowTime)
+    const isLockExpired = Boolean(lockedUntil && targetUnlockMs <= nowTime)
+    const isDailyLimitReached = typeof reviewLimits.dailyRemaining === 'number' && reviewLimits.dailyRemaining <= 0
     const remainingReviews = isLockExpired
         ? maxReviews
         : typeof reviewLimits.remaining === 'number'
           ? reviewLimits.remaining
           : maxReviews
-    const usedReviews = Math.max(0, maxReviews - remainingReviews)
-    const isLimitReached = isLockedByTimer || (!lockedUntil && remainingReviews <= 0)
+    const usedReviews = isDailyLimitReached ? maxReviews : Math.max(0, maxReviews - remainingReviews)
+    const isLimitReached = isLockedByTimer || isDailyLimitReached || (!lockedUntil && remainingReviews <= 0)
     const availableSubtext = formatUnlockDay(lockedUntil, nowTime)
 
     const showToast = (message, type = 'success') => {
@@ -399,7 +431,7 @@ export default function CreatePortfolio() {
 
     const templateId =
         urlTemplate ||
-        (savedDraft?.template && TEMPLATES.includes(savedDraft.template) ? savedDraft.template : null) ||
+        savedDraft?.template ||
         loadedTemplate ||
         (user?.id ? safeGet(`hulma-template:${user.id}`) : null) ||
         (() => {
@@ -864,26 +896,40 @@ export default function CreatePortfolio() {
             if (response.status === 429) {
                 const rawErr = await response.json().catch(() => null)
                 const errData = rawErr?.detail && typeof rawErr.detail === 'object' ? rawErr.detail : rawErr
-                const isPersonalLimit = (errData?.error === 'rate_limited' || errData?.error === 'too_many_attempts' || errData?.error === 'daily_limit_reached') && (errData?.remaining === 0 || errData?.remaining_uses === 0)
+                const isPersonalLimit =
+                    (errData?.error === 'rate_limited' ||
+                     errData?.error === 'too_many_attempts' ||
+                     errData?.error === 'daily_limit_reached') &&
+                    (errData?.remaining === 0 || errData?.remaining_uses === 0 || errData?.daily_remaining === 0 || errData?.is_daily_limit)
 
                 if (isPersonalLimit) {
                     const retrySecs = errData?.retry_after_seconds ?? parseInt(response.headers.get('Retry-After') || '18000', 10)
-                    const lockedAt = errData?.locked_until || new Date(Date.now() + retrySecs * 1000).toISOString()
+                    const lockedAt = (retrySecs > 0)
+                        ? new Date(Date.now() + retrySecs * 1000).toISOString()
+                        : (errData?.locked_until || new Date(Date.now() + 18000 * 1000).toISOString())
                     setLockedUntil(lockedAt)
                     setReviewLimits((prev) => ({
                         ...prev,
                         remaining: 0,
+                        dailyRemaining: typeof errData?.daily_remaining === 'number' ? errData.daily_remaining : (errData?.is_daily_limit ? 0 : prev.dailyRemaining),
                         isPenaltyActive: !!errData?.is_penalty_active,
                     }))
                     setNotice('')
-                    fetchReviewStatus()
-                    window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: { remaining: 0, locked_until: lockedAt, retry_after_seconds: retrySecs } }))
+                    window.dispatchEvent(
+                        new CustomEvent('hulma:ai-usage-updated', {
+                            detail: {
+                                remaining: 0,
+                                locked_until: lockedAt,
+                                retry_after_seconds: retrySecs,
+                                daily_remaining: typeof errData?.daily_remaining === 'number' ? errData.daily_remaining : (errData?.is_daily_limit ? 0 : undefined),
+                            },
+                        })
+                    )
                     return
                 }
 
                 // AI request failed with a rate-limit/quota error while user still has reviews left
                 setNotice('The AI service is busy right now. Please try again in a few minutes.')
-                fetchReviewStatus()
                 return
             }
 
@@ -894,21 +940,23 @@ export default function CreatePortfolio() {
 
             const data = await response.json()
             const rem = data.remaining_uses !== undefined ? data.remaining_uses : data.remaining
-            if (rem !== undefined) {
+            const isDailyReached = typeof data.daily_remaining === 'number' && data.daily_remaining <= 0
+            if (rem !== undefined || data.daily_remaining !== undefined) {
                 setReviewLimits((prev) => ({
                     ...prev,
-                    remaining: rem,
+                    remaining: rem ?? prev.remaining,
+                    dailyRemaining: data.daily_remaining ?? prev.dailyRemaining,
                 }))
-                if (data.locked_until) {
+                if (data.retry_after_seconds > 0) {
+                    setLockedUntil(new Date(Date.now() + data.retry_after_seconds * 1000).toISOString())
+                } else if (data.locked_until) {
                     setLockedUntil(data.locked_until)
-                } else if (data.retry_after_seconds > 0 || rem <= 0) {
-                    const secs = data.retry_after_seconds > 0 ? data.retry_after_seconds : 18000
-                    setLockedUntil(new Date(Date.now() + secs * 1000).toISOString())
+                } else if (rem <= 0 || isDailyReached) {
+                    setLockedUntil(new Date(Date.now() + 18000 * 1000).toISOString())
                 } else {
                     setLockedUntil(null)
                 }
             }
-            fetchReviewStatus()
             window.dispatchEvent(new CustomEvent('hulma:ai-usage-updated', { detail: data }))
             setDraftFeedback(data)
             setNotice('Draft quality evaluated.')
@@ -1028,35 +1076,6 @@ export default function CreatePortfolio() {
 
             <section className="mt-4 grid gap-5 xl:grid-cols-[1.3fr_0.7fr]">
                 <div className="space-y-4 rounded-2xl bg-white p-4 shadow-[0_2px_10px_rgba(30,70,140,0.10)] sm:p-5">
-                    <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-medium text-slate-500">Template</span>
-                            {TEMPLATES.map((id) => (
-                                <button
-                                    key={id}
-                                    type="button"
-                                    aria-pressed={id === templateId}
-                                    onClick={() => {
-                                        if (id !== templateId) {
-                                            if (urlId) {
-                                                navigate(`/portfolio/create?id=${urlId}&template=${id}`)
-                                            } else {
-                                                navigate(`/portfolio/create?template=${id}`)
-                                            }
-                                        }
-                                    }}
-                                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium capitalize transition active:scale-95 ${
-                                        id === templateId ? 'bg-[#1f6fdc] text-white shadow' : 'bg-[#f3f6fb] text-slate-600 hover:bg-[#e8effa]'
-                                    }`}
-                                >
-                                    {id}
-                                    {savedTemplates.includes(id) && <span title="Saved" className={`h-1.5 w-1.5 rounded-full ${id === templateId ? 'bg-white' : 'bg-[#12875a]'}`} />}
-                                </button>
-                            ))}
-                        </div>
-                        <p className="mt-1.5 text-[11px] text-slate-400">Your information is kept when you switch templates. Save to publish each template.</p>
-                    </div>
-
                     <div className="grid gap-4 sm:grid-cols-2">
                         <label htmlFor="field-title" className={labelClass}>
                             <span>

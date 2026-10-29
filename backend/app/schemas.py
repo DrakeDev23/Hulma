@@ -233,6 +233,7 @@ class AiReviewStatusResponse(BaseModel):
     retry_after_seconds: int
     daily_remaining: int
     is_penalty_active: bool
+    is_daily_limit: bool = False
     max_per_window: int = MAX_REVIEWS
     max_daily: int = 25
 

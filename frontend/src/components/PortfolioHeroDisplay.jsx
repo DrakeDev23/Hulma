@@ -34,6 +34,16 @@ const THEMES = {
         avatar: 'bg-[#ffa502]/20 text-[#ffa502]',
         badge: 'bg-[#ffa502] text-[#1a1025]',
     },
+    'creative-studio': {
+        panel: 'bg-gradient-to-br from-[#F2F3F5] to-[#B9C3DB]/40 text-[#1A1A2E] font-sans',
+        muted: 'text-[#7A7F8A]',
+        label: 'text-[#1F3558]',
+        chip: 'bg-[#1F3558]/10 text-[#1F3558]',
+        card: 'bg-white/90',
+        line: 'border-[#B9C3DB]/50',
+        avatar: 'bg-[#1F3558] text-white',
+        badge: 'bg-[#1F3558] text-white',
+    },
 }
 
 const asLines = (v) => (Array.isArray(v) ? v.filter(Boolean) : [])

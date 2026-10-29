@@ -51,6 +51,11 @@ const TEMPLATE_CONFIG = {
         dot: 'bg-purple-600',
         badge: 'bg-purple-50 text-purple-700 border-purple-200',
     },
+    'creative-studio': {
+        label: 'Creative Studio',
+        dot: 'bg-[#1F3558]',
+        badge: 'bg-[#F2F3F5] text-[#1F3558] border-[#B9C3DB]',
+    },
 }
 
 const TEMPLATE_TABS = [
@@ -58,11 +63,59 @@ const TEMPLATE_TABS = [
     { id: 'simple', label: 'Simple', dot: 'bg-stone-500' },
     { id: 'modern', label: 'Modern', dot: 'bg-blue-600' },
     { id: 'creative', label: 'Creative', dot: 'bg-purple-600' },
+    { id: 'creative-studio', label: 'Creative Studio', dot: 'bg-[#1F3558]' },
 ]
 
 function PortfolioThumbnail({ portfolio }) {
     const template = String(portfolio?.templateId || portfolio?.template || 'modern').toLowerCase()
     const picture = portfolio?.picture
+
+    if (template === 'creative-studio' || template === 'studio') {
+        return (
+            <div className="relative w-full h-full bg-[#F2F3F5] p-3 flex flex-col justify-between overflow-hidden select-none">
+                <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-[#B9C3DB]/40 blur-md" />
+                <div className="absolute -left-4 -bottom-4 h-16 w-16 rounded-full bg-[#1F3558]/10 blur-md" />
+                <div className="relative z-10 flex items-center justify-between border-b border-[#B9C3DB]/40 pb-1">
+                    <div className="flex items-center gap-1">
+                        <div className="h-2 w-2 rounded-full bg-[#1F3558]" />
+                        <div className="h-1.5 w-10 rounded bg-[#1F3558]" />
+                    </div>
+                    <div className="h-1 w-4 rounded-full bg-[#7A7F8A]" />
+                </div>
+                <div className="relative z-10 flex items-center gap-2.5 my-auto">
+                    {picture ? (
+                        <div className="relative">
+                            <img
+                                src={picture}
+                                alt=""
+                                className="h-12 w-12 rounded-full border-2 border-white object-cover shadow-sm shrink-0"
+                            />
+                            <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-[#1F3558] text-white flex items-center justify-center text-[7px]">
+                                ↗
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="relative">
+                            <div className="h-12 w-12 rounded-full bg-[#1F3558] border-2 border-white flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">
+                                {portfolio?.title?.charAt(0) || 'C'}
+                            </div>
+                            <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-[#1F3558] text-white flex items-center justify-center text-[7px]">
+                                ↗
+                            </div>
+                        </div>
+                    )}
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="h-2 w-20 rounded-xs bg-[#1A1A2E]" />
+                        <div className="h-1.5 w-full rounded-xs bg-[#B9C3DB]" />
+                    </div>
+                </div>
+                <div className="relative z-10 flex justify-between items-center">
+                    <div className="h-1.5 w-12 rounded-full bg-[#1F3558]" />
+                    <div className="h-1 w-8 rounded-full bg-[#7A7F8A]" />
+                </div>
+            </div>
+        )
+    }
 
     if (template === 'creative') {
         return (

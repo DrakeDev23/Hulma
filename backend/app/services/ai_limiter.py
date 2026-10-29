@@ -374,6 +374,7 @@ def get_ai_review_status(
                 "locked_until": penalty_until.isoformat(),
                 "daily_remaining": daily_remaining,
                 "is_penalty_active": True,
+                "is_daily_limit": False,
                 "max_per_window": max_per_window,
                 "max_daily": max_daily,
             }
@@ -388,11 +389,27 @@ def get_ai_review_status(
             "locked_until": cooldown_end.isoformat(),
             "daily_remaining": daily_remaining,
             "is_penalty_active": False,
+            "is_daily_limit": False,
             "max_per_window": max_per_window,
             "max_daily": max_daily,
         }
 
-    window_count = 0 if now >= cooldown_end else usage.count
+    if daily_count >= max_daily:
+        daily_reset = daily_window_start + timedelta(hours=24)
+        retry_after = max(1, int((daily_reset - now).total_seconds()))
+        return {
+            "remaining": 0,
+            "remaining_uses": 0,
+            "retry_after_seconds": retry_after,
+            "locked_until": daily_reset.isoformat(),
+            "daily_remaining": 0,
+            "is_penalty_active": False,
+            "is_daily_limit": True,
+            "max_per_window": max_per_window,
+            "max_daily": max_daily,
+        }
+
+    window_count = 0 if now >= cooldown_end or (penalty_until is not None and now >= penalty_until) else usage.count
     remaining = max(0, max_per_window - window_count)
 
     return {
@@ -402,6 +419,7 @@ def get_ai_review_status(
         "locked_until": None,
         "daily_remaining": daily_remaining,
         "is_penalty_active": False,
+        "is_daily_limit": False,
         "max_per_window": max_per_window,
         "max_daily": max_daily,
     }

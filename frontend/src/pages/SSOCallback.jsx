@@ -49,7 +49,6 @@ export default function SSOCallback() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f8fbff] p-4">
-      {/* Clerk's official SSO handler */}
       <HandleSSOCallback
         navigateToApp={goToDashboard}
         navigateToSignIn={goToLogin}

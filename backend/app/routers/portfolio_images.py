@@ -141,7 +141,6 @@ async def upload_portfolio_image(
             )
             db.add(photo_record)
 
-            # Update matching project in target_portfolio.projects if available
             projects = list(target_portfolio.projects or [])
             updated = False
             if project_index is not None and 0 <= project_index < len(projects):
@@ -302,7 +301,6 @@ async def add_project_photo(
     )
     db.add(photo_record)
 
-    # Sync with portfolio.projects array if matching project exists
     projects = list(portfolio.projects or [])
     updated = False
     if project_index is not None and 0 <= project_index < len(projects):

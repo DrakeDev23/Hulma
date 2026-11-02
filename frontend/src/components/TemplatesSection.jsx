@@ -486,11 +486,13 @@ export default function TemplatesSection() {
     triggerCardRef.current = triggerEl || document.activeElement
     setModalTemplate(tplId || 'modern')
     setPreviewModalOpen(true)
-    setShowExitHint(true)
-    if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current)
-    hintTimeoutRef.current = setTimeout(() => {
-      setShowExitHint(false)
-    }, 3000)
+    if (!isMobile) {
+      setShowExitHint(true)
+      if (hintTimeoutRef.current) clearTimeout(hintTimeoutRef.current)
+      hintTimeoutRef.current = setTimeout(() => {
+        setShowExitHint(false)
+      }, 3000)
+    }
   }
 
   const rotateCarousel = (direction) => {
@@ -899,8 +901,8 @@ export default function TemplatesSection() {
               <button
                 type="button"
                 onClick={closeFullPreview}
-                title="Close preview (Esc)"
-                aria-label="Close preview (Esc)"
+                title={isMobile ? 'Close preview' : 'Close preview (Esc)'}
+                aria-label={isMobile ? 'Close preview' : 'Close preview (Esc)'}
                 className="relative inline-flex items-center justify-center leading-none h-10 w-10 p-0 rounded-full shrink-0 bg-slate-900 text-white hover:bg-slate-700 shadow-sm transition active:scale-95 cursor-pointer before:absolute before:-inset-1 before:content-[''] sm:h-11 sm:w-auto sm:px-4 sm:gap-2 text-xs sm:text-sm font-semibold"
               >
                 <X className="w-4 h-4 shrink-0" />
@@ -910,11 +912,11 @@ export default function TemplatesSection() {
               <div
                 role="status"
                 aria-live="polite"
-                className={`pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 rounded-full bg-slate-900 text-white text-xs px-4 py-2 shadow-lg whitespace-nowrap transition-opacity duration-300 z-30 ${
+                className={`pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 rounded-full bg-slate-900 text-white text-xs px-4 py-2 shadow-lg whitespace-nowrap transition-opacity duration-300 z-30 hidden md:block ${
                   showExitHint ? 'opacity-100' : 'opacity-0'
                 }`}
               >
-                Press Esc or tap Close to exit preview.
+                Press Esc to close
               </div>
             </div>
 

@@ -224,6 +224,52 @@ function CreativeStudioPreview() {
   )
 }
 
+function MinimalOrangePreview() {
+  return (
+    <div className="relative h-full overflow-hidden rounded-xl bg-[#FAF9F6] border border-[#E7E5E4] p-2.5 flex flex-col justify-between select-none">
+      <div className="relative z-10 flex items-center justify-between border-b border-[#E7E5E4] pb-1">
+        <div className="flex items-center gap-1.5">
+          <div className="h-2.5 w-2.5 rounded bg-[#1C1917]" />
+          <div className="h-1.5 w-8 rounded bg-[#1C1917]" />
+          <div className="h-1 w-1 rounded-full bg-[#F97316]" />
+        </div>
+        <div className="flex items-center gap-1">
+          <div className="h-1 w-3 rounded bg-[#78716C]" />
+          <div className="h-1 w-3 rounded bg-[#78716C]" />
+          <div className="h-2 w-6 rounded bg-[#F97316]" />
+        </div>
+      </div>
+      <div className="relative z-10 grid grid-cols-5 gap-1.5 my-1 items-center">
+        <div className="col-span-3 space-y-1">
+          <div className="flex items-center gap-1">
+            <span className="h-1 w-1 rounded-full bg-[#F97316]" />
+            <span className="h-1 w-10 rounded bg-[#EA580C]" />
+          </div>
+          <div className="h-2 w-20 rounded bg-[#1C1917]" />
+          <div className="h-1 w-16 rounded bg-[#78716C]" />
+        </div>
+        <div className="col-span-2 rounded-xl border border-[#E7E5E4] bg-white p-1 shadow-2xs">
+          <div className="aspect-square w-full rounded-lg bg-gradient-to-tr from-[#FAF9F6] to-[#FED7AA]/40 flex items-center justify-center">
+            <div className="h-5 w-5 rounded-md bg-[#1C1917] flex items-center justify-center text-white text-[8px] font-bold">
+              M
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="relative z-10 grid grid-cols-2 gap-1 mt-0.5">
+        <div className="rounded-md bg-white p-1 shadow-2xs border border-[#E7E5E4]">
+          <div className="h-3 w-full rounded bg-[#FAF9F6]" />
+          <div className="mt-1 h-1 w-8 rounded bg-[#1C1917]" />
+        </div>
+        <div className="rounded-md bg-white p-1 shadow-2xs border border-[#E7E5E4]">
+          <div className="h-3 w-full rounded bg-[#FAF9F6]" />
+          <div className="mt-1 h-1 w-8 rounded bg-[#1C1917]" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const TEMPLATES = [
   {
     id: 'simple',
@@ -252,26 +298,15 @@ const TEMPLATES = [
       'Bold, high-contrast dark theme with ambient gradient glows designed for creative impact.',
     Preview: CreativePreview,
   },
-  {
-    id: 'creative-studio',
-    num: 'Template 4',
-    name: 'Creative Studio',
-    tagline: 'Modern, soft organic corporate-creative.',
-    description:
-      'Clean corporate-creative theme with soft rounded curves, circular masks, donut indicators, and generous whitespace.',
-    Preview: CreativeStudioPreview,
-  },
 ]
 
 const CAROUSEL_CARDS = [
   { ...TEMPLATES[0], key: 'simple-1' },
   { ...TEMPLATES[1], key: 'modern-1' },
   { ...TEMPLATES[2], key: 'creative-1' },
-  { ...TEMPLATES[3], key: 'creative-studio-1' },
   { ...TEMPLATES[0], key: 'simple-2' },
   { ...TEMPLATES[1], key: 'modern-2' },
   { ...TEMPLATES[2], key: 'creative-2' },
-  { ...TEMPLATES[3], key: 'creative-studio-2' },
 ]
 
 const CAROUSEL_COUNT = CAROUSEL_CARDS.length
@@ -541,7 +576,7 @@ export default function TemplatesSection() {
     }
   }, [previewModalOpen, handleScrollModal])
 
-  const previewTemplateConfig = TEMPLATES.find((t) => t.id === modalTemplate) || TEMPLATES[1]
+  const previewTemplateConfig = TEMPLATES.find((t) => t.id === modalTemplate) || TEMPLATES[0]
 
   return (
     <section

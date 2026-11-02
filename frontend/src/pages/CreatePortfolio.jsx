@@ -4,6 +4,7 @@ import { useAuth, useUser } from '@clerk/react'
 import { ArrowRight, Save, Share2, Sparkles, RefreshCw, Eye, CheckCircle2, AlertCircle, X, Trash2, Lock, Clock } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import PortfolioModal from '../components/PortfolioModal'
+import ProjectsSection from '../components/portfolio-form/ProjectsSection'
 import ShareLink, { buildShareUrl, getShareSlug } from '../components/ShareLink'
 import { resolveDisplayName } from '../utils/portfolioUtils'
 import { apiUrl } from '../utils/api'
@@ -95,6 +96,50 @@ const parseProjects = (value) =>
         link: '',
     }))
 
+function createEmptyProject(idSuffix = '1') {
+    return {
+        id: `proj-${Date.now()}-${idSuffix}`,
+        name: '',
+        description: '',
+        image: '',
+        link: '',
+        tech: '',
+    }
+}
+
+function resolveInitialProjects(portfolioData, savedDraft) {
+    if (savedDraft?.projectList && Array.isArray(savedDraft.projectList) && savedDraft.projectList.length > 0) {
+        return savedDraft.projectList
+    }
+    if (Array.isArray(portfolioData?.projects) && portfolioData.projects.length > 0) {
+        return portfolioData.projects.map((p, idx) => ({
+            id: p.id || `proj-${idx + 1}`,
+            name: p.name || p.title || '',
+            description: p.description || p.summary || '',
+            image: p.image || p.picture || p.photo_url || '',
+            link: p.link || p.url || '',
+            tech: Array.isArray(p.tech) ? p.tech.join(', ') : (p.tech || ''),
+        }))
+    }
+    if (savedDraft?.form?.projects && typeof savedDraft.form.projects === 'string') {
+        const parsed = parseProjects(savedDraft.form.projects)
+        if (parsed.length > 0) {
+            return parsed.map((p, idx) => ({
+                id: `proj-${idx + 1}`,
+                name: p.name || '',
+                description: p.description || '',
+                image: '',
+                link: p.link || '',
+                tech: '',
+            }))
+        }
+    }
+    return [
+        createEmptyProject('1'),
+        createEmptyProject('2'),
+    ]
+}
+
 const parseLinks = (value) =>
     parseLines(value).reduce((acc, line) => {
         const [label, ...rest] = line.split(':')
@@ -132,11 +177,28 @@ function portfolioToForm(portfolioData, currentUser, currentEmail) {
     }
 }
 
-function buildPortfolioPayload(form, user, emailAddress, templateId) {
+function buildPortfolioPayload(form, user, emailAddress, templateId, projectList = []) {
     const fullName = (form.fullName || resolveDisplayName(user, '')).replace(/[0-9]/g, '').trim()
     const email = form.email || emailAddress || ''
 
-    const checks = [fullName, form.aboutMe, form.skills, form.projects, form.education, form.workExperience, form.socialLinks]
+    const activeProjects = projectList && projectList.length > 0
+        ? projectList
+            .filter((p) => p.name?.trim() || p.description?.trim() || p.image?.trim())
+            .map((p, idx) => ({
+                id: p.id || `proj-${idx + 1}`,
+                name: p.name?.trim() || `Project ${idx + 1}`,
+                title: p.name?.trim() || `Project ${idx + 1}`,
+                description: p.description?.trim() || '',
+                image: p.image?.trim() || '',
+                picture: p.image?.trim() || '',
+                photo_url: p.image?.trim() || '',
+                link: p.link?.trim() || '',
+                tech: p.tech ? (Array.isArray(p.tech) ? p.tech : p.tech.split(',').map((t) => t.trim()).filter(Boolean)) : [],
+            }))
+        : parseProjects(form.projects)
+
+    const hasProjects = activeProjects.length > 0
+    const checks = [fullName, form.aboutMe, form.skills, hasProjects, form.education, form.workExperience, form.socialLinks]
     const completion = Math.round((checks.filter(Boolean).length / checks.length) * 100)
 
     return {
@@ -157,7 +219,7 @@ function buildPortfolioPayload(form, user, emailAddress, templateId) {
             workExperience: parseLines(form.workExperience),
             socialLinks: parseLinks(form.socialLinks),
         },
-        projects: parseProjects(form.projects),
+        projects: activeProjects,
         views: 0,
         completion,
     }
@@ -238,6 +300,9 @@ export default function CreatePortfolio() {
             return getImageNameFromUrl(savedDraft.form.profilePicture)
         }
         return ''
+    })
+    const [projectList, setProjectList] = useState(() => {
+        return resolveInitialProjects(null, savedDraft)
     })
     const [isDirty, setIsDirty] = useState(() => Boolean(savedDraft?.form && savedDraft.version === 1))
     const isDirtyRef = useRef(isDirty)
@@ -408,15 +473,15 @@ export default function CreatePortfolio() {
     const isLimitReached = isLockedByTimer || isDailyLimitReached || (!lockedUntil && remainingReviews <= 0)
     const availableSubtext = formatUnlockDay(lockedUntil, nowTime)
 
-    const showToast = (message, type = 'success') => {
+    const showToast = (message, type = 'success', action = null) => {
         if (toastTimerRef.current) {
             clearTimeout(toastTimerRef.current)
         }
         const id = Date.now()
-        setToast({ message, type, id })
+        setToast({ message, type, id, action })
         toastTimerRef.current = setTimeout(() => {
             setToast((current) => (current?.id === id ? null : current))
-        }, 4000)
+        }, action ? 6000 : 4000)
     }
 
     useEffect(() => {
@@ -466,6 +531,11 @@ export default function CreatePortfolio() {
                 } else if (draft.form?.profilePicture) {
                     setSelectedImageName(getImageNameFromUrl(draft.form.profilePicture))
                 }
+                if (draft.projectList && Array.isArray(draft.projectList)) {
+                    setProjectList(draft.projectList)
+                } else if (draft.form?.projects) {
+                    setProjectList(resolveInitialProjects(null, draft))
+                }
                 setIsDirty(true)
                 isDirtyRef.current = true
                 setNotice('Draft restored.')
@@ -506,6 +576,7 @@ export default function CreatePortfolio() {
                         setLoadedTemplate(matchedPortfolio.sections?.meta?.templateId || '')
                         if (!hasDraft && !isDirtyRef.current) {
                             setForm(portfolioToForm(matchedPortfolio, currentUser, currentEmail))
+                            setProjectList(resolveInitialProjects(matchedPortfolio, null))
                             setSelectedImageName(
                                 matchedPortfolio.sections?.profile?.profilePicture
                                     ? getImageNameFromUrl(matchedPortfolio.sections.profile.profilePicture)
@@ -528,6 +599,7 @@ export default function CreatePortfolio() {
                             fullName: resolveDisplayName(currentUser, '').replace(/[0-9]/g, ''),
                             email: currentEmail || '',
                         })
+                        setProjectList([createEmptyProject('1'), createEmptyProject('2')])
                         setSelectedImageName('')
                     }
                 }
@@ -566,6 +638,7 @@ export default function CreatePortfolio() {
                 updatedAt: Date.now(),
                 form,
                 selectedImageName,
+                projectList,
                 template: templateId,
             })
         }, 400)
@@ -573,12 +646,12 @@ export default function CreatePortfolio() {
         return () => {
             clearTimeout(timer)
         }
-    }, [form, selectedImageName, templateId, isDirty, userId, portfolioId])
+    }, [form, selectedImageName, templateId, projectList, isDirty, userId, portfolioId])
 
-    const draftDataRef = useRef({ form, selectedImageName, templateId })
+    const draftDataRef = useRef({ form, selectedImageName, templateId, projectList })
     useEffect(() => {
-        draftDataRef.current = { form, selectedImageName, templateId }
-    }, [form, selectedImageName, templateId])
+        draftDataRef.current = { form, selectedImageName, templateId, projectList }
+    }, [form, selectedImageName, templateId, projectList])
 
     useEffect(() => {
         return () => {
@@ -588,6 +661,7 @@ export default function CreatePortfolio() {
                     updatedAt: Date.now(),
                     form: draftDataRef.current.form,
                     selectedImageName: draftDataRef.current.selectedImageName,
+                    projectList: draftDataRef.current.projectList,
                     template: draftDataRef.current.templateId,
                 })
             }
@@ -654,6 +728,185 @@ export default function CreatePortfolio() {
 
         const payload = await response.json()
         return payload.url
+    }
+
+    const uploadProjectImage = async (file, projectName = '', projectIndex = 0) => {
+        if (!file) return ''
+
+        if (!file.type.startsWith('image/')) {
+            throw new Error('Please choose a valid image file.')
+        }
+
+        if (file.size > MAX_IMAGE_BYTES) {
+            throw new Error('Image must be 7 MB or smaller.')
+        }
+
+        const token = await getToken()
+        if (!token) {
+            throw new Error('Your Clerk session is expired. Please log in again.')
+        }
+
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const queryParams = new URLSearchParams()
+        if (templateId) queryParams.set('template_id', templateId)
+        if (portfolioId) queryParams.set('portfolio_id', String(portfolioId))
+        if (projectName) queryParams.set('project_name', projectName)
+        if (projectIndex !== undefined && projectIndex !== null) queryParams.set('project_index', String(projectIndex))
+        queryParams.set('is_project_photo', 'true')
+        const queryStr = `?${queryParams.toString()}`
+
+        const response = await fetch(apiUrl(`/api/portfolio/images/upload${queryStr}`), {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+        })
+
+        if (!response.ok) {
+            const rawText = await response.text()
+            let message = 'Project image upload failed.'
+
+            try {
+                const parsed = rawText ? JSON.parse(rawText) : null
+                message = parsed?.detail || parsed?.message || rawText || message
+            } catch {
+                message = rawText || message
+            }
+
+            throw new Error(message)
+        }
+
+        const payload = await response.json()
+        return payload.url
+    }
+
+    const syncProjectsForm = (list) => {
+        const text = list
+            .filter((p) => p.name?.trim())
+            .map((p) => `${p.name}: ${p.description}`)
+            .join('\n\n')
+        setForm((prev) => ({ ...prev, projects: text }))
+    }
+
+    const handleAddProject = () => {
+        if (projectList.length >= 7) {
+            showToast('Maximum 7 projects reached.', 'error')
+            return
+        }
+        setIsDirty(true)
+        isDirtyRef.current = true
+        setProjectList((prev) => {
+            const nextIndex = prev.length
+            const updated = [...prev, createEmptyProject(nextIndex + 1)]
+            syncProjectsForm(updated)
+            return updated
+        })
+    }
+
+    const handleRemoveProject = (index) => {
+        if (projectList.length <= 1) {
+            showToast('You must keep at least one project.', 'error')
+            return
+        }
+        const removed = projectList[index]
+        setIsDirty(true)
+        isDirtyRef.current = true
+        const updated = projectList.filter((_, i) => i !== index)
+        setProjectList(updated)
+        syncProjectsForm(updated)
+
+        showToast(
+            `Deleted "${removed.name || `Project #${index + 1}`}".`,
+            'success',
+            {
+                label: 'Undo',
+                onClick: () => {
+                    setIsDirty(true)
+                    isDirtyRef.current = true
+                    setProjectList((curr) => {
+                        const restored = [...curr]
+                        restored.splice(index, 0, removed)
+                        syncProjectsForm(restored)
+                        return restored
+                    })
+                    showToast('Project restored.', 'success')
+                },
+            }
+        )
+    }
+
+    const handleMoveProject = (fromIndex, toIndex) => {
+        if (toIndex < 0 || toIndex >= projectList.length) return
+        setIsDirty(true)
+        isDirtyRef.current = true
+        setProjectList((prev) => {
+            const updated = [...prev]
+            const [moved] = updated.splice(fromIndex, 1)
+            updated.splice(toIndex, 0, moved)
+            syncProjectsForm(updated)
+            return updated
+        })
+    }
+
+    const handleDuplicateProject = (index) => {
+        if (projectList.length >= 7) {
+            showToast('Maximum 7 projects reached.', 'error')
+            return
+        }
+        const source = projectList[index]
+        const duplicated = {
+            ...source,
+            id: `proj-${Date.now()}-${projectList.length + 1}`,
+            name: source.name ? `${source.name} (Copy)` : 'Copy of Project',
+        }
+        setIsDirty(true)
+        isDirtyRef.current = true
+        setProjectList((prev) => {
+            const updated = [...prev]
+            updated.splice(index + 1, 0, duplicated)
+            syncProjectsForm(updated)
+            return updated
+        })
+        showToast('Project duplicated.', 'success')
+    }
+
+    const handlePhotoRemove = (index) => {
+        handleUpdateProject(index, 'image', '')
+    }
+
+    const handleUpdateProject = (index, field, value) => {
+        setIsDirty(true)
+        isDirtyRef.current = true
+        setProjectList((prev) => {
+            const updated = [...prev]
+            updated[index] = { ...updated[index], [field]: value }
+            syncProjectsForm(updated)
+            return updated
+        })
+        if (errors.projects) {
+            setErrors((prevErrors) => {
+                const next = { ...prevErrors }
+                delete next.projects
+                return next
+            })
+        }
+    }
+
+    const handleProjectImageUpload = async (index, file) => {
+        if (!file) return
+        try {
+            setNotice('Uploading project photo...')
+            const projName = projectList[index]?.name || `Project ${index + 1}`
+            const uploadedUrl = await uploadProjectImage(file, projName, index)
+            handleUpdateProject(index, 'image', uploadedUrl)
+            setNotice('Project photo uploaded successfully!')
+            showToast('Project photo uploaded!', 'success')
+        } catch (err) {
+            console.error(err)
+            setNotice(err.message || 'Failed to upload project photo.')
+            showToast(err.message || 'Image upload failed.', 'error')
+        }
     }
 
     const updateField = (field, value) => {
@@ -730,8 +983,9 @@ export default function CreatePortfolio() {
             newErrors.skills = 'Skills are required.'
         }
 
-        if (!form.projects || !form.projects.trim()) {
-            newErrors.projects = 'Projects are required.'
+        const validProjects = projectList.filter((p) => p.name && p.name.trim())
+        if (validProjects.length === 0) {
+            newErrors.projects = 'Please provide at least one project with a title.'
         }
 
         if (!form.workExperience || !form.workExperience.trim()) {
@@ -746,12 +1000,12 @@ export default function CreatePortfolio() {
     }
 
     const previewPortfolio = useMemo(
-        () => buildPortfolioPayload(form, user, emailAddress, templateId),
-        [form, user, emailAddress, templateId],
+        () => buildPortfolioPayload(form, user, emailAddress, templateId, projectList),
+        [form, user, emailAddress, templateId, projectList],
     )
 
     const canReview = Boolean(
-        form.fullName || form.aboutMe || form.skills || form.projects || form.workExperience || form.education || form.socialLinks
+        form.fullName || form.aboutMe || form.skills || projectList.some((p) => p.name?.trim()) || form.workExperience || form.education || form.socialLinks
     )
 
     const getAuthHeaders = async () => {
@@ -862,6 +1116,7 @@ export default function CreatePortfolio() {
             fullName: resolveDisplayName(user, '').replace(/[0-9]/g, ''),
             email: emailAddress || '',
         })
+        setProjectList([createEmptyProject('1'), createEmptyProject('2')])
         setSelectedImageName('')
         if (!urlId) {
             setPortfolioId(null)
@@ -1308,27 +1563,17 @@ export default function CreatePortfolio() {
                         )}
                     </label>
 
-                    <label htmlFor="field-projects" className={labelClass}>
-                        <span>
-                            Projects (Name: description, one per line) <span className="text-red-500 font-bold">*</span>
-                        </span>
-                        <textarea
-                            id="field-projects"
-                            name="projects"
-                            value={form.projects}
-                            onChange={(e) => updateField('projects', e.target.value)}
-                            rows={4}
-                            placeholder={'Hulma redesign: Rebuilt the portfolio experience across landing pages and onboarding flows.\nGrowth dashboard: Built analytics views for product teams.'}
-                            aria-invalid={Boolean(errors.projects)}
-                            aria-describedby={errors.projects ? 'error-projects' : undefined}
-                            className={getFieldClass(Boolean(errors.projects))}
-                        />
-                        {errors.projects && (
-                            <span id="error-projects" className="mt-1 text-xs font-medium text-red-600">
-                                {errors.projects}
-                            </span>
-                        )}
-                    </label>
+                    <ProjectsSection
+                        projectList={projectList}
+                        onUpdateProject={handleUpdateProject}
+                        onRemoveProject={handleRemoveProject}
+                        onAddProject={handleAddProject}
+                        onPhotoUpload={handleProjectImageUpload}
+                        onPhotoRemove={handlePhotoRemove}
+                        onMoveProject={handleMoveProject}
+                        onDuplicateProject={handleDuplicateProject}
+                        errors={errors}
+                    />
 
                     <label htmlFor="field-workExperience" className={labelClass}>
                         <span>
@@ -1591,6 +1836,18 @@ export default function CreatePortfolio() {
                         {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
                     </div>
                     <p className="min-w-0 flex-1 text-sm font-medium text-slate-800 break-words">{toast.message}</p>
+                    {toast.action && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                toast.action.onClick?.()
+                                setToast(null)
+                            }}
+                            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition cursor-pointer shadow-xs shrink-0"
+                        >
+                            {toast.action.label}
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => setToast(null)}

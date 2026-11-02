@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.deps import get_db
-from app.models import Portfolio, User
+from app.models import Portfolio, PortfolioProjectPhoto, User
 from app.schemas import PortfolioCreate, PortfolioRead, PortfolioUpdate
 from app.routers.portfolio_auth import get_current_profile
 
@@ -54,6 +54,40 @@ def _new_slug(db: Session) -> str:
         slug = secrets.token_urlsafe(8)
         if not db.query(Portfolio.id).filter(Portfolio.slug == slug).first():
             return slug
+
+
+def _sync_project_photos(portfolio: Portfolio, projects: list, db: Session, user_id: int) -> None:
+    if not projects or not portfolio.id:
+        return
+    for idx, proj in enumerate(projects):
+        if isinstance(proj, dict):
+            p_img = proj.get("image") or proj.get("photo_url") or proj.get("picture")
+            p_name = proj.get("name") or proj.get("title")
+            if p_img and isinstance(p_img, str) and p_img.strip():
+                img_url = p_img.strip()
+                existing = (
+                    db.query(PortfolioProjectPhoto)
+                    .filter(
+                        PortfolioProjectPhoto.portfolio_id == portfolio.id,
+                        PortfolioProjectPhoto.photo_url == img_url,
+                    )
+                    .first()
+                )
+                if not existing:
+                    photo = PortfolioProjectPhoto(
+                        portfolio_id=portfolio.id,
+                        user_id=user_id,
+                        project_name=p_name[:200] if p_name else None,
+                        project_index=idx,
+                        photo_url=img_url,
+                        caption=proj.get("caption") if isinstance(proj.get("caption"), str) else None,
+                        display_order=idx,
+                    )
+                    db.add(photo)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
 
 
 @router.get("/me", response_model=list[PortfolioRead])
@@ -175,6 +209,9 @@ def save_portfolio(
                     detail="A conflict occurred while saving portfolio. Please try again.",
                 ) from exc
 
+    _sync_project_photos(portfolio, payload.projects or [], db, user.id)
+    db.refresh(portfolio)
+
     return portfolio
 
 
@@ -226,6 +263,11 @@ def update_portfolio(
             status_code=status.HTTP_409_CONFLICT,
             detail="Conflict while updating portfolio.",
         )
+
+    if payload.projects is not None:
+        _sync_project_photos(portfolio, payload.projects, db, user.id)
+        db.refresh(portfolio)
+
     return portfolio
 
 
@@ -311,6 +353,17 @@ def read_public_portfolio(slug: str, request: Request, db: Session = Depends(get
         "summary": portfolio.summary,
         "sections": portfolio.sections or {},
         "projects": portfolio.projects or [],
+        "project_photos": [
+            {
+                "id": p.id,
+                "project_name": p.project_name,
+                "project_index": p.project_index,
+                "photo_url": p.photo_url,
+                "caption": p.caption,
+                "display_order": p.display_order,
+            }
+            for p in (portfolio.project_photos or [])
+        ],
         "views": portfolio.views or 0,
         "completion": portfolio.completion or 0,
         "updated_at": portfolio.updated_at.isoformat() if portfolio.updated_at else None,

@@ -429,6 +429,7 @@ export default function Settings() {
                                 <option value="modern">Modern</option>
                                 <option value="creative">Creative</option>
                                 <option value="creative-studio">Creative Studio</option>
+                                <option value="minimal-orange">Minimal Orange</option>
                             </select>
                         </div>
                         <Toggle

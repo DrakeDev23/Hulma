@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/react'
-import { Check, ArrowRight, FileText, LayoutGrid, Palette, Clock, Eye, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Check, ArrowRight, FileText, LayoutGrid, Palette, Sparkles, Clock, Eye, X, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import PortfolioSite from '../components/PortfolioSite'
 import { resolveDisplayName } from '../utils/portfolioUtils'
@@ -197,13 +197,72 @@ function CreativeStudioPreview() {
     )
 }
 
+function MinimalOrangePreview() {
+    return (
+        <div className="relative h-full overflow-hidden rounded-lg bg-[#FAF9F6] border border-[#E7E5E4] p-2.5 flex flex-col justify-between">
+            <div className="flex items-center justify-between border-b border-[#E7E5E4] pb-1">
+                <div className="flex items-center gap-1.5">
+                    <div className="h-2.5 w-2.5 rounded bg-[#1C1917]" />
+                    <div className="h-1.5 w-8 rounded bg-[#1C1917]" />
+                    <div className="h-1 w-1 rounded-full bg-[#F97316]" />
+                </div>
+                <div className="flex items-center gap-1">
+                    <div className="h-1 w-3 rounded bg-[#78716C]" />
+                    <div className="h-1 w-3 rounded bg-[#78716C]" />
+                    <div className="h-2 w-6 rounded bg-[#F97316]" />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-5 gap-2 my-1 items-center">
+                <div className="col-span-3 space-y-1">
+                    <div className="flex items-center gap-1">
+                        <span className="h-1 w-1 rounded-full bg-[#F97316]" />
+                        <span className="h-1 w-12 rounded bg-[#EA580C]" />
+                    </div>
+                    <div className="h-2.5 w-24 rounded bg-[#1C1917]" />
+                    <div className="h-1 w-20 rounded bg-[#78716C]" />
+                    <div className="flex gap-1 pt-0.5">
+                        <div className="h-2 w-10 rounded bg-[#F97316]" />
+                        <div className="h-2 w-8 rounded border border-[#E7E5E4] bg-white" />
+                    </div>
+                </div>
+                <div className="col-span-2 rounded-xl border border-[#E7E5E4] bg-white p-1 shadow-2xs">
+                    <div className="aspect-square w-full rounded-lg bg-gradient-to-tr from-[#FAF9F6] to-[#FED7AA]/40 flex items-center justify-center">
+                        <div className="h-5 w-5 rounded-md bg-[#1C1917] flex items-center justify-center text-white text-[8px] font-bold">
+                            M
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex gap-1 my-0.5">
+                {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex-1 rounded border border-[#E7E5E4] bg-white px-1 py-0.5 flex items-center gap-0.5">
+                        <div className="h-1 w-1 rounded-full bg-[#F97316]" />
+                        <div className="h-0.5 w-full rounded bg-[#78716C]" />
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-2 gap-1 mt-0.5">
+                {[0, 1].map((i) => (
+                    <div key={i} className="rounded-md border border-[#E7E5E4] bg-white p-1 shadow-2xs">
+                        <div className="h-3.5 w-full rounded bg-[#FAF9F6] border border-[#E7E5E4]/60" />
+                        <div className="mt-1 h-1 w-10 rounded bg-[#1C1917]" />
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
 const TEMPLATES = [
     {
         id: 'simple',
         num: 'Template 1',
         name: 'Simple',
         Icon: FileText,
-        text: 'Clean and professional design.',
+        text: 'Clean and professional design emphasizing typography, generous whitespace, and classic editorial aesthetics.',
         tags: ['Clean layout', 'Minimal', 'Professional'],
         Preview: SimplePreview,
     },
@@ -212,7 +271,7 @@ const TEMPLATES = [
         num: 'Template 2',
         name: 'Modern',
         Icon: LayoutGrid,
-        text: 'Modern layout using cards, sections, and visual elements.',
+        text: 'Modern layout using cards, sections, and dynamic visual elements.',
         tags: ['Cards', 'Sections', 'Visual elements'],
         Preview: ModernPreview,
     },
@@ -221,7 +280,7 @@ const TEMPLATES = [
         num: 'Template 3',
         name: 'Creative',
         Icon: Palette,
-        text: 'A bold, expressive layout that helps your work stand out.',
+        text: 'A bold, expressive layout with rich accents that helps your work stand out.',
         tags: ['Bold colors', 'Custom shapes', 'Standout'],
         Preview: CreativePreview,
     },
@@ -233,6 +292,15 @@ const TEMPLATES = [
         text: 'Modern corporate-creative layout with soft organic shapes and generous whitespace.',
         tags: ['Organic shapes', 'Corporate-creative', 'Modern'],
         Preview: CreativeStudioPreview,
+    },
+    {
+        id: 'minimal-orange',
+        num: 'Template 5',
+        name: 'Minimal Orange',
+        Icon: Sparkles,
+        text: 'Minimal modern aesthetic with a warm orange palette, generous whitespace, and clean typography.',
+        tags: ['Minimalist', 'Warm Orange', 'Typography'],
+        Preview: MinimalOrangePreview,
     },
 ]
 
@@ -253,12 +321,25 @@ function readSaved(userId) {
 export default function Templates() {
     const navigate = useNavigate()
     const { user } = useUser()
+    const [searchQuery, setSearchQuery] = useState('')
     const [selected, setSelected] = useState(() => readSaved(user?.id))
     const [previewOpen, setPreviewOpen] = useState(false)
     const [previewTemplate, setPreviewTemplate] = useState('simple')
     const [currentPage, setCurrentPage] = useState(1)
 
-    const totalPages = Math.ceil(TEMPLATES.length / PAGE_SIZE)
+    const filteredTemplates = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase()
+        if (!q) return TEMPLATES
+        return TEMPLATES.filter((tpl) => {
+            const nameMatch = tpl.name.toLowerCase().includes(q)
+            const textMatch = tpl.text.toLowerCase().includes(q)
+            const tagMatch = tpl.tags.some((tag) => tag.toLowerCase().includes(q))
+            const numMatch = tpl.num.toLowerCase().includes(q)
+            return nameMatch || textMatch || tagMatch || numMatch
+        })
+    }, [searchQuery])
+
+    const totalPages = Math.max(1, Math.ceil(filteredTemplates.length / PAGE_SIZE))
 
     useEffect(() => {
         if (user?.id) {
@@ -267,16 +348,17 @@ export default function Templates() {
     }, [user?.id])
 
     useEffect(() => {
-        const idx = TEMPLATES.findIndex((t) => t.id === selected)
+        const idx = filteredTemplates.findIndex((t) => t.id === selected)
         if (idx !== -1) {
             setCurrentPage(Math.floor(idx / PAGE_SIZE) + 1)
         }
-    }, [selected])
+    }, [selected, filteredTemplates])
 
     const paginatedTemplates = useMemo(() => {
-        const start = (currentPage - 1) * PAGE_SIZE
-        return TEMPLATES.slice(start, start + PAGE_SIZE)
-    }, [currentPage])
+        const safePage = Math.min(currentPage, totalPages)
+        const start = (safePage - 1) * PAGE_SIZE
+        return filteredTemplates.slice(start, start + PAGE_SIZE)
+    }, [filteredTemplates, currentPage, totalPages])
 
     const current = TEMPLATES.find((t) => t.id === selected)
     const previewTemplateConfig = TEMPLATES.find((t) => t.id === previewTemplate) || TEMPLATES[0]
@@ -398,116 +480,167 @@ export default function Templates() {
                     <p className="mt-1 text-[13px] text-slate-500 sm:text-sm">Select the layout you want. You can change it anytime.</p>
                 </div>
                 <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[#1f6fdc] bg-white px-3 py-1.5 text-xs font-medium text-[#1f6fdc] transition duration-200 hover:bg-[#1f6fdc] hover:text-white">
-                    <Clock size={13} /> {TEMPLATES.length} templates available
+                    <Clock size={13} /> {filteredTemplates.length} {filteredTemplates.length === 1 ? 'template' : 'templates'} available
                 </span>
             </div>
 
-            <div role="radiogroup" aria-label="Portfolio templates" className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {paginatedTemplates.map(({ id, num, name, Icon, text, tags, Preview }) => {
-                    const isSelected = selected === id
-                    return (
-                        <article
-                            key={id}
-                            role="radio"
-                            aria-checked={isSelected}
-                            tabIndex={0}
-                            onClick={() => choose(id)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault()
-                                    choose(id)
-                                }
+            <div className="mt-4 p-3 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+                <div className="relative w-full">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => {
+                            setSearchQuery(e.target.value)
+                            setCurrentPage(1)
+                        }}
+                        placeholder="Search templates by name, style, or tag..."
+                        className="min-h-[44px] w-full rounded-xl bg-slate-50 pl-10 pr-9 text-xs sm:text-sm text-slate-800 placeholder-slate-400 border border-slate-200/80 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1f6fdc]/20 focus:border-[#1f6fdc] transition"
+                    />
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSearchQuery('')
+                                setCurrentPage(1)
                             }}
-                            className={`group flex cursor-pointer flex-col rounded-2xl bg-white p-4 outline-none transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(30,70,140,0.18)] focus-visible:ring-2 focus-visible:ring-[#1f6fdc] ${isSelected
-                                    ? 'shadow-[0_8px_24px_rgba(31,111,220,0.22)] ring-2 ring-[#1f6fdc]'
-                                    : 'shadow-[0_2px_10px_rgba(30,70,140,0.10)]'
-                                }`}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                            aria-label="Clear template search"
                         >
-                            <div className="relative h-44 overflow-hidden rounded-xl bg-[#f3f6fb] p-2 sm:h-48">
-                                <div className="h-full origin-center transition-transform duration-500 group-hover:scale-[1.04]">
-                                    <Preview />
-                                </div>
-                                <span
-                                    className={`absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-[#1f6fdc] text-white shadow-md transition-all duration-300 ${isSelected ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
-                                        }`}
-                                >
-                                    <Check size={16} strokeWidth={3} />
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        openPreview(id)
-                                    }}
-                                    className="absolute bottom-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg bg-slate-900/75 px-2.5 py-1 text-[11px] font-medium text-white shadow-sm backdrop-blur-xs transition hover:bg-slate-900 active:scale-95"
-                                >
-                                    <Eye size={12} /> Live preview
-                                </button>
-                            </div>
-
-                            <div className="mt-4 flex items-center gap-2.5">
-                                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#dce9fb] text-[#1f6fdc] transition-transform duration-200 group-hover:scale-110">
-                                    <Icon size={17} />
-                                </span>
-                                <div className="min-w-0">
-                                    <span className="inline-block rounded-full bg-[#eef2f9] px-2 py-0.5 text-[10px] font-medium text-slate-600">{num}</span>
-                                    <h4 className="text-lg font-semibold leading-tight">{name}</h4>
-                                </div>
-                            </div>
-
-                            <p className="mt-3 text-[13px] leading-snug text-slate-500">{text}</p>
-
-                            <div className="mt-3 flex flex-wrap gap-1.5">
-                                {tags.map((tag) => (
-                                    <span key={tag} className="rounded-full bg-[#f3f6fb] px-2.5 py-0.5 text-[11px] text-slate-600">
-                                        {tag}
-                                    </span>
-                                ))}
-                            </div>
-
-                            <div className="mt-4 flex gap-2">
-                                <button
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        choose(id)
-                                    }}
-                                    className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-medium transition duration-200 active:scale-95 ${isSelected
-                                            ? 'bg-[#1f6fdc] text-white hover:bg-[#1558c4]'
-                                            : 'border border-slate-200 bg-white text-slate-800 hover:-translate-y-0.5 hover:border-[#1f6fdc] hover:text-[#1f6fdc]'
-                                        }`}
-                                >
-                                    {isSelected ? (
-                                        <>
-                                            <Check size={16} /> Selected
-                                        </>
-                                    ) : (
-                                        'Select'
-                                    )}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        openPreview(id)
-                                    }}
-                                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs sm:text-sm font-medium text-slate-700 transition hover:bg-blue-50 hover:border-blue-200 hover:text-[#1f6fdc] active:scale-95"
-                                    title={`Preview ${name} template`}
-                                >
-                                    <Eye size={15} /> Preview
-                                </button>
-                            </div>
-                        </article>
-                    )
-                })}
+                            <X className="w-4 h-4" aria-hidden="true" />
+                        </button>
+                    )}
+                </div>
             </div>
 
-            {totalPages > 1 && (
+            {filteredTemplates.length === 0 ? (
+                <div className="mt-6 rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center">
+                    <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-[#1f6fdc]">
+                        <Search className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <h4 className="text-base font-bold text-slate-900">No templates found</h4>
+                    <p className="mt-1 text-xs text-slate-500 max-w-sm mx-auto">
+                        No templates match "{searchQuery}". Try searching for words like "minimal", "orange", "creative", or "cards".
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setSearchQuery('')
+                            setCurrentPage(1)
+                        }}
+                        className="min-h-[40px] mt-4 px-4 py-2 rounded-xl bg-[#1f6fdc] text-xs font-semibold text-white hover:bg-[#1558c4] transition cursor-pointer"
+                    >
+                        Clear search
+                    </button>
+                </div>
+            ) : (
+                <div role="radiogroup" aria-label="Portfolio templates" className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {paginatedTemplates.map(({ id, num, name, Icon, text, tags, Preview }) => {
+                        const isSelected = selected === id
+                        return (
+                            <article
+                                key={id}
+                                role="radio"
+                                aria-checked={isSelected}
+                                tabIndex={0}
+                                onClick={() => choose(id)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault()
+                                        choose(id)
+                                    }
+                                }}
+                                className={`group flex cursor-pointer flex-col rounded-2xl bg-white p-4 outline-none transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_28px_rgba(30,70,140,0.18)] focus-visible:ring-2 focus-visible:ring-[#1f6fdc] ${isSelected
+                                        ? 'shadow-[0_8px_24px_rgba(31,111,220,0.22)] ring-2 ring-[#1f6fdc]'
+                                        : 'shadow-[0_2px_10px_rgba(30,70,140,0.10)]'
+                                    }`}
+                            >
+                                <div className="relative h-44 overflow-hidden rounded-xl bg-[#f3f6fb] p-2 sm:h-48">
+                                    <div className="h-full origin-center transition-transform duration-500 group-hover:scale-[1.04]">
+                                        <Preview />
+                                    </div>
+                                    <span
+                                        className={`absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full bg-[#1f6fdc] text-white shadow-md transition-all duration-300 ${isSelected ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
+                                            }`}
+                                    >
+                                        <Check size={16} strokeWidth={3} />
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            openPreview(id)
+                                        }}
+                                        className="absolute bottom-2.5 right-2.5 z-10 inline-flex items-center gap-1 rounded-lg bg-slate-900/75 px-2.5 py-1 text-[11px] font-medium text-white shadow-sm backdrop-blur-xs transition hover:bg-slate-900 active:scale-95"
+                                    >
+                                        <Eye size={12} /> Live preview
+                                    </button>
+                                </div>
+
+                                <div className="mt-4 flex items-center gap-2.5">
+                                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#dce9fb] text-[#1f6fdc] transition-transform duration-200 group-hover:scale-110">
+                                        <Icon size={17} />
+                                    </span>
+                                    <div className="min-w-0">
+                                        <span className="inline-block rounded-full bg-[#eef2f9] px-2 py-0.5 text-[10px] font-medium text-slate-600">{num}</span>
+                                        <h4 className="text-lg font-semibold leading-tight">{name}</h4>
+                                    </div>
+                                </div>
+
+                                <p className="mt-3 text-[13px] leading-snug text-slate-500">{text}</p>
+
+                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                    {tags.map((tag) => (
+                                        <span key={tag} className="rounded-full bg-[#f3f6fb] px-2.5 py-0.5 text-[11px] text-slate-600">
+                                            {tag}
+                                        </span>
+                                    ))}
+                                </div>
+
+                                <div className="mt-4 flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            choose(id)
+                                        }}
+                                        className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-xs sm:text-sm font-medium transition duration-200 active:scale-95 ${isSelected
+                                                ? 'bg-[#1f6fdc] text-white hover:bg-[#1558c4]'
+                                                : 'border border-slate-200 bg-white text-slate-800 hover:-translate-y-0.5 hover:border-[#1f6fdc] hover:text-[#1f6fdc]'
+                                            }`}
+                                    >
+                                        {isSelected ? (
+                                            <>
+                                                <Check size={16} /> Selected
+                                            </>
+                                        ) : (
+                                            'Select'
+                                        )}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            openPreview(id)
+                                        }}
+                                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs sm:text-sm font-medium text-slate-700 transition hover:bg-blue-50 hover:border-blue-200 hover:text-[#1f6fdc] active:scale-95"
+                                        title={`Preview ${name} template`}
+                                    >
+                                        <Eye size={15} /> Preview
+                                    </button>
+                                </div>
+                            </article>
+                        )
+                    })}
+                </div>
+            )}
+
+            {filteredTemplates.length > PAGE_SIZE && (
                 <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl bg-white p-3.5 shadow-[0_2px_10px_rgba(30,70,140,0.08)]">
                     <p className="text-xs text-slate-500 font-medium">
                         Showing <span className="font-semibold text-slate-800">{(currentPage - 1) * PAGE_SIZE + 1}</span>–
-                        <span className="font-semibold text-slate-800">{Math.min(currentPage * PAGE_SIZE, TEMPLATES.length)}</span> of{' '}
-                        <span className="font-semibold text-slate-800">{TEMPLATES.length}</span> templates
+                        <span className="font-semibold text-slate-800">{Math.min(currentPage * PAGE_SIZE, filteredTemplates.length)}</span> of{' '}
+                        <span className="font-semibold text-slate-800">{filteredTemplates.length}</span> templates
                     </p>
 
                     <div className="flex items-center gap-1.5">

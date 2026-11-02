@@ -491,7 +491,13 @@ async def review_portfolio(
     db: Session = Depends(get_db),
 ) -> AiReviewResponse:
 
-    limits_info = check_and_consume_ai_review(db, user.id)
+    try:
+        limits_info = check_and_consume_ai_review(db, user.id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Limiter failure in review_portfolio: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     owned_portfolio: Optional[Portfolio] = None
     target_id = portfolio_id or payload.id
@@ -726,7 +732,13 @@ def check_draft(
     keeping builder draft assistance completely separate and unsynced from the official
     AI Review page audit.
     """
-    limits_info = check_and_consume_ai_review(db, user.id)
+    try:
+        limits_info = check_and_consume_ai_review(db, user.id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Limiter failure in review_portfolio: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
     title = (payload.title or "").strip()
     summary = (payload.summary or "").strip()
     projects = payload.projects if isinstance(payload.projects, list) else []

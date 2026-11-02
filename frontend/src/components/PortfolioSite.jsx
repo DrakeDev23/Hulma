@@ -2,8 +2,9 @@ import SimpleTemplate from './templates/SimpleTemplate'
 import ModernTemplate from './templates/ModernTemplate'
 import CreativeTemplate from './templates/CreativeTemplate'
 import CreativeStudioTemplate from './templates/CreativeStudioTemplate'
+import MinimalModernTemplate from './templates/MinimalModernTemplate'
 
-export { SimpleTemplate, ModernTemplate, CreativeTemplate, CreativeStudioTemplate }
+export { SimpleTemplate, ModernTemplate, CreativeTemplate, CreativeStudioTemplate, MinimalModernTemplate }
 
 export default function PortfolioSite({
     portfolio,
@@ -14,6 +15,24 @@ export default function PortfolioSite({
     backLabel = 'Back to editor',
 }) {
     const selectedTemplate = String(template || 'simple').toLowerCase()
+
+    if (
+        selectedTemplate === 'minimal-orange' ||
+        selectedTemplate === 'minimal' ||
+        selectedTemplate === 'warm-orange' ||
+        selectedTemplate === 'modern-orange' ||
+        selectedTemplate === 'orange'
+    ) {
+        return (
+            <MinimalModernTemplate
+                portfolio={portfolio}
+                idPrefix={idPrefix}
+                stickyNav={stickyNav}
+                onBack={onBack}
+                backLabel={backLabel}
+            />
+        )
+    }
 
     if (selectedTemplate === 'modern') {
         return (
@@ -27,9 +46,9 @@ export default function PortfolioSite({
         )
     }
 
-    if (selectedTemplate === 'creative') {
+    if (selectedTemplate === 'creative-studio' || selectedTemplate === 'studio') {
         return (
-            <CreativeTemplate
+            <CreativeStudioTemplate
                 portfolio={portfolio}
                 idPrefix={idPrefix}
                 stickyNav={stickyNav}
@@ -39,9 +58,9 @@ export default function PortfolioSite({
         )
     }
 
-    if (selectedTemplate === 'creative-studio' || selectedTemplate === 'studio') {
+    if (selectedTemplate === 'creative') {
         return (
-            <CreativeStudioTemplate
+            <CreativeTemplate
                 portfolio={portfolio}
                 idPrefix={idPrefix}
                 stickyNav={stickyNav}

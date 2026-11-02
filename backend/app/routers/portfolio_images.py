@@ -127,12 +127,14 @@ async def upload_portfolio_image(
     if portfolio_id is not None:
         target_portfolio = db.query(Portfolio).filter(Portfolio.id == portfolio_id, Portfolio.user_id == user.id).first()
 
+    clean_project_name = re.sub(r"[\x00-\x1f\x7f]", "", project_name.strip())[:200] if project_name else None
+
     if target_portfolio is not None:
         if is_project_photo or project_name is not None or project_index is not None:
             photo_record = PortfolioProjectPhoto(
                 portfolio_id=target_portfolio.id,
                 user_id=user.id,
-                project_name=project_name,
+                project_name=clean_project_name,
                 project_index=project_index,
                 photo_url=public_url,
                 storage_path=object_path,
@@ -147,9 +149,9 @@ async def upload_portfolio_image(
                 p["image"] = public_url
                 projects[project_index] = p
                 updated = True
-            elif project_name:
+            elif clean_project_name:
                 for i, p in enumerate(projects):
-                    if isinstance(p, dict) and (p.get("name") == project_name or p.get("title") == project_name):
+                    if isinstance(p, dict) and (p.get("name") == clean_project_name or p.get("title") == clean_project_name):
                         p_copy = dict(p)
                         p_copy["image"] = public_url
                         projects[i] = p_copy
@@ -285,14 +287,17 @@ async def add_project_photo(
     if not object_path:
         object_path = _normalize_object_path(final_url)
 
+    clean_project_name = re.sub(r"[\x00-\x1f\x7f]", "", project_name.strip())[:200] if project_name else None
+    clean_caption = re.sub(r"[\x00-\x1f\x7f]", "", caption.strip())[:255] if caption else None
+
     photo_record = PortfolioProjectPhoto(
         portfolio_id=portfolio.id,
         user_id=user.id,
-        project_name=project_name,
+        project_name=clean_project_name,
         project_index=project_index,
         photo_url=final_url,
         storage_path=object_path,
-        caption=caption,
+        caption=clean_caption,
         display_order=display_order,
     )
     db.add(photo_record)

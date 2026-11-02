@@ -254,6 +254,13 @@ export default function CreatePortfolio() {
         navigateRef.current = navigate
     }, [navigate])
 
+    const titleInputRef = useRef(null)
+
+    useEffect(() => {
+        window.scrollTo(0, 0)
+        titleInputRef.current?.focus()
+    }, [])
+
     const [searchParams] = useSearchParams()
     const urlTemplate = searchParams.get('template')
     const urlId = searchParams.get('id')
@@ -1337,6 +1344,7 @@ export default function CreatePortfolio() {
                                 Portfolio title <span className="text-red-500 font-bold">*</span>
                             </span>
                             <input
+                                ref={titleInputRef}
                                 id="field-title"
                                 name="title"
                                 value={form.title}

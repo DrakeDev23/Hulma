@@ -16,7 +16,7 @@ export default function ProjectsSection({
     errors = {},
 }) {
     // Single-open accordion: stores index of currently open card, or null if all closed
-    const [activeIndex, setActiveIndex] = useState(0)
+    const [activeIndex, setActiveIndex] = useState(null)
 
     const toggleExpand = (index) => {
         setActiveIndex((prev) => (prev === index ? null : index))

@@ -32,20 +32,25 @@ export default function ProjectCard({
     const isComplete = hasTitle && hasDescription
     const hasPhoto = Boolean(project.image?.trim())
 
-    // Auto-scroll and focus on expansion
+    const prevExpandedRef = useRef(isExpanded)
+
+    // Auto-scroll and focus only when user actively expands this card
     useEffect(() => {
-        if (isExpanded) {
+        const wasExpanded = prevExpandedRef.current
+        prevExpandedRef.current = isExpanded
+
+        if (isExpanded && !wasExpanded) {
             cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
             const timer = setTimeout(() => {
-                if (!hasTitle) {
+                if (!project.name?.trim()) {
                     titleInputRef.current?.focus()
-                } else if (!hasDescription) {
+                } else if (!project.description?.trim()) {
                     descInputRef.current?.focus()
                 }
             }, 180)
             return () => clearTimeout(timer)
         }
-    }, [isExpanded, hasTitle, hasDescription])
+    }, [isExpanded, project.name, project.description])
 
     const validateField = (field, val) => {
         const nextErrors = { ...fieldErrors }

@@ -19,6 +19,7 @@ class User(Base):
     created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     portfolios: Mapped[list["Portfolio"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    project_photos: Mapped[list["PortfolioProjectPhoto"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class Portfolio(Base):
@@ -41,6 +42,37 @@ class Portfolio(Base):
     updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     user: Mapped[User] = relationship(back_populates="portfolios")
+    project_photos: Mapped[list["PortfolioProjectPhoto"]] = relationship(
+        back_populates="portfolio",
+        cascade="all, delete-orphan",
+        order_by="PortfolioProjectPhoto.display_order",
+    )
+
+
+class PortfolioProjectPhoto(Base):
+    __tablename__ = "portfolio_project_photos"
+    __table_args__ = (
+        Index("idx_project_photos_portfolio_project", "portfolio_id", "project_name"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    portfolio_id: Mapped[int] = mapped_column(ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    project_index: Mapped[Optional[int]] = mapped_column(nullable=True)
+    photo_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    storage_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    caption: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    display_order: Mapped[int] = mapped_column(default=0, nullable=False)
+    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    portfolio: Mapped[Portfolio] = relationship(back_populates="project_photos")
+    user: Mapped[User] = relationship(back_populates="project_photos")
+
+
+# Model alias
+ProjectPhoto = PortfolioProjectPhoto
 
 
 class AiReviewUsage(Base):

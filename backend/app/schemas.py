@@ -176,6 +176,36 @@ class PortfolioUpdate(BaseModel):
         return v
 
 
+class ProjectPhotoBase(BaseModel):
+    project_name: Optional[str] = Field(None, max_length=200)
+    project_index: Optional[int] = Field(None, ge=0)
+    photo_url: str = Field(..., max_length=1000)
+    storage_path: Optional[str] = Field(None, max_length=500)
+    caption: Optional[str] = Field(None, max_length=255)
+    display_order: int = Field(0, ge=0)
+
+    @field_validator("photo_url")
+    @classmethod
+    def validate_photo_url(cls, v: str) -> str:
+        if not _is_safe_url(v):
+            raise ValueError("Unsafe URL scheme detected in photo_url.")
+        return v
+
+
+class ProjectPhotoCreate(ProjectPhotoBase):
+    portfolio_id: int
+
+
+class ProjectPhotoRead(ProjectPhotoBase):
+    id: int
+    portfolio_id: int
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PortfolioRead(BaseModel):
     id: int
     user_id: int
@@ -189,6 +219,7 @@ class PortfolioRead(BaseModel):
     review: Optional[dict[str, Any]] = None
     updated_at: datetime
     created_at: Optional[datetime] = None
+    project_photos: list[ProjectPhotoRead] = []
 
     model_config = ConfigDict(from_attributes=True)
 

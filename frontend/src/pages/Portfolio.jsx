@@ -38,8 +38,8 @@ const PAGE_SIZE = 8
 const TEMPLATE_CONFIG = {
     simple: {
         label: 'Simple',
-        dot: 'bg-stone-500',
-        badge: 'bg-stone-50 text-stone-700 border-stone-200',
+        dot: 'bg-[#F97316]',
+        badge: 'bg-[#FFF7ED] text-[#EA580C] border-[#FFEDD5]',
     },
     modern: {
         label: 'Modern',
@@ -48,29 +48,41 @@ const TEMPLATE_CONFIG = {
     },
     creative: {
         label: 'Creative',
-        dot: 'bg-purple-600',
-        badge: 'bg-purple-50 text-purple-700 border-purple-200',
-    },
-    'creative-studio': {
-        label: 'Creative Studio',
         dot: 'bg-[#1F3558]',
         badge: 'bg-[#F2F3F5] text-[#1F3558] border-[#B9C3DB]',
     },
+    'creative-studio': {
+        label: 'Creative',
+        dot: 'bg-[#1F3558]',
+        badge: 'bg-[#F2F3F5] text-[#1F3558] border-[#B9C3DB]',
+    },
+    'minimal-orange': {
+        label: 'Simple',
+        dot: 'bg-[#F97316]',
+        badge: 'bg-[#FFF7ED] text-[#EA580C] border-[#FFEDD5]',
+    },
+    'warm-orange': {
+        label: 'Simple',
+        dot: 'bg-[#F97316]',
+        badge: 'bg-[#FFF7ED] text-[#EA580C] border-[#FFEDD5]',
+    },
+    'modern-orange': {
+        label: 'Simple',
+        dot: 'bg-[#F97316]',
+        badge: 'bg-[#FFF7ED] text-[#EA580C] border-[#FFEDD5]',
+    },
+    orange: {
+        label: 'Simple',
+        dot: 'bg-[#F97316]',
+        badge: 'bg-[#FFF7ED] text-[#EA580C] border-[#FFEDD5]',
+    },
 }
-
-const TEMPLATE_TABS = [
-    { id: 'all', label: 'All', dot: null },
-    { id: 'simple', label: 'Simple', dot: 'bg-stone-500' },
-    { id: 'modern', label: 'Modern', dot: 'bg-blue-600' },
-    { id: 'creative', label: 'Creative', dot: 'bg-purple-600' },
-    { id: 'creative-studio', label: 'Creative Studio', dot: 'bg-[#1F3558]' },
-]
 
 function PortfolioThumbnail({ portfolio }) {
     const template = String(portfolio?.templateId || portfolio?.template || 'modern').toLowerCase()
     const picture = portfolio?.picture
 
-    if (template === 'creative-studio' || template === 'studio') {
+    if (template === 'creative' || template === 'creative-studio' || template === 'studio') {
         return (
             <div className="relative w-full h-full bg-[#F2F3F5] p-3 flex flex-col justify-between overflow-hidden select-none">
                 <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full bg-[#B9C3DB]/40 blur-md" />
@@ -117,96 +129,81 @@ function PortfolioThumbnail({ portfolio }) {
         )
     }
 
-    if (template === 'creative') {
+    if (template === 'modern') {
         return (
-            <div className="relative w-full h-full bg-[#08070e] flex items-center justify-center overflow-hidden select-none">
-                <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-purple-600/30 blur-lg" />
-                <div className="absolute -left-4 -bottom-4 h-20 w-20 rounded-full bg-pink-600/25 blur-lg" />
-                {picture ? (
-                    <img
-                        src={picture}
-                        alt=""
-                        className="relative z-10 h-12 w-12 rounded-full border-2 border-white/20 object-cover shadow-lg"
-                    />
-                ) : (
-                    <div className="relative z-10 flex flex-col items-center gap-1.5 p-3 text-center">
-                        <div className="h-2 w-16 rounded-full bg-gradient-to-r from-pink-500 to-purple-500" />
-                        <div className="h-1.5 w-24 rounded-full bg-white/30" />
-                        <div className="flex gap-1 mt-1">
-                            <span className="h-1 w-5 rounded-xs bg-white/20" />
-                            <span className="h-1 w-5 rounded-xs bg-white/20" />
-                        </div>
+            <div className="relative w-full h-full bg-gradient-to-b from-blue-50/70 via-indigo-50/30 to-white p-3.5 flex flex-col justify-between select-none">
+                <div className="flex items-center justify-between border-b border-slate-200/80 bg-white/80 px-2 py-1 rounded-lg shadow-2xs">
+                    <div className="flex items-center gap-1.5">
+                        <div className="h-2 w-2 rounded-md bg-blue-600" />
+                        <div className="h-1.5 w-12 rounded bg-slate-700" />
                     </div>
-                )}
+                    <div className="flex gap-1">
+                        <div className="h-1 w-3 rounded bg-slate-300" />
+                        <div className="h-1 w-3 rounded bg-slate-300" />
+                    </div>
+                </div>
+                <div className="grid grid-cols-5 gap-2 my-1 items-center">
+                    <div className="col-span-3 space-y-1">
+                        <div className="h-2 w-24 rounded bg-slate-900" />
+                        <div className="h-1.5 w-16 rounded bg-slate-400" />
+                    </div>
+                    <div className="col-span-2">
+                        {picture ? (
+                            <img
+                                src={picture}
+                                alt=""
+                                className="h-10 w-10 rounded-lg border border-slate-200 object-cover shadow-2xs ml-auto"
+                            />
+                        ) : (
+                            <div className="h-10 w-10 rounded-lg bg-gradient-to-tr from-blue-500 to-indigo-600 ml-auto shadow-2xs" />
+                        )}
+                    </div>
+                </div>
+                <div className="flex gap-1.5">
+                    <span className="h-1.5 w-8 rounded bg-blue-600" />
+                    <span className="h-1.5 w-12 rounded bg-slate-200" />
+                </div>
             </div>
         )
     }
 
-    if (template === 'simple') {
-        return (
-            <div className="relative w-full h-full bg-[#fdfcf9] border-b border-stone-200 p-3.5 flex flex-col justify-between select-none">
-                <div className="flex justify-between items-center border-b border-stone-200/80 pb-1.5">
-                    <div className="h-2 w-14 rounded-xs bg-stone-800" />
-                    <div className="flex gap-1">
-                        <div className="h-1 w-3 rounded-xs bg-stone-400" />
-                        <div className="h-1 w-3 rounded-xs bg-stone-400" />
-                    </div>
+    // Default: 'simple' (Minimal Modern Orange)
+    return (
+        <div className="relative w-full h-full bg-[#FAF9F6] p-3 flex flex-col justify-between overflow-hidden select-none border border-[#E7E5E4]/80">
+            <div className="relative z-10 flex items-center justify-between border-b border-[#E7E5E4] pb-1">
+                <div className="flex items-center gap-1.5">
+                    <div className="h-2 w-2 rounded bg-[#1C1917]" />
+                    <div className="h-1.5 w-8 rounded bg-[#1C1917]" />
+                    <div className="h-1 w-1 rounded-full bg-[#F97316]" />
                 </div>
-                <div className="flex items-center gap-2.5 py-1">
-                    {picture ? (
+                <div className="h-1.5 w-6 rounded bg-[#F97316]" />
+            </div>
+            <div className="relative z-10 flex items-center gap-2.5 my-auto">
+                {picture ? (
+                    <div className="relative">
                         <img
                             src={picture}
                             alt=""
-                            className="h-12 w-12 rounded-full border border-stone-300 object-cover shrink-0"
+                            className="h-12 w-12 rounded-xl border border-[#E7E5E4] object-cover shadow-2xs shrink-0"
                         />
-                    ) : (
-                        <div className="h-12 w-12 rounded-full bg-stone-200 border border-stone-300 flex items-center justify-center text-stone-700 font-serif text-sm font-bold shrink-0">
-                            {portfolio?.title?.charAt(0) || 'P'}
-                        </div>
-                    )}
-                    <div className="space-y-1.5 flex-1 min-w-0">
-                        <div className="h-2 w-20 rounded-xs bg-stone-900" />
-                        <div className="h-1.5 w-full rounded-xs bg-stone-300" />
+                        <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-[#F97316] ring-1 ring-white" />
                     </div>
-                </div>
-                <div className="h-1 w-14 rounded-xs bg-stone-300" />
-            </div>
-        )
-    }
-
-    // Default: Modern
-    return (
-        <div className="relative w-full h-full bg-gradient-to-b from-blue-50/70 via-indigo-50/30 to-white p-3.5 flex flex-col justify-between select-none">
-            <div className="flex items-center justify-between border-b border-slate-200/80 bg-white/80 px-2 py-1 rounded-lg shadow-2xs">
-                <div className="flex items-center gap-1.5">
-                    <div className="h-2 w-2 rounded-md bg-blue-600" />
-                    <div className="h-1.5 w-12 rounded bg-slate-700" />
-                </div>
-                <div className="flex gap-1">
-                    <div className="h-1 w-3 rounded bg-slate-300" />
-                    <div className="h-1 w-3 rounded bg-slate-300" />
-                </div>
-            </div>
-            <div className="flex items-center gap-2.5 my-auto">
-                {picture ? (
-                    <img
-                        src={picture}
-                        alt=""
-                        className="h-12 w-12 rounded-xl border border-blue-200 object-cover shadow-sm shrink-0"
-                    />
                 ) : (
-                    <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0">
-                        {portfolio?.title?.charAt(0) || 'H'}
+                    <div className="relative">
+                        <div className="h-12 w-12 rounded-xl bg-[#1C1917] border border-[#E7E5E4] flex items-center justify-center text-white text-xs font-bold shadow-2xs shrink-0">
+                            {portfolio?.title?.charAt(0) || 'M'}
+                        </div>
+                        <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-[#F97316] ring-1 ring-white" />
                     </div>
                 )}
                 <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="h-2 w-20 rounded-md bg-slate-900" />
-                    <div className="h-1.5 w-28 rounded bg-slate-400" />
+                    <div className="h-2 w-20 rounded bg-[#1C1917]" />
+                    <div className="h-1.5 w-full rounded bg-[#E7E5E4]" />
                 </div>
             </div>
-            <div className="flex gap-1.5">
-                <div className="h-1.5 w-8 rounded bg-blue-100" />
-                <div className="h-1.5 w-8 rounded bg-slate-100" />
+            <div className="relative z-10 flex justify-between items-center">
+                <div className="h-1.5 w-12 rounded bg-[#EA580C]" />
+                <div className="h-1 w-8 rounded bg-[#78716C]" />
             </div>
         </div>
     )
@@ -339,17 +336,6 @@ export default function Portfolio() {
         }
     }
 
-    const handleTemplateChange = (tplId) => {
-        const next = new URLSearchParams(searchParams)
-        if (tplId === 'all') {
-            next.delete('template')
-        } else {
-            next.set('template', tplId)
-        }
-        next.delete('page')
-        setSearchParams(next)
-    }
-
     const pagedList = useMemo(() => {
         return filteredList.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
     }, [filteredList, currentPage])
@@ -454,8 +440,8 @@ export default function Portfolio() {
                     </p>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-                    <div className="relative flex-1 min-w-0">
+                <div className="p-3 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+                    <div className="relative w-full">
                         <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true" />
                         <input
                             type="text"
@@ -474,27 +460,6 @@ export default function Portfolio() {
                                 <X className="w-4 h-4" aria-hidden="true" />
                             </button>
                         )}
-                    </div>
-
-                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/80 shrink-0 overflow-x-auto max-w-full">
-                        {TEMPLATE_TABS.map((tab) => {
-                            const isActive = activeTemplate === tab.id
-                            return (
-                                <button
-                                    key={tab.id}
-                                    type="button"
-                                    onClick={() => handleTemplateChange(tab.id)}
-                                    className={`min-h-[36px] px-3 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition cursor-pointer ${
-                                        isActive
-                                            ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                                            : 'text-slate-600 hover:text-slate-900'
-                                    }`}
-                                >
-                                    {tab.dot && <span className={`h-2 w-2 rounded-full ${tab.dot} shrink-0`} aria-hidden="true" />}
-                                    <span>{tab.label}</span>
-                                </button>
-                            )
-                        })}
                     </div>
                 </div>
 
@@ -523,17 +488,14 @@ export default function Portfolio() {
                         </div>
                         <h4 className="text-base font-bold text-slate-900">No portfolios match your search</h4>
                         <p className="mt-1 text-xs text-slate-500">
-                            Try adjusting your search query or template filter.
+                            Try adjusting your search query.
                         </p>
                         <button
                             type="button"
-                            onClick={() => {
-                                setSearchTerm('')
-                                handleTemplateChange('all')
-                            }}
+                            onClick={() => setSearchTerm('')}
                             className="min-h-[40px] mt-4 px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                         >
-                            Clear filters
+                            Clear search
                         </button>
                     </div>
                 ) : (

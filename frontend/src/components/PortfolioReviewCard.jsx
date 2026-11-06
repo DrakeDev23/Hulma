@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { safeHref } from '../utils/safeUrl'
 import {
     Mail,
     Phone,
@@ -237,7 +238,7 @@ export default function PortfolioReviewCard({
                                         <div className="flex items-start justify-between gap-2">
                                             <h5 className="text-sm font-semibold text-slate-800">{p?.name || p?.title || `Project ${i + 1}`}</h5>
                                             {p?.link && (
-                                                <a href={p.link} target="_blank" rel="noreferrer" className="text-[#1f6fdc]" aria-label="Open project">
+                                                <a href={safeHref(p.link)} target="_blank" rel="noopener noreferrer" className="text-[#1f6fdc]" aria-label="Open project">
                                                     <ArrowUpRight size={15} />
                                                 </a>
                                             )}

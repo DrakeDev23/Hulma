@@ -48,6 +48,7 @@ export default function PortfolioPublic() {
                 if (cancelled) return
                 hasLoadedRef.current = true
                 setPortfolio(data)
+                if (data?.is_owner) setIsOwner(true)
                 setStatus('ready')
             } catch {
                 if (!cancelled) {
@@ -150,7 +151,7 @@ export default function PortfolioPublic() {
                     {status === 'private'
                         ? 'The owner has disabled public link sharing in their settings.'
                         : status === 'missing'
-                          ? 'The link may be wrong or the portfolio is no longer shared.'
+                          ? 'The link may be wrong, private, or no longer shared. Owners can enable Public link in Settings.'
                           : 'Please try again in a moment.'}
                 </p>
             </div>

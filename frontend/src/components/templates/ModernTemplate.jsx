@@ -16,8 +16,10 @@ import {
     Sparkles,
 } from 'lucide-react'
 
+import { safeHref, safeMailto, safeSrc } from '../../utils/safeUrl'
+
 const asLines = (v) => (Array.isArray(v) ? v.filter(Boolean) : [])
-const href = (url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`)
+const href = safeHref
 
 export default function ModernTemplate({
     portfolio,
@@ -194,7 +196,7 @@ export default function ModernTemplate({
                                 <div className="relative overflow-hidden rounded-2xl bg-gradient-to-tr from-slate-100 to-blue-50">
                                     {picture ? (
                                         <img
-                                            src={picture}
+                                            src={safeSrc(picture)}
                                             alt={name}
                                             className="aspect-square w-full object-cover rounded-2xl"
                                         />
@@ -543,7 +545,7 @@ export default function ModernTemplate({
                             <div className="lg:col-span-5 flex flex-col gap-3 sm:items-start lg:items-end">
                                 {email && (
                                     <a
-                                        href={`mailto:${email}`}
+                                        href={safeMailto(email)}
                                         className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-500 active:scale-95"
                                     >
                                         <Send size={15} />

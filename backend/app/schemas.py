@@ -1,10 +1,8 @@
 import json
 from datetime import datetime
 from typing import Any, Literal, Optional
-
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.constants import MAX_REVIEWS
-
 
 class UserUpdate(BaseModel):
     username: Optional[str] = Field(None, max_length=100)
@@ -12,36 +10,49 @@ class UserUpdate(BaseModel):
     avatar_url: Optional[str] = Field(None, max_length=1000)
     settings: Optional[dict[str, Any]] = None
 
-    @field_validator("settings")
+    @field_validator('settings')
     @classmethod
     def validate_settings(cls, v):
         if v is not None:
             if not isinstance(v, dict):
                 return {}
             if len(v) > 50:
-                raise ValueError("Settings dictionary has too many keys (max 50).")
+                raise ValueError('Settings dictionary has too many keys (max 50).')
             try:
-                if len(json.dumps(v)) > 20_000:
-                    raise ValueError("Settings payload exceeds maximum allowed size (20KB).")
+                if len(json.dumps(v)) > 20000:
+                    raise ValueError('Settings payload exceeds maximum allowed size (20KB).')
             except (TypeError, OverflowError):
-                raise ValueError("Settings must be JSON serializable.")
-            if "tone" in v:
-                tone = v.get("tone")
-                v["tone"] = tone if isinstance(tone, str) and tone in {"gentle", "direct", "balanced"} else "balanced"
-            if "focus" in v:
-                raw_focus = v.get("focus")
+                raise ValueError('Settings must be JSON serializable.')
+            allowed_keys = {'publicLink', 'defaultTemplate', 'autoReview', 'focus', 'tone'}
+            v = {k: val for k, val in v.items() if k in allowed_keys}
+            if 'publicLink' in v:
+                raw_public = v.get('publicLink')
+                if isinstance(raw_public, str):
+                    v['publicLink'] = raw_public.strip().lower() in {'1', 'true', 'yes', 'on'}
+                else:
+                    v['publicLink'] = raw_public is True
+            if 'defaultTemplate' in v:
+                tmpl = v.get('defaultTemplate')
+                allowed_templates = {'simple', 'modern', 'creative', 'creative-studio', 'minimal-orange'}
+                v['defaultTemplate'] = tmpl if isinstance(tmpl, str) and tmpl in allowed_templates else 'simple'
+            if 'autoReview' in v:
+                v['autoReview'] = v.get('autoReview') is True
+            if 'tone' in v:
+                tone = v.get('tone')
+                v['tone'] = tone if isinstance(tone, str) and tone in {'gentle', 'direct', 'balanced'} else 'balanced'
+            if 'focus' in v:
+                raw_focus = v.get('focus')
                 if isinstance(raw_focus, list):
                     filtered = []
                     seen = set()
                     for f in raw_focus:
-                        if isinstance(f, str) and f in {"template", "layout", "design", "content"} and f not in seen:
+                        if isinstance(f, str) and f in {'template', 'layout', 'design', 'content'} and (f not in seen):
                             seen.add(f)
                             filtered.append(f)
-                    v["focus"] = filtered if filtered else ["template", "layout", "design", "content"]
+                    v['focus'] = filtered if filtered else ['template', 'layout', 'design', 'content']
                 else:
-                    v["focus"] = ["template", "layout", "design", "content"]
+                    v['focus'] = ['template', 'layout', 'design', 'content']
         return v
-
 
 class UserRead(BaseModel):
     id: int
@@ -52,9 +63,7 @@ class UserRead(BaseModel):
     settings: Optional[dict[str, Any]] = None
     is_active: bool = True
     created_at: Optional[datetime] = None
-
     model_config = ConfigDict(from_attributes=True)
-
 
 def _is_safe_url(url: Any) -> bool:
     if not isinstance(url, str):
@@ -62,82 +71,96 @@ def _is_safe_url(url: Any) -> bool:
     s = url.strip()
     if not s:
         return True
-    if s.startswith("//"):
+    if len(s) > 2000:
+        return False
+    if any((ord(ch) < 32 for ch in s)):
+        return False
+    if s.startswith('//'):
         return False
     lower = s.lower()
-    if lower.startswith(("javascript:", "data:", "vbscript:", "file:")):
+    if lower.startswith(('javascript:', 'data:', 'vbscript:', 'file:', 'blob:')):
         return False
-    return lower.startswith(("http://", "https://", "mailto:", "tel:")) or s.startswith(("/", "#"))
+    if lower.startswith(('mailto:', 'tel:')):
+        rest = s.split(':', 1)[1]
+        if any((c in rest for c in ('?', '&', '\n', '\r', ' ', '<', '>'))):
+            return False
+        return True
+    if s.startswith(('/', '#')) and (not s.startswith('//')):
+        return True
+    if lower.startswith(('http://', 'https://')):
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(s)
+            if parsed.scheme not in {'http', 'https'}:
+                return False
+            if not parsed.hostname:
+                return False
+            if parsed.username or parsed.password:
+                return False
+            return True
+        except Exception:
+            return False
+    return False
+URL_FIELD_SUBSTRINGS = ('url', 'link', 'demo', 'repo', 'github', 'href', 'src', 'image', 'thumbnail')
 
-
-URL_FIELD_SUBSTRINGS = (
-    "url", "link", "demo", "repo", "github", "href", "src", "image", "thumbnail"
-)
-
-
-def _validate_urls_recursive(data: Any, path: str = "") -> None:
+def _validate_urls_recursive(data: Any, path: str='') -> None:
     if isinstance(data, dict):
         for k, val in data.items():
             key_str = str(k).lower()
-            current_path = f"{path}.{k}" if path else str(k)
-            if any(sub in key_str for sub in URL_FIELD_SUBSTRINGS):
-                if isinstance(val, str) and not _is_safe_url(val):
+            current_path = f'{path}.{k}' if path else str(k)
+            if any((sub in key_str for sub in URL_FIELD_SUBSTRINGS)):
+                if isinstance(val, str) and (not _is_safe_url(val)):
                     raise ValueError(f"Unsafe URL scheme detected in field '{current_path}'. Only http/https URLs are allowed.")
             _validate_urls_recursive(val, current_path)
     elif isinstance(data, list):
         for idx, item in enumerate(data):
-            current_path = f"{path}[{idx}]"
+            current_path = f'{path}[{idx}]'
             _validate_urls_recursive(item, current_path)
 
-
 def _validate_project_urls(projects: list[dict[str, Any]]) -> None:
-    _validate_urls_recursive(projects, "projects")
-
+    _validate_urls_recursive(projects, 'projects')
 
 def _validate_section_urls(sections: dict[str, Any]) -> None:
-    _validate_urls_recursive(sections, "sections")
-
+    _validate_urls_recursive(sections, 'sections')
 
 class PortfolioBase(BaseModel):
-    title: str = Field("My Portfolio", max_length=200)
+    title: str = Field('My Portfolio', max_length=200)
     summary: Optional[str] = Field(None, max_length=2000)
     sections: Optional[dict[str, Any]] = None
     projects: Optional[list[dict[str, Any]]] = None
-    views: Optional[int] = Field(0, ge=0, le=1_000_000_000)
+    views: Optional[int] = Field(0, ge=0, le=1000000000)
     completion: Optional[int] = Field(0, ge=0, le=100)
 
-    @field_validator("projects")
+    @field_validator('projects')
     @classmethod
     def validate_projects(cls, v):
         if v is not None:
             if len(v) > 50:
-                raise ValueError("Maximum 50 projects allowed per portfolio.")
+                raise ValueError('Maximum 50 projects allowed per portfolio.')
             try:
-                if len(json.dumps(v)) > 100_000:
-                    raise ValueError("Projects payload exceeds maximum allowed size (100KB).")
+                if len(json.dumps(v)) > 100000:
+                    raise ValueError('Projects payload exceeds maximum allowed size (100KB).')
             except (TypeError, OverflowError):
-                raise ValueError("Projects must be JSON serializable.")
+                raise ValueError('Projects must be JSON serializable.')
             _validate_project_urls(v)
         return v
 
-    @field_validator("sections")
+    @field_validator('sections')
     @classmethod
     def validate_sections(cls, v):
         if v is not None:
             if len(v) > 50:
-                raise ValueError("Sections dictionary has too many keys (max 50).")
+                raise ValueError('Sections dictionary has too many keys (max 50).')
             try:
-                if len(json.dumps(v)) > 150_000:
-                    raise ValueError("Sections payload exceeds maximum allowed size (150KB).")
+                if len(json.dumps(v)) > 150000:
+                    raise ValueError('Sections payload exceeds maximum allowed size (150KB).')
             except (TypeError, OverflowError):
-                raise ValueError("Sections must be JSON serializable.")
+                raise ValueError('Sections must be JSON serializable.')
             _validate_section_urls(v)
         return v
 
-
 class PortfolioCreate(PortfolioBase):
     id: Optional[int] = None
-
 
 class PortfolioUpdate(BaseModel):
     title: Optional[str] = Field(None, max_length=200)
@@ -145,36 +168,35 @@ class PortfolioUpdate(BaseModel):
     sections: Optional[dict[str, Any]] = None
     projects: Optional[list[dict[str, Any]]] = None
     completion: Optional[int] = Field(None, ge=0, le=100)
-    views: Optional[int] = Field(None, ge=0, le=1_000_000_000)
+    views: Optional[int] = Field(None, ge=0, le=1000000000)
 
-    @field_validator("projects")
+    @field_validator('projects')
     @classmethod
     def validate_projects(cls, v):
         if v is not None:
             if len(v) > 50:
-                raise ValueError("Maximum 50 projects allowed per portfolio.")
+                raise ValueError('Maximum 50 projects allowed per portfolio.')
             try:
-                if len(json.dumps(v)) > 100_000:
-                    raise ValueError("Projects payload exceeds maximum allowed size (100KB).")
+                if len(json.dumps(v)) > 100000:
+                    raise ValueError('Projects payload exceeds maximum allowed size (100KB).')
             except (TypeError, OverflowError):
-                raise ValueError("Projects must be JSON serializable.")
+                raise ValueError('Projects must be JSON serializable.')
             _validate_project_urls(v)
         return v
 
-    @field_validator("sections")
+    @field_validator('sections')
     @classmethod
     def validate_sections(cls, v):
         if v is not None:
             if len(v) > 50:
-                raise ValueError("Sections dictionary has too many keys (max 50).")
+                raise ValueError('Sections dictionary has too many keys (max 50).')
             try:
-                if len(json.dumps(v)) > 150_000:
-                    raise ValueError("Sections payload exceeds maximum allowed size (150KB).")
+                if len(json.dumps(v)) > 150000:
+                    raise ValueError('Sections payload exceeds maximum allowed size (150KB).')
             except (TypeError, OverflowError):
-                raise ValueError("Sections must be JSON serializable.")
+                raise ValueError('Sections must be JSON serializable.')
             _validate_section_urls(v)
         return v
-
 
 class ProjectPhotoBase(BaseModel):
     project_name: Optional[str] = Field(None, max_length=200)
@@ -184,17 +206,15 @@ class ProjectPhotoBase(BaseModel):
     caption: Optional[str] = Field(None, max_length=255)
     display_order: int = Field(0, ge=0)
 
-    @field_validator("photo_url")
+    @field_validator('photo_url')
     @classmethod
     def validate_photo_url(cls, v: str) -> str:
         if not _is_safe_url(v):
-            raise ValueError("Unsafe URL scheme detected in photo_url.")
+            raise ValueError('Unsafe URL scheme detected in photo_url.')
         return v
-
 
 class ProjectPhotoCreate(ProjectPhotoBase):
     portfolio_id: int
-
 
 class ProjectPhotoRead(ProjectPhotoBase):
     id: int
@@ -202,14 +222,12 @@ class ProjectPhotoRead(ProjectPhotoBase):
     user_id: int
     created_at: datetime
     updated_at: datetime
-
     model_config = ConfigDict(from_attributes=True)
-
 
 class PortfolioRead(BaseModel):
     id: int
     user_id: int
-    title: str = "My Portfolio"
+    title: str = 'My Portfolio'
     summary: Optional[str] = None
     sections: dict[str, Any] = {}
     projects: list[dict[str, Any]] = []
@@ -220,13 +238,9 @@ class PortfolioRead(BaseModel):
     updated_at: datetime
     created_at: Optional[datetime] = None
     project_photos: list[ProjectPhotoRead] = []
-
     model_config = ConfigDict(from_attributes=True)
-
-
-Category = Literal["template", "layout", "design", "content"]
-Priority = Literal["high", "medium", "low"]
-
+Category = Literal['template', 'layout', 'design', 'content']
+Priority = Literal['high', 'medium', 'low']
 
 class ReviewCategory(BaseModel):
     key: Category
@@ -234,14 +248,12 @@ class ReviewCategory(BaseModel):
     score: int = Field(..., ge=0, le=100)
     note: str = Field(..., max_length=200)
 
-
 class ReviewSuggestion(BaseModel):
     id: str = Field(..., max_length=20)
     category: Category
     priority: Priority
     title: str = Field(..., max_length=100)
     text: str = Field(..., max_length=600)
-
 
 class AiReviewResponse(BaseModel):
     summary: str = Field(..., max_length=400)
@@ -254,8 +266,7 @@ class AiReviewResponse(BaseModel):
     locked_until: Optional[str] = None
     daily_remaining: Optional[int] = None
     retry_after_seconds: Optional[int] = None
-    source: Literal["ai", "heuristic"] = "heuristic"
-
+    source: Literal['ai', 'heuristic'] = 'heuristic'
 
 class AiReviewStatusResponse(BaseModel):
     remaining: int
@@ -268,12 +279,10 @@ class AiReviewStatusResponse(BaseModel):
     max_per_window: int = MAX_REVIEWS
     max_daily: int = 25
 
-
 class DraftTip(BaseModel):
     field: str
     label: str
     tip: str
-
 
 class AiDraftCheckResponse(BaseModel):
     score: int
@@ -287,12 +296,10 @@ class AiDraftCheckResponse(BaseModel):
     locked_until: Optional[str] = None
     retry_after_seconds: Optional[int] = None
 
-
 class PortfolioImageUploadResponse(BaseModel):
     url: str
     path: str
     bucket: str
-
 
 class PortfolioImageDeleteResponse(BaseModel):
     deleted: bool

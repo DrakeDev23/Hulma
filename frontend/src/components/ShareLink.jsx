@@ -14,14 +14,14 @@ export default function ShareLink({ slug, dark = false }) {
 
     const isPublicDisabled = (() => {
         try {
-            if (!user?.id) return false
+            if (!user?.id) return true
             const raw = localStorage.getItem(`hulma-settings:${user.id}`)
             if (raw) {
                 const parsed = JSON.parse(raw)
-                return parsed.publicLink === false
+                return parsed.publicLink !== true
             }
         } catch {}
-        return false
+        return true
     })()
 
     if (!url) return null
@@ -45,7 +45,6 @@ export default function ShareLink({ slug, dark = false }) {
                 setCopied(true)
                 setTimeout(() => setCopied(false), 2000)
             } catch {
-                // Clipboard fallback
             }
         }
     }

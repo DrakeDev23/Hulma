@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { UserRound, Mail, Phone, MapPin, Eye, Layers, Briefcase, GraduationCap, ChevronLeft, ChevronRight } from 'lucide-react'
+import { safeSrc } from '../utils/safeUrl'
 
 const MAX_DOTS = 5
 
@@ -123,7 +124,7 @@ function Slide({ portfolio }) {
             <div className="flex items-center gap-2.5 sm:gap-3">
                 <div className={`grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl sm:h-16 sm:w-16 ${t.avatar}`}>
                     {portfolio.picture || profile.profilePicture ? (
-                        <img src={portfolio.picture || profile.profilePicture} alt={name} className="h-full w-full object-cover" />
+                        <img src={safeSrc(portfolio.picture || profile.profilePicture)} alt={name} className="h-full w-full object-cover" />
                     ) : (
                         <UserRound size={24} className="sm:size-7" />
                     )}

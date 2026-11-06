@@ -18,7 +18,7 @@ const DEFAULTS = {
     username: '',
     email: '',
     defaultTemplate: 'simple',
-    publicLink: true,
+    publicLink: false,
     autoReview: false,
     focus: ['template', 'layout', 'design', 'content'],
     tone: 'balanced',
@@ -166,7 +166,7 @@ export default function Settings() {
                             username: authoritativeUser,
                             email: authoritativeMail,
                             defaultTemplate: serverSettings.defaultTemplate ?? prev.defaultTemplate ?? 'simple',
-                            publicLink: serverSettings.publicLink ?? prev.publicLink ?? true,
+                            publicLink: serverSettings.publicLink === true,
                             autoReview: serverSettings.autoReview ?? prev.autoReview ?? false,
                             focus: Array.isArray(serverSettings.focus) && serverSettings.focus.length > 0 ? serverSettings.focus : prev.focus,
                             tone: serverSettings.tone ?? prev.tone ?? 'balanced',
@@ -436,7 +436,7 @@ export default function Settings() {
                             checked={form.publicLink}
                             onChange={(v) => set('publicLink', v)}
                             title="Public link"
-                            text="Anyone with the link can view your published portfolio"
+                            text="Off by default. Turn on so anyone with the link can view your portfolio"
                         />
                     </div>
                 </Section>

@@ -320,11 +320,16 @@ export default function CreatePortfolio() {
     const [showClearModal, setShowClearModal] = useState(false)
     const [draftFeedback, setDraftFeedback] = useState(null)
     const [portfolioId, setPortfolioId] = useState(null)
+    const portfolioIdRef = useRef(null)
     const [userPortfolios, setUserPortfolios] = useState([])
     const userPortfoliosRef = useRef([])
     useEffect(() => {
         userPortfoliosRef.current = userPortfolios
     }, [userPortfolios])
+    useEffect(() => {
+        portfolioIdRef.current = portfolioId
+    }, [portfolioId])
+    const ensurePortfolioLockRef = useRef(null)
 
     const [savedTemplates, setSavedTemplates] = useState([])
     const [isSaving, setIsSaving] = useState(false)
@@ -410,7 +415,6 @@ export default function CreatePortfolio() {
                 })
             }
         } catch {
-            // Silently ignore background errors
         }
     }
 
@@ -689,6 +693,67 @@ export default function CreatePortfolio() {
         }
     }, [isDirty])
 
+    const ensureOwnedPortfolioId = async (token) => {
+        if (portfolioIdRef.current) {
+            return portfolioIdRef.current
+        }
+        if (ensurePortfolioLockRef.current) {
+            return ensurePortfolioLockRef.current
+        }
+
+        ensurePortfolioLockRef.current = (async () => {
+            const payloadToSend = buildPortfolioPayload(form, user, emailAddress, templateId, projectList)
+            delete payloadToSend.id
+
+            const response = await fetch(apiUrl('/api/portfolio/me'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(payloadToSend),
+            })
+
+            if (!response.ok) {
+                const text = await response.text()
+                let message = 'Could not prepare portfolio for image upload.'
+                try {
+                    const parsed = text ? JSON.parse(text) : null
+                    message = parsed?.detail || parsed?.message || text || message
+                } catch {
+                    message = text || message
+                }
+                throw new Error(message)
+            }
+
+            const saved = await response.json()
+            const newId = saved.id
+            if (!newId) {
+                throw new Error('Could not prepare portfolio for image upload.')
+            }
+
+            portfolioIdRef.current = newId
+            setPortfolioId(newId)
+            const currentList = userPortfoliosRef.current || []
+            const filtered = currentList.filter((p) => p.id !== newId)
+            const updated = [saved, ...filtered]
+            userPortfoliosRef.current = updated
+            setUserPortfolios(updated)
+            try {
+                if (userId) {
+                    localStorage.setItem(`hulmaPortfolio:${userId}`, JSON.stringify(updated))
+                }
+            } catch {}
+            return newId
+        })()
+
+        try {
+            return await ensurePortfolioLockRef.current
+        } finally {
+            ensurePortfolioLockRef.current = null
+        }
+    }
+
     const uploadProfilePicture = async (file) => {
         if (!file) return ''
 
@@ -705,13 +770,15 @@ export default function CreatePortfolio() {
             throw new Error('Your Clerk session is expired. Please log in again.')
         }
 
+        const ownedPortfolioId = await ensureOwnedPortfolioId(token)
+
         const formData = new FormData()
         formData.append('file', file)
 
         const queryParams = new URLSearchParams()
         if (templateId) queryParams.set('template_id', templateId)
-        if (portfolioId) queryParams.set('portfolio_id', String(portfolioId))
-        const queryStr = queryParams.toString() ? `?${queryParams.toString()}` : ''
+        queryParams.set('portfolio_id', String(ownedPortfolioId))
+        const queryStr = `?${queryParams.toString()}`
 
         const response = await fetch(apiUrl(`/api/portfolio/images/upload${queryStr}`), {
             method: 'POST',
@@ -753,12 +820,14 @@ export default function CreatePortfolio() {
             throw new Error('Your Clerk session is expired. Please log in again.')
         }
 
+        const ownedPortfolioId = await ensureOwnedPortfolioId(token)
+
         const formData = new FormData()
         formData.append('file', file)
 
         const queryParams = new URLSearchParams()
         if (templateId) queryParams.set('template_id', templateId)
-        if (portfolioId) queryParams.set('portfolio_id', String(portfolioId))
+        queryParams.set('portfolio_id', String(ownedPortfolioId))
         if (projectName) queryParams.set('project_name', projectName)
         if (projectIndex !== undefined && projectIndex !== null) queryParams.set('project_index', String(projectIndex))
         queryParams.set('is_project_photo', 'true')
@@ -1190,7 +1259,6 @@ export default function CreatePortfolio() {
                     return
                 }
 
-                // AI request failed with a rate-limit/quota error while user still has reviews left
                 setNotice('The AI service is busy right now. Please try again in a few minutes.')
                 return
             }

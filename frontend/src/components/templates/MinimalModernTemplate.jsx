@@ -17,11 +17,11 @@ import {
     Sparkles,
     X,
 } from 'lucide-react'
+import { safeHref, safeMailto, safeSrc } from '../../utils/safeUrl'
 
 const asLines = (v) => (Array.isArray(v) ? v.filter(Boolean) : [])
-const href = (url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`)
+const href = safeHref
 
-// Parse timeline entries (e.g., "Role at Company (Year) — Description" or "Degree — School (Year)")
 function parseTimelineEntry(item, fallbackType = 'work') {
     if (!item) return null
     if (typeof item === 'object') {
@@ -37,7 +37,6 @@ function parseTimelineEntry(item, fallbackType = 'work') {
     let mainPart = str
     let description = ''
 
-    // Check for delimiter like ' — ' or ' - ' separating main entry and description
     if (str.includes(' — ')) {
         const parts = str.split(' — ')
         mainPart = parts[0].trim()
@@ -48,7 +47,6 @@ function parseTimelineEntry(item, fallbackType = 'work') {
         description = parts.slice(1).join(' : ').trim()
     }
 
-    // Extract period from parentheses e.g. (2020 - Present) or (2022)
     let period = ''
     const parenMatch = mainPart.match(/\(([^)]+)\)$/)
     if (parenMatch) {
@@ -56,7 +54,6 @@ function parseTimelineEntry(item, fallbackType = 'work') {
         mainPart = mainPart.replace(/\(([^)]+)\)$/, '').trim()
     }
 
-    // Extract title & organization e.g. "Role at Company" or "Role @ Company" or "Degree — School"
     let title = mainPart
     let organization = ''
 
@@ -87,7 +84,6 @@ function parseTimelineEntry(item, fallbackType = 'work') {
     }
 }
 
-// Normalize projects
 function normalizeProject(proj, idx) {
     if (!proj) return null
     if (typeof proj === 'string') {
@@ -119,7 +115,6 @@ function normalizeProject(proj, idx) {
     }
 }
 
-// Group skills into clean categories if multiple exist
 function categorizeSkills(skills) {
     if (!skills || skills.length === 0) return []
     if (skills.length <= 4) {
@@ -196,7 +191,6 @@ export default function MinimalModernTemplate({
             setCopiedEmail(true)
             setTimeout(() => setCopiedEmail(false), 2000)
         } catch {
-            // fallback
         }
     }
 
@@ -427,7 +421,7 @@ export default function MinimalModernTemplate({
                                         <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-[#FAF9F6]">
                                             {picture ? (
                                                 <img
-                                                    src={picture}
+                                                    src={safeSrc(picture)}
                                                     alt={name}
                                                     className="h-full w-full object-cover transition duration-500 hover:scale-105"
                                                 />
@@ -504,7 +498,7 @@ export default function MinimalModernTemplate({
                                             <div className="min-w-0">
                                                 <span className="block text-[10px] text-[#78716C]">Email</span>
                                                 <a
-                                                    href={`mailto:${email}`}
+                                                    href={safeMailto(email)}
                                                     className="font-medium truncate hover:text-[#EA580C] transition"
                                                 >
                                                     {email}
@@ -660,7 +654,7 @@ export default function MinimalModernTemplate({
                                             <div className="relative aspect-[16/10] w-full overflow-hidden border-b border-[#E7E5E4] bg-white">
                                                 {proj.image ? (
                                                     <img
-                                                        src={proj.image}
+                                                        src={safeSrc(proj.image)}
                                                         alt={proj.name}
                                                         className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                                                     />
@@ -885,7 +879,7 @@ export default function MinimalModernTemplate({
                                                     <Mail size={13} />
                                                 </div>
                                                 <a
-                                                    href={`mailto:${email}`}
+                                                    href={safeMailto(email)}
                                                     className="font-medium hover:text-[#EA580C] transition"
                                                 >
                                                     {email}
@@ -925,7 +919,7 @@ export default function MinimalModernTemplate({
                                 <div className="lg:col-span-5 flex flex-col gap-4 sm:items-start lg:items-end">
                                     {email && (
                                         <a
-                                            href={`mailto:${email}`}
+                                            href={safeMailto(email)}
                                             className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-[#F97316] px-6 py-3.5 text-sm font-semibold text-white shadow-xs transition hover:bg-[#EA580C] active:scale-95"
                                         >
                                             <Mail size={16} />

@@ -6,9 +6,10 @@ import {
     MapPin,
     Phone,
 } from 'lucide-react'
+import { safeHref, safeMailto, safeSrc } from '../../utils/safeUrl'
 
 const asLines = (v) => (Array.isArray(v) ? v.filter(Boolean) : [])
-const href = (url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`)
+const href = safeHref
 
 export default function CreativeTemplate({
     portfolio,
@@ -116,7 +117,6 @@ export default function CreativeTemplate({
                         <div className="flex-1 min-w-0">
                             {tagline && (
                                 <p className="text-xs sm:text-sm font-black tracking-[0.25em] uppercase text-pink-500 mb-3">
-                                    // {tagline}
                                 </p>
                             )}
 
@@ -135,7 +135,7 @@ export default function CreativeTemplate({
                                 <div className="relative rotate-3 sm:rotate-6 rounded-3xl border-2 border-white/20 bg-[#12101e] p-1.5 shadow-2xl backdrop-blur-xl">
                                     {picture ? (
                                         <img
-                                            src={picture}
+                                            src={safeSrc(picture)}
                                             alt={name || 'Profile photo'}
                                             className="aspect-square w-28 sm:w-36 md:w-44 lg:w-52 rounded-2xl object-cover"
                                         />
@@ -202,7 +202,6 @@ export default function CreativeTemplate({
                         {stats.map((stat, idx) => (
                             <div key={idx} className="space-y-1">
                                 <span className="text-[10px] font-black tracking-widest text-orange-400 uppercase">
-                                    // STAT {stat.tag}
                                 </span>
                                 <div className="text-5xl sm:text-6xl md:text-7xl font-black text-stroke-outline tracking-tight hover:text-pink-500 transition-colors">
                                     {String(stat.val).padStart(2, '0')}
@@ -244,7 +243,7 @@ export default function CreativeTemplate({
                                         {email && (
                                             <div className="flex items-center gap-3">
                                                 <Mail size={16} className="text-pink-400 shrink-0" />
-                                                <a href={`mailto:${email}`} className="truncate hover:text-white hover:underline">
+                                                <a href={safeMailto(email)} className="truncate hover:text-white hover:underline">
                                                     {email}
                                                 </a>
                                             </div>
@@ -394,7 +393,6 @@ export default function CreativeTemplate({
                             {experience.length > 0 && (
                                 <div className="space-y-6">
                                     <h3 className="text-xs font-black tracking-[0.2em] uppercase text-pink-400">
-                                        // EXPERIENCE
                                     </h3>
                                     <div className="space-y-4">
                                         {experience.map((item, idx) => (
@@ -417,7 +415,6 @@ export default function CreativeTemplate({
                             {education.length > 0 && (
                                 <div className="space-y-6">
                                     <h3 className="text-xs font-black tracking-[0.2em] uppercase text-purple-400">
-                                        // EDUCATION
                                     </h3>
                                     <div className="space-y-4">
                                         {education.map((item, idx) => (
@@ -461,7 +458,7 @@ export default function CreativeTemplate({
                                 <div className="pt-4 flex flex-wrap gap-4 items-center">
                                     {email && (
                                         <a
-                                            href={`mailto:${email}`}
+                                            href={safeMailto(email)}
                                             className="group inline-flex items-center gap-3 rounded-full bg-gradient-to-r from-pink-500 via-purple-600 to-orange-500 px-8 py-4 text-sm font-black uppercase tracking-wider text-white shadow-xl shadow-pink-500/25 transition hover:scale-105 active:scale-95"
                                         >
                                             <Mail size={18} />

@@ -24,9 +24,10 @@ import {
     Star,
     User,
 } from 'lucide-react'
+import { safeHref, safeMailto, safeSrc } from '../../utils/safeUrl'
 
 const asLines = (v) => (Array.isArray(v) ? v.filter(Boolean) : [])
-const href = (url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`)
+const href = safeHref
 const NUMBER_WORDS = ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten']
 
 function Eyebrow({ text, light = false }) {
@@ -145,7 +146,7 @@ export function HeroSection({ name, tagline, about, picture, idPrefix, go }) {
 
                             <div className="relative h-56 w-56 sm:h-72 sm:w-72 md:h-80 md:w-80 overflow-hidden rounded-full border-4 border-white bg-[#1F3558] shadow-2xl">
                                 {picture ? (
-                                    <img src={picture} alt={name} className="h-full w-full object-cover" />
+                                    <img src={safeSrc(picture)} alt={name} className="h-full w-full object-cover" />
                                 ) : (
                                     <div className="flex h-full w-full flex-col items-center justify-center text-white">
                                         <User size={72} className="text-[#B9C3DB]" />
@@ -274,7 +275,7 @@ export function AboutSection({ name, about, picture, idPrefix, go }) {
                             <div className="absolute -inset-4 rounded-full border-2 border-dashed border-[#B9C3DB]/40 animate-[spin_40s_linear_infinite]" />
                             <div className="relative h-48 w-48 sm:h-64 sm:w-64 md:h-72 md:w-72 overflow-hidden rounded-full border-4 border-[#B9C3DB] shadow-2xl bg-[#172A47]">
                                 {picture ? (
-                                    <img src={picture} alt={name} className="h-full w-full object-cover" />
+                                    <img src={safeSrc(picture)} alt={name} className="h-full w-full object-cover" />
                                 ) : (
                                     <div className="flex h-full w-full flex-col items-center justify-center text-white">
                                         <Sparkles size={50} className="text-[#B9C3DB]" />
@@ -495,7 +496,7 @@ export function ProjectsSection({ projects, idPrefix }) {
                                     <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-gradient-to-tr from-[#1F3558] to-[#172A47] text-white p-5 flex flex-col justify-between shadow-inner">
                                         {projectImage ? (
                                             <img
-                                                src={projectImage}
+                                                src={safeSrc(projectImage)}
                                                 alt={proj.name}
                                                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
                                             />
@@ -745,7 +746,7 @@ export function ProcessSection({ picture, name, idPrefix }) {
                         <div className="relative h-72 w-72 sm:h-80 sm:w-80">
                             <div className="absolute inset-4 overflow-hidden rounded-full border-4 border-white shadow-xl bg-[#1F3558]">
                                 {picture ? (
-                                    <img src={picture} alt={name} className="h-full w-full object-cover" />
+                                    <img src={safeSrc(picture)} alt={name} className="h-full w-full object-cover" />
                                 ) : (
                                     <div className="flex h-full w-full items-center justify-center text-white">
                                         <Sparkles size={48} className="text-[#B9C3DB]" />
@@ -798,7 +799,7 @@ export function ContactSection({ email, phone, address, links, idPrefix }) {
                                 <div className="min-w-0">
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#7A7F8A]">Direct Email</span>
                                     <p className="truncate text-xs sm:text-sm font-semibold text-[#1A1A2E]">
-                                        {email ? <a href={`mailto:${email}`} className="hover:underline">{email}</a> : 'hello@creativestudio.com'}
+                                        {email ? <a href={safeMailto(email)} className="hover:underline">{email}</a> : 'hello@creativestudio.com'}
                                     </p>
                                 </div>
                             </div>
@@ -934,7 +935,7 @@ export function FooterSection({ name, picture, idPrefix, go }) {
                     <div className="flex justify-center md:col-span-4 md:justify-start">
                         <div className="relative h-24 w-24 sm:h-28 sm:w-28 overflow-hidden rounded-full border-2 border-[#B9C3DB] bg-[#172A47] shadow-xl">
                             {picture ? (
-                                <img src={picture} alt={name} className="h-full w-full object-cover" />
+                                <img src={safeSrc(picture)} alt={name} className="h-full w-full object-cover" />
                             ) : (
                                 <div className="flex h-full w-full items-center justify-center text-white">
                                     <Sparkles size={32} className="text-[#B9C3DB]" />

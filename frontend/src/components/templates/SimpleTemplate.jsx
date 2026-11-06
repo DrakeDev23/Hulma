@@ -1,7 +1,8 @@
 import { ArrowLeft, ArrowUpRight, Globe, Mail, MapPin, Phone } from 'lucide-react'
+import { safeHref, safeMailto, safeSrc } from '../../utils/safeUrl'
 
 const asLines = (v) => (Array.isArray(v) ? v.filter(Boolean) : [])
-const href = (url) => (/^https?:\/\//i.test(url) ? url : `https://${url}`)
+const href = safeHref
 
 function parseTimelineEntry(entry) {
     if (typeof entry !== 'string') return { title: String(entry), subtitle: '', date: '' }
@@ -96,7 +97,7 @@ export default function SimpleTemplate({
                     {picture && (
                         <div className="pb-2">
                             <img
-                                src={picture}
+                                src={safeSrc(picture)}
                                 alt={name || 'Profile photo'}
                                 className="h-24 w-24 sm:h-28 sm:w-28 rounded-full object-cover border border-[#e7e5e0]"
                             />
@@ -277,7 +278,7 @@ export default function SimpleTemplate({
                                     <div className="flex items-center gap-2">
                                         <Mail size={14} className="text-stone-400" />
                                         <a
-                                            href={`mailto:${email}`}
+                                            href={safeMailto(email)}
                                             className="transition hover:text-[#964222] hover:underline hover:underline-offset-4"
                                         >
                                             {email}

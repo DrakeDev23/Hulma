@@ -1,3 +1,4 @@
+import { safeSrc } from '../../utils/safeUrl'
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, CheckCircle2, AlertCircle, ExternalLink, Check, ArrowRight, Image as ImageIcon } from 'lucide-react'
 import ProjectPhotoField from './ProjectPhotoField'
@@ -34,7 +35,6 @@ export default function ProjectCard({
 
     const prevExpandedRef = useRef(isExpanded)
 
-    // Auto-scroll and focus only when user actively expands this card
     useEffect(() => {
         const wasExpanded = prevExpandedRef.current
         prevExpandedRef.current = isExpanded
@@ -119,7 +119,6 @@ export default function ProjectCard({
                     : 'border-slate-200 hover:border-slate-300'
             }`}
         >
-            {/* Header: Collapsed Card Row (Min 64px, fully clickable button) */}
             <div
                 className={`flex items-center justify-between gap-3 px-3.5 sm:px-4 py-3 min-h-[64px] transition cursor-pointer select-none ${
                     isExpanded ? 'bg-slate-50/70 border-b border-slate-100' : 'hover:bg-slate-50/50'
@@ -136,11 +135,10 @@ export default function ProjectCard({
                     }}
                     className="flex-1 min-w-0 flex items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded-xl"
                 >
-                    {/* 48px Rounded Thumbnail */}
                     <div className="h-12 w-12 rounded-xl border border-slate-200 overflow-hidden bg-slate-100 shrink-0 flex items-center justify-center shadow-2xs">
                         {hasPhoto ? (
                             <img
-                                src={project.image}
+                                src={safeSrc(project.image)}
                                 alt={project.name || 'Thumbnail'}
                                 className="h-full w-full object-cover"
                             />

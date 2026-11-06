@@ -32,6 +32,7 @@ import {
     timeGreeting,
     apiUrl,
 } from '../utils/portfolioUtils'
+import { safeSrc } from '../utils/safeUrl'
 
 const PAGE_SIZE = 8
 
@@ -98,7 +99,7 @@ function PortfolioThumbnail({ portfolio }) {
                     {picture ? (
                         <div className="relative">
                             <img
-                                src={picture}
+                                src={safeSrc(picture)}
                                 alt=""
                                 className="h-12 w-12 rounded-full border-2 border-white object-cover shadow-sm shrink-0"
                             />
@@ -150,7 +151,7 @@ function PortfolioThumbnail({ portfolio }) {
                     <div className="col-span-2">
                         {picture ? (
                             <img
-                                src={picture}
+                                src={safeSrc(picture)}
                                 alt=""
                                 className="h-10 w-10 rounded-lg border border-slate-200 object-cover shadow-2xs ml-auto"
                             />
@@ -167,7 +168,6 @@ function PortfolioThumbnail({ portfolio }) {
         )
     }
 
-    // Default: 'simple' (Minimal Modern Orange)
     return (
         <div className="relative w-full h-full bg-[#FAF9F6] p-3 flex flex-col justify-between overflow-hidden select-none border border-[#E7E5E4]/80">
             <div className="relative z-10 flex items-center justify-between border-b border-[#E7E5E4] pb-1">
@@ -182,7 +182,7 @@ function PortfolioThumbnail({ portfolio }) {
                 {picture ? (
                     <div className="relative">
                         <img
-                            src={picture}
+                            src={safeSrc(picture)}
                             alt=""
                             className="h-12 w-12 rounded-xl border border-[#E7E5E4] object-cover shadow-2xs shrink-0"
                         />
